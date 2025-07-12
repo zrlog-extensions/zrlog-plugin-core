@@ -119,10 +119,10 @@ public class PluginApiController extends Controller {
 
     @ResponseBody
     public Map<String, Object> status() {
-        if (PluginUtil.allRunning()) {
-            return Map.of("code", 0, "status", "STARTED");
-        }
         List<String> plugins = PluginConfig.getInstance().getAllSessions().stream().map(e -> e.getPlugin().getShortName()).collect(Collectors.toList());
+        if (PluginUtil.allRunning()) {
+            return Map.of("code", 0, "status", "STARTED", "runningPlugins", plugins);
+        }
         return Map.of("code", 0, "status", "STARTING", "runningPlugins", plugins);
     }
 }
