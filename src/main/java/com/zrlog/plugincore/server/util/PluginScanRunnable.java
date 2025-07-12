@@ -216,7 +216,12 @@ public class PluginScanRunnable extends BaseLockObject implements Runnable {
             if (StringUtils.isEmpty(pluginName)) {
                 continue;
             }
-            runnablePlugins.put(pluginName, UUID.randomUUID().toString());
+            Optional<PluginVO> pluginVOOptional = pluginCore.getPluginInfoMap().values().stream().filter(e -> e.getPlugin().getShortName().equals(pluginName)).findFirst();
+            if (pluginVOOptional.isPresent() && Objects.nonNull(pluginVOOptional.get().getPlugin())) {
+                runnablePlugins.put(pluginName, pluginVOOptional.get().getPlugin().getId());
+            } else {
+                runnablePlugins.put(pluginName, UUID.randomUUID().toString());
+            }
         }
         return runnablePlugins;
     }
