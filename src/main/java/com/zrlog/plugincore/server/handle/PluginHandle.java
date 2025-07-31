@@ -7,14 +7,12 @@ import com.hibegin.http.server.api.HttpRequest;
 import com.hibegin.http.server.api.HttpResponse;
 import com.hibegin.http.server.util.MimeTypeUtil;
 import com.zrlog.plugin.IOSession;
-import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.common.HexaConversionUtil;
 import com.zrlog.plugin.common.IOUtil;
 import com.zrlog.plugin.common.IdUtil;
 import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugin.data.codec.*;
 import com.zrlog.plugin.type.ActionType;
-import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.config.PluginConfig;
 import com.zrlog.plugincore.server.util.HttpMsgUtil;
 import com.zrlog.plugincore.server.util.StringUtils;
@@ -47,7 +45,7 @@ public class PluginHandle implements HttpErrorHandle {
     }
 
     private static PluginRequestUriInfo parseRequestUri(String uri) {
-        String realUri = uri.replaceFirst("/admin/plugins/", "").replaceFirst("/p/", "").replaceFirst("/plugin/", "");
+        String realUri = uri.replace("//", "/").replaceFirst("/admin/plugins/", "").replaceFirst("/p/", "").replaceFirst("/plugin/", "");
         if (StringUtils.isEmpty(realUri)) {
             return new PluginRequestUriInfo("", "");
         }
@@ -63,7 +61,7 @@ public class PluginHandle implements HttpErrorHandle {
     }
 
     public static void main(String[] args) {
-        PluginRequestUriInfo pluginRequestUriInfo = parseRequestUri("/admin/plugins/oss/assets/js/bootstrap-switch.js");
+        PluginRequestUriInfo pluginRequestUriInfo = parseRequestUri("/admin/plugins/oss//assets/js/bootstrap-switch.js");
         System.out.println(pluginRequestUriInfo.getName() + " -> " + pluginRequestUriInfo.getAction());
     }
 
