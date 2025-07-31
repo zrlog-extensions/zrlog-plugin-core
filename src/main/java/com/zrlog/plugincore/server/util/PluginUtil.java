@@ -147,7 +147,7 @@ public class PluginUtil {
 
     public static File downloadPlugin(String fileName) throws Exception {
         String downloadUrl = "https://dl.zrlog.com/plugin/" + fileName;
-        return downloadPluginByUrl(downloadUrl, fileName);
+        return downloadPluginByUrl(downloadUrl + "?v=" + System.currentTimeMillis(), fileName);
 
     }
 
