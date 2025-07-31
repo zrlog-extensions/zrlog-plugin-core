@@ -158,7 +158,7 @@ public class PluginHandle implements HttpErrorHandle {
             }
             InputStream in = new ByteArrayInputStream(responseMsgPacket.getData().array());
             httpResponse.addHeader("Content-Type", MimeTypeUtil.getMimeStrByExt(ext));
-            httpResponse.write(in, 200);
+            httpResponse.write(in, responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_SUCCESS ? 200 : 500);
         } finally {
             session.getPipeMap().remove(id);
         }
