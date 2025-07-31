@@ -35,9 +35,6 @@ public class PluginHandle implements HttpErrorHandle {
     private static final Logger LOGGER = LoggerUtil.getLogger(PluginHandle.class);
 
     private boolean includePath(Set<String> paths, String uri) {
-        if (RunConstants.runType == RunType.DEV) {
-            return true;
-        }
         for (String path : paths) {
             String tPath = path.trim();
             if (!tPath.isEmpty()) {
@@ -83,9 +80,6 @@ public class PluginHandle implements HttpErrorHandle {
     @Override
     public void doHandle(HttpRequest httpRequest, HttpResponse httpResponse, Throwable e) {
         boolean isLogin = Boolean.parseBoolean(httpRequest.getHeader("IsLogin"));
-        if (RunConstants.runType == RunType.DEV) {
-            isLogin = true;
-        }
         httpRequest.getAttr().put("isLogin", isLogin);
         PluginRequestUriInfo pluginRequestUriInfo = parseRequestUri(httpRequest.getUri());
 

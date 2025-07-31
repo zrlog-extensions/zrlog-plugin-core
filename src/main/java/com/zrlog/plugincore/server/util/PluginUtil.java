@@ -2,11 +2,8 @@ package com.zrlog.plugincore.server.util;
 
 import com.hibegin.common.util.EnvKit;
 import com.zrlog.plugin.IOSession;
-import com.zrlog.plugin.RunConstants;
-import com.zrlog.plugin.common.ConfigKit;
 import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugin.message.Plugin;
-import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.Application;
 import com.zrlog.plugincore.server.config.PluginConfig;
 import com.zrlog.plugincore.server.config.PluginCore;
@@ -14,12 +11,16 @@ import com.zrlog.plugincore.server.config.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.type.PluginStatus;
 
-import java.io.*;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -98,17 +99,13 @@ public class PluginUtil {
                 session.close();
                 pluginScanRunnable.destroy(pluginName);
             }
-            if (RunConstants.runType != RunType.DEV) {
-                File pluginFile = getPluginFile(pluginName);
-                if (pluginFile.exists()) {
-                    pluginFile.delete();
-                }
+            File pluginFile = getPluginFile(pluginName);
+            if (pluginFile.exists()) {
+                pluginFile.delete();
             }
         }
         PluginCoreDAO.getInstance().getPluginInfoMap().remove(pluginName);
     }
-
-
 
 
     static void copyInputStreamToFile(InputStream inputStream, String filePath) {

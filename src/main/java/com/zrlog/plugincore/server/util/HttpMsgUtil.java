@@ -19,11 +19,6 @@ public class HttpMsgUtil {
         }
         msgBody.setVersion(request.getHeader("Blog-Version"));
         msgBody.setAccessUrl(request.getHeader("AccessUrl"));
-        if (RunConstants.runType == RunType.DEV) {
-            msgBody.setFullUrl(request.getScheme() + "://" + request.getHeader("Host") + request.getUri());
-            msgBody.setUserName("LOC_DEV");
-            msgBody.setUserId(1);
-        }
         return msgBody;
     }
 }

@@ -48,7 +48,7 @@ public class PluginScanRunnable extends BaseLockObject implements Runnable {
     private void printInputStreamWithThread(final Process pr, final InputStream in, final String pluginName,
                                             final String printLevel, final String uuid) {
         new Thread(() -> {
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(in));) {
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(in))) {
                 String str = br.readLine();
                 if (Objects.isNull(str)) {
                     return;
@@ -83,13 +83,11 @@ public class PluginScanRunnable extends BaseLockObject implements Runnable {
                 session.close();
             }
             //关闭进程
-            if (RunConstants.runType != RunType.DEV) {
-                Process process = processMap.get(pluginId);
-                if (process != null) {
-                    process.destroy();
-                }
-                processMap.remove(pluginId);
+            Process process = processMap.get(pluginId);
+            if (process != null) {
+                process.destroy();
             }
+            processMap.remove(pluginId);
             //移除相关映射
             PluginConfig.getInstance().getSessionMap().remove(pluginId);
         }
@@ -153,9 +151,6 @@ public class PluginScanRunnable extends BaseLockObject implements Runnable {
 
     @Override
     public void run() {
-        if (RunConstants.runType == RunType.DEV) {
-            return;
-        }
         checkLostFile();
         Set<Map.Entry<String, String>> entries = getAllRunnablePlugin().entrySet();
         for (Map.Entry<String, String> pluginVO : entries) {
@@ -198,6 +193,7 @@ public class PluginScanRunnable extends BaseLockObject implements Runnable {
 
     /**
      * FaaS 模式下，存在的插件即为需要运行
+     *
      * @return
      */
     private Map<String, String> getDownloadedPluginList() {

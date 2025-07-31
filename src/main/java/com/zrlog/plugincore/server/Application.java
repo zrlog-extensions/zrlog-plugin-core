@@ -12,12 +12,10 @@ import com.zrlog.plugin.common.model.BlogRunTime;
 import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.config.PluginConfig;
 import com.zrlog.plugincore.server.config.PluginHttpServerConfig;
-import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.impl.NioServer;
 import com.zrlog.plugincore.server.util.DevUtil;
 import com.zrlog.plugincore.server.util.LambdaEnv;
 import com.zrlog.plugincore.server.util.ListenWebServerThread;
-import com.zrlog.plugincore.server.util.PluginUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -72,7 +70,7 @@ public class Application {
             blogRunTime.setPath(DevUtil.blogRuntimePath());
             blogRunTime.setVersion("1.5");
         } else {
-            RunConstants.runType = RunType.BLOG;
+            RunConstants.runType = EnvKit.isDevMode() ? RunType.DEV : RunType.BLOG;
             int port = (args.length > 4) ? Integer.parseInt(args[4]) : -1;
             blogRunTime.setPath((args.length > 5) ? args[5] : DevUtil.blogRuntimePath());
             blogRunTime.setVersion((args.length > 6) ? args[6] : DevUtil.blogVersion());

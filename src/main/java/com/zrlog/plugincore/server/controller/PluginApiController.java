@@ -5,7 +5,6 @@ import com.hibegin.http.server.api.HttpRequest;
 import com.hibegin.http.server.api.HttpResponse;
 import com.hibegin.http.server.web.Controller;
 import com.zrlog.plugin.IOSession;
-import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.common.ConfigKit;
 import com.zrlog.plugin.common.IdUtil;
 import com.zrlog.plugin.data.codec.ContentType;
@@ -13,16 +12,17 @@ import com.zrlog.plugin.data.codec.HttpRequestInfo;
 import com.zrlog.plugin.data.codec.MsgPacket;
 import com.zrlog.plugin.data.codec.MsgPacketStatus;
 import com.zrlog.plugin.type.ActionType;
-import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.config.PluginConfig;
-import com.zrlog.plugincore.server.config.PluginCore;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.util.BooleanUtils;
 import com.zrlog.plugincore.server.util.HttpMsgUtil;
 import com.zrlog.plugincore.server.util.PluginUtil;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class PluginApiController extends Controller {
@@ -80,15 +80,10 @@ public class PluginApiController extends Controller {
             map.put("message", "插件已经启动了");
             return map;
         }
-        if (RunConstants.runType != RunType.DEV) {
-            String pluginName = getRequest().getParaToStr("name");
-            PluginUtil.loadPlugin(PluginUtil.getPluginFile(pluginName), PluginCoreDAO.getInstance().getPluginVOByName(pluginName).getPlugin().getId());
-            map.put("code", 0);
-            map.put("message", "插件启动成功");
-        } else {
-            map.put("code", 1);
-            map.put("message", "dev ENV");
-        }
+        String pluginName = getRequest().getParaToStr("name");
+        PluginUtil.loadPlugin(PluginUtil.getPluginFile(pluginName), PluginCoreDAO.getInstance().getPluginVOByName(pluginName).getPlugin().getId());
+        map.put("code", 0);
+        map.put("message", "插件启动成功");
         return map;
     }
 
