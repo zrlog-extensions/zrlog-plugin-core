@@ -45,7 +45,7 @@ public class PluginHandle implements HttpErrorHandle {
     }
 
     private static PluginRequestUriInfo parseRequestUri(String uri) {
-        String realUri = uri.replace("//", "/").replaceFirst("/admin/plugins/", "").replaceFirst("/p/", "").replaceFirst("/plugin/", "");
+        String realUri = uri.replaceFirst("/admin/plugins/", "").replaceFirst("/p/", "").replaceFirst("/plugin/", "");
         if (StringUtils.isEmpty(realUri)) {
             return new PluginRequestUriInfo("", "");
         }

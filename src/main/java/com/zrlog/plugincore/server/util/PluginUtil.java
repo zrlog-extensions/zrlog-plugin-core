@@ -136,7 +136,7 @@ public class PluginUtil {
     }
 
     private static File downloadPluginByUrl(String url, String fileName) throws Exception {
-        LOGGER.info("download plugin " + fileName);
+        LOGGER.info("download plugin " + fileName + " from " + url);
         File downloadFile = new File(PluginConfig.getInstance().getPluginBasePath() + "/" + fileName);
         copyInputStreamToFile(HttpUtils.doGetRequest(url, new HashMap<>()), downloadFile.toString());
         if (downloadFile.length() == 0) {
