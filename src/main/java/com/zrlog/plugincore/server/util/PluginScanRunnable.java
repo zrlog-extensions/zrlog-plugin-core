@@ -3,10 +3,8 @@ package com.zrlog.plugincore.server.util;
 import com.hibegin.common.BaseLockObject;
 import com.hibegin.common.util.EnvKit;
 import com.zrlog.plugin.IOSession;
-import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.common.ConfigKit;
 import com.zrlog.plugin.common.LoggerUtil;
-import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.config.PluginConfig;
 import com.zrlog.plugincore.server.config.PluginCore;
 import com.zrlog.plugincore.server.config.PluginVO;
@@ -114,8 +112,8 @@ public class PluginScanRunnable extends BaseLockObject implements Runnable {
             }
             String pluginName = PluginUtil.getPluginName(pluginFile);
             LOGGER.info("run plugin " + pluginName);
-            String userDir = PluginConfig.getInstance().getPluginBasePath() + "/" + pluginName + "/usr/";
-            String tmpDir = PluginConfig.getInstance().getPluginBasePath() + "/" + pluginName + "/tmp/";
+            String userDir = PluginConfig.getInstance().getPluginHomeFolder(pluginName);
+            String tmpDir = PluginConfig.getInstance().getPluginTempFolder(pluginName);
             new File(userDir).mkdirs();
             new File(tmpDir).mkdirs();
             List<String> args = new ArrayList<>();
