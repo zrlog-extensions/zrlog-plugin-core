@@ -339,4 +339,21 @@ public class ServerActionHandler implements IActionHandler {
     public void refreshCache(IOSession session, MsgPacket msgPacket) {
         doRefreshCache(20);
     }
+
+    @Override
+    public void articleVisitViewCountAddOne(IOSession session, MsgPacket msgPacket) {
+        Map info = new Gson().fromJson(msgPacket.getDataStr(), Map.class);
+        String alias = info.get("alias").toString();
+        Map<String, Object> map = new HashMap<>();
+
+        try {
+            new DAO().execute("update log set click = click + 1  where logId=? or alias=?", alias, alias);
+            map.put("result", true);
+            session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+        } catch (SQLException e) {
+            map.put("result", false);
+            map.put("message", LoggerUtil.recordStackTraceMsg(e));
+            session.sendJsonMsg(new HashMap<>(), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+        }
+    }
 }

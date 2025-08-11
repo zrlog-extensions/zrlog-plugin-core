@@ -146,21 +146,25 @@ public class PluginHandle implements HttpErrorHandle {
                     file.delete();
                 }
             }
-            String ext;
-            if (responseMsgPacket.getContentType() == ContentType.JSON) {
-                ext = "json";
-            } else if (responseMsgPacket.getContentType() == ContentType.HTML) {
-                ext = "html";
-            } else if (responseMsgPacket.getContentType() == ContentType.XML) {
-                ext = "xml";
-            } else {
-                ext = httpRequest.getUri().substring(httpRequest.getUri().lastIndexOf(".") + 1);
-            }
+            String ext = getExt(httpRequest, responseMsgPacket);
             InputStream in = new ByteArrayInputStream(responseMsgPacket.getData().array());
             httpResponse.addHeader("Content-Type", MimeTypeUtil.getMimeStrByExt(ext));
             httpResponse.write(in, responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_SUCCESS ? 200 : 500);
         } finally {
             session.getPipeMap().remove(id);
         }
+    }
+
+    private static String getExt(HttpRequest httpRequest, MsgPacket responseMsgPacket) {
+        if (responseMsgPacket.getContentType() == ContentType.JSON) {
+            return "json";
+        } else if (responseMsgPacket.getContentType() == ContentType.HTML) {
+            return "html";
+        } else if (responseMsgPacket.getContentType() == ContentType.XML) {
+            return "xml";
+        } else if (responseMsgPacket.getContentType() == ContentType.IMAGE_SVG_XML) {
+            return "svg";
+        }
+        return httpRequest.getUri().substring(httpRequest.getUri().lastIndexOf(".") + 1);
     }
 }
