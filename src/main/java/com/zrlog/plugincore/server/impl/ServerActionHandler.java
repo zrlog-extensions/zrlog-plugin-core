@@ -12,6 +12,8 @@ import com.zrlog.plugin.common.model.Comment;
 import com.zrlog.plugin.common.model.CreateArticleRequest;
 import com.zrlog.plugin.common.model.PublicInfo;
 import com.zrlog.plugin.common.model.TemplatePath;
+import com.zrlog.plugin.data.codec.BaseHttpRequestInfo;
+import com.zrlog.plugin.data.codec.HttpResponseInfo;
 import com.zrlog.plugin.data.codec.MsgPacket;
 import com.zrlog.plugin.data.codec.MsgPacketStatus;
 import com.zrlog.plugin.message.Plugin;
@@ -28,6 +30,7 @@ import com.zrlog.plugincore.server.util.HttpUtils;
 import com.zrlog.plugincore.server.util.PluginUtil;
 import org.jsoup.Jsoup;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -177,7 +180,18 @@ public class ServerActionHandler implements IActionHandler {
 
     @Override
     public void httpMethod(final IOSession session, final MsgPacket msgPacket) {
-        handleMassagePackage(session, msgPacket);
+        //handleMassagePackage(session, msgPacket);
+        try {
+            BaseHttpRequestInfo httpRequestInfo = new Gson().fromJson(msgPacket.getDataStr(), BaseHttpRequestInfo.class);
+            HttpResponseInfo httpResponseInfo = HttpUtils.doRequest(httpRequestInfo);
+            session.sendJsonMsg(httpResponseInfo, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+        } catch (Exception e) {
+            HttpResponseInfo httpResponseInfo = new HttpResponseInfo();
+            httpResponseInfo.setStatusCode(500);
+            httpResponseInfo.setHeader(new HashMap<>());
+            httpResponseInfo.setResponseBody(LoggerUtil.recordStackTraceMsg(e).getBytes(StandardCharsets.UTF_8));
+            session.sendJsonMsg(httpResponseInfo, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+        }
     }
 
     @Override
