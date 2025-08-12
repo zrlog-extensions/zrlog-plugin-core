@@ -19,12 +19,19 @@ public class PluginHttpServerConfig extends AbstractServerConfig {
 
     private final Integer port;
 
+    private final ServerConfig serverConfig;
+
     public PluginHttpServerConfig(Integer port) {
         this.port = port;
+        this.serverConfig = initServerConfig();
     }
 
     @Override
     public ServerConfig getServerConfig() {
+        return serverConfig;
+    }
+
+    private ServerConfig initServerConfig() {
         ServerConfig serverConfig = new ServerConfig().setApplicationName("zrlog-plugin-http-server").setDisablePrintWebServerInfo(true);
         serverConfig.setNativeImageAgent(Application.nativeAgent);
         serverConfig.setHost(RunConstants.runType == RunType.BLOG ? "127.0.0.1" : "0.0.0.0");

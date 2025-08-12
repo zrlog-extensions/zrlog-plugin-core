@@ -25,7 +25,7 @@
         <dependency>
             <groupId>com.hibegin</groupId>
             <artifactId>simplewebserver</artifactId>
-            <version>4.0.82</version>
+            <version>4.0.105</version>
         </dependency>
         <dependency>
             <groupId>com.mysql</groupId>

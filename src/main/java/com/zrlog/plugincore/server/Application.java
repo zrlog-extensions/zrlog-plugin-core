@@ -101,19 +101,13 @@ public class Application {
     private static void loadHttpServer(Integer serverPort) {
         PluginHttpServerConfig config = new PluginHttpServerConfig(serverPort);
         WebServerBuilder build = new WebServerBuilder.Builder().config(config).build();
-        build.addCreateSuccessHandle(() -> {
-            if (nativeAgent) {
-                new Thread(() -> {
-                    try {
-                        Thread.sleep(5000);
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                    System.exit(0);
-                }).start();
-            }
-            return null;
-        });
+        if (nativeAgent) {
+            config.getServerConfig().addCreateSuccessHandle(() -> {
+                Thread.sleep(5000);
+                System.exit(0);
+                return null;
+            });
+        }
         build.start();
     }
 }
