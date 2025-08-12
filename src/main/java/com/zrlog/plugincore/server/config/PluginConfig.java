@@ -72,6 +72,21 @@ public class PluginConfig {
         return pluginBasePath;
     }
 
+    public String getPluginHomeFolder(String pluginName) {
+        if (EnvKit.isFaaSMode()) {
+            return "/tmp/" + masterPort + "/" + pluginName + "/usr/";
+        }
+        return PluginConfig.getInstance().getPluginBasePath() + "/" + pluginName + "/usr/";
+    }
+
+    public String getPluginTempFolder(String pluginName) {
+        if (EnvKit.isFaaSMode()) {
+            return "/tmp/" + masterPort + "/" + pluginName + "/tmp/";
+        }
+        return PluginConfig.getInstance().getPluginBasePath() + "/" + pluginName + "/tmp/";
+    }
+
+
     public IOSession getIOSessionByPluginName(String pluginName) {
         PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginInfoMap().get(pluginName);
         if (pluginVO != null) {
