@@ -43,14 +43,10 @@ public class ServerActionHandler implements IActionHandler {
 
     @Override
     public void service(final IOSession session, final MsgPacket msgPacket) {
-        handleMassagePackage(session, msgPacket);
-    }
-
-    private void handleMassagePackage(final IOSession session, final MsgPacket msgPacket) {
         if (msgPacket.getStatus() == MsgPacketStatus.SEND_REQUEST) {
             Map<String, Object> map = new Gson().fromJson(msgPacket.getDataStr(), Map.class);
             String name = map.get("name").toString();
-            final IOSession serviceSession = PluginConfig.getInstance().getIOSessionByService(name);
+            IOSession serviceSession = PluginConfig.getInstance().getIOSessionByService(name);
             if (serviceSession != null) {
                 // 消息中转
                 serviceSession.requestService(name, map, responseMsgPacket -> {
@@ -180,17 +176,18 @@ public class ServerActionHandler implements IActionHandler {
 
     @Override
     public void httpMethod(final IOSession session, final MsgPacket msgPacket) {
-        //handleMassagePackage(session, msgPacket);
-        try {
-            BaseHttpRequestInfo httpRequestInfo = new Gson().fromJson(msgPacket.getDataStr(), BaseHttpRequestInfo.class);
-            HttpResponseInfo httpResponseInfo = HttpUtils.doRequest(httpRequestInfo);
-            session.sendJsonMsg(httpResponseInfo, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-        } catch (Exception e) {
-            HttpResponseInfo httpResponseInfo = new HttpResponseInfo();
-            httpResponseInfo.setStatusCode(500);
-            httpResponseInfo.setHeader(new HashMap<>());
-            httpResponseInfo.setResponseBody(LoggerUtil.recordStackTraceMsg(e).getBytes(StandardCharsets.UTF_8));
-            session.sendJsonMsg(httpResponseInfo, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+        if (msgPacket.getStatus() == MsgPacketStatus.SEND_REQUEST) {
+            try {
+                BaseHttpRequestInfo httpRequestInfo = new Gson().fromJson(msgPacket.getDataStr(), BaseHttpRequestInfo.class);
+                HttpResponseInfo httpResponseInfo = HttpUtils.doRequest(httpRequestInfo);
+                session.sendJsonMsg(httpResponseInfo, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+            } catch (Exception e) {
+                HttpResponseInfo httpResponseInfo = new HttpResponseInfo();
+                httpResponseInfo.setStatusCode(500);
+                httpResponseInfo.setHeader(new HashMap<>());
+                httpResponseInfo.setResponseBody(LoggerUtil.recordStackTraceMsg(e).getBytes(StandardCharsets.UTF_8));
+                session.sendJsonMsg(httpResponseInfo, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+            }
         }
     }
 
