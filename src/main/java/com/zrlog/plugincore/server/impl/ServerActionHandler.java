@@ -25,6 +25,7 @@ import com.zrlog.plugincore.server.dao.ArticleDAO;
 import com.zrlog.plugincore.server.dao.CommentDAO;
 import com.zrlog.plugincore.server.dao.TypeDAO;
 import com.zrlog.plugincore.server.dao.WebSiteDAO;
+import com.zrlog.plugincore.server.handle.ServiceMsgPacketHandler;
 import com.zrlog.plugincore.server.type.PluginStatus;
 import com.zrlog.plugincore.server.util.HttpUtils;
 import com.zrlog.plugincore.server.util.PluginUtil;
@@ -44,21 +45,7 @@ public class ServerActionHandler implements IActionHandler {
     @Override
     public void service(final IOSession session, final MsgPacket msgPacket) {
         if (msgPacket.getStatus() == MsgPacketStatus.SEND_REQUEST) {
-            Map<String, Object> map = new Gson().fromJson(msgPacket.getDataStr(), Map.class);
-            String name = map.get("name").toString();
-            IOSession serviceSession = PluginConfig.getInstance().getIOSessionByService(name);
-            if (serviceSession != null) {
-                // 消息中转
-                serviceSession.requestService(name, map, responseMsgPacket -> {
-                    responseMsgPacket.setMsgId(msgPacket.getMsgId());
-                    session.sendMsg(responseMsgPacket);
-                });
-            } else {
-                // not found service response error
-                Map<String, Object> response = new HashMap<>();
-                response.put("status", 500);
-                session.sendJsonMsg(response, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
-            }
+            new ServiceMsgPacketHandler(session).doHandle(msgPacket);
         }
     }
 

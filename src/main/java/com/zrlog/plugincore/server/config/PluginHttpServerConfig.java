@@ -5,8 +5,6 @@ import com.hibegin.http.server.config.RequestConfig;
 import com.hibegin.http.server.config.ResponseConfig;
 import com.hibegin.http.server.config.ServerConfig;
 import com.hibegin.http.server.web.MethodInterceptor;
-import com.zrlog.plugin.RunConstants;
-import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.Application;
 import com.zrlog.plugincore.server.controller.PluginApiController;
 import com.zrlog.plugincore.server.controller.PluginController;
@@ -34,7 +32,7 @@ public class PluginHttpServerConfig extends AbstractServerConfig {
     private ServerConfig initServerConfig() {
         ServerConfig serverConfig = new ServerConfig().setApplicationName("zrlog-plugin-http-server").setDisablePrintWebServerInfo(true);
         serverConfig.setNativeImageAgent(Application.nativeAgent);
-        serverConfig.setHost(RunConstants.runType == RunType.BLOG ? "127.0.0.1" : "0.0.0.0");
+        serverConfig.setHost("127.0.0.1");
         serverConfig.setPort(port);
         serverConfig.setDisableSession(true);
         serverConfig.setDisableSavePidFile(true);
