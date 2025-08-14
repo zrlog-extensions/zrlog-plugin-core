@@ -7,6 +7,7 @@ import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugin.data.codec.HttpRequestInfo;
 import com.zrlog.plugincore.server.config.PluginConfig;
+import com.zrlog.plugincore.server.handle.ServiceMsgPacketHandler;
 import com.zrlog.plugincore.server.util.BooleanUtils;
 import com.zrlog.plugincore.server.util.HttpMsgUtil;
 import com.zrlog.plugincore.server.util.PluginUtil;
@@ -84,14 +85,14 @@ public class PluginController extends Controller {
     }
 
 
-    public void service() {
+    public void service() throws InterruptedException {
         String name = getRequest().getParaToStr("name");
         if (StringUtils.isEmpty(name)) {
             LOGGER.warning("Missing service name");
             getResponse().renderCode(404);
             return;
         }
-        IOSession session = PluginConfig.getInstance().getIOSessionByService(name);
+        IOSession session = ServiceMsgPacketHandler.getServiceSessionWithRetry(name, 0);
         if (Objects.isNull(session)) {
             getResponse().renderCode(404);
             return;

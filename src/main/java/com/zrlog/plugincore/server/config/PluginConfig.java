@@ -96,15 +96,6 @@ public class PluginConfig {
         return null;
     }
 
-    public IOSession getIOSessionByService(String service) {
-        for (PluginVO pluginVO : PluginCoreDAO.getInstance().getPluginInfoMap().values()) {
-            if (pluginVO.getPlugin().getServices().contains(service)) {
-                return sessionMap.get(pluginVO.getPlugin().getId());
-            }
-        }
-        return null;
-    }
-
     public Map<String, IOSession> getSessionMap() {
         return sessionMap;
     }
