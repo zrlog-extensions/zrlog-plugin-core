@@ -18,8 +18,6 @@ import org.jsoup.nodes.Element;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.UUID;
@@ -70,16 +68,16 @@ public class PluginController extends Controller {
             File path = new File(PluginConfig.getInstance().getPluginBasePath());
             File file = new File(path + "/" + fileName);
             if (file.exists()) {
-                response.redirect("/admin/plugins/downloadResult?message=" + URLEncoder.encode("插件已经存在了", StandardCharsets.UTF_8) +
+                response.redirect("/admin/plugins/downloadResult?message=插件已经存在了" +
                         "&pluginName=" + pluginName);
                 return;
             }
             File pluginFile = PluginUtil.downloadPlugin(PluginUtil.getPluginFile(pluginName).getName());
             PluginUtil.loadPlugin(pluginFile, UUID.randomUUID().toString());
-            response.redirect("/admin/plugins/downloadResult?message=" + URLEncoder.encode("下载插件成功", StandardCharsets.UTF_8) +
+            response.redirect("/admin/plugins/downloadResult?message=下载插件成功" +
                     "&pluginName=" + pluginName);
         } catch (Exception e) {
-            response.redirect("/admin/plugins/downloadResult?message=" + URLEncoder.encode(e.getMessage(), StandardCharsets.UTF_8) +
+            response.redirect("/admin/plugins/downloadResult?message=" + e.getMessage() +
                     "&pluginName=" + pluginName);
             LOGGER.log(Level.FINER, "download error ", e);
         }
