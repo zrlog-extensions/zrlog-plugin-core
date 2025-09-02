@@ -26,7 +26,7 @@ import java.util.logging.FileHandler;
 public class Application {
 
     public static String BLOG_PLUGIN_TOKEN = "";
-    public static Integer BLOG_PORT = 0;
+    public static String BLOG_API_HOME_URL = "http://localhost:17080";
     public static Boolean nativeAgent = false;
     public static String NATIVE_INFO = "";
 
@@ -74,7 +74,9 @@ public class Application {
             int port = (args.length > 4) ? Integer.parseInt(args[4]) : -1;
             blogRunTime.setPath((args.length > 5) ? args[5] : DevUtil.blogRuntimePath());
             blogRunTime.setVersion((args.length > 6) ? args[6] : DevUtil.blogVersion());
-            BLOG_PORT = (args.length > 7) ? Integer.parseInt(args[7]) : 0;
+            if (args.length > 7) {
+                BLOG_API_HOME_URL = "http://127.0.0.1:" + Integer.parseInt(args[7]);
+            }
             BLOG_PLUGIN_TOKEN = (args.length > 8) ? args[8] : "_NOT_FOUND";
             NATIVE_INFO = (args.length > 9) ? args[9] : "";
             if (port > 0) {
@@ -82,6 +84,10 @@ public class Application {
             }
             if (Objects.equals(NATIVE_INFO, "-")) {
                 NATIVE_INFO = "";
+            }
+            //contextPath
+            if (args.length > 10) {
+                BLOG_API_HOME_URL = BLOG_API_HOME_URL + args[10].replace("#", "");
             }
         }
         //load Db

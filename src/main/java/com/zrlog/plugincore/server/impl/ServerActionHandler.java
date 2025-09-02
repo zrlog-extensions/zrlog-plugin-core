@@ -53,13 +53,10 @@ public class ServerActionHandler implements IActionHandler {
         if (RunConstants.runType != RunType.BLOG) {
             return;
         }
-        if (Application.BLOG_PORT <= 0) {
-            return;
-        }
         try {
             Map<String, String> requestHeaders = new HashMap<>();
             requestHeaders.put("X-Plugin-Token", Application.BLOG_PLUGIN_TOKEN);
-            byte[] bytes = HttpUtils.sendGetRequest("http://localhost:" + Application.BLOG_PORT + "/api/admin/refreshCache", requestHeaders);
+            byte[] bytes = HttpUtils.sendGetRequest(Application.BLOG_API_HOME_URL + "/api/admin/refreshCache", requestHeaders);
             if (EnvKit.isDevMode()) {
                 LOGGER.info("refresh cache success " + new String(bytes));
             }
@@ -226,7 +223,7 @@ public class ServerActionHandler implements IActionHandler {
             // convert to publicInfo
             PublicInfo publicInfo = new PublicInfo();
             publicInfo.setHomeUrl("http://" + response.get("host"));
-            publicInfo.setApiHomeUrl("http://127.0.0.1:" + (Application.BLOG_PORT > 0 ? Application.BLOG_PORT : 6058));
+            publicInfo.setApiHomeUrl(Application.BLOG_API_HOME_URL);
             publicInfo.setTitle((String) response.get("title"));
             publicInfo.setSecondTitle((String) response.get("second_title"));
             publicInfo.setAdminColorPrimary((String) response.get("admin_color_primary"));
