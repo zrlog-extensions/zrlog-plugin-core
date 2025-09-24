@@ -25,5 +25,5 @@ jobs:
 
       - name: Build and upload binary
         run: |
-          bash -e bin/package-native-github.sh /tmp/download/plugin/core/faas -Dmysql-scope=provided
+          bash -e bin/package-native-github.sh /tmp/download/plugin/core/faas -Dmysql-scope='provided'
           bash -e bin/upload-bin.sh ${{ secrets.SECRET_ID }} ${{ secrets.SECRET_KEY }} ${{ secrets.BUCKET }} /tmp/download plugin ${{ secrets.HOST }}
