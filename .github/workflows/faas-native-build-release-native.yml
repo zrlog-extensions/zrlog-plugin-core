@@ -1,4 +1,4 @@
-name: build release native
+name: build faas release native
 on:
   push:
     branches:
