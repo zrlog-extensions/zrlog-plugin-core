@@ -13,6 +13,7 @@
         <native.image.mainClass>com.zrlog.plugincore.server.Application</native.image.mainClass>
         <native.image.agentMainClass>com.zrlog.plugincore.server.GraalvmAgentApplication</native.image.agentMainClass>
         <java.version>11</java.version>
+        <mysql.scope>compile</mysql.scope>
     </properties>
 
     <dependencies>
@@ -30,6 +31,7 @@
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <version>9.3.0</version>
+            <scope>${mysql.scope}</scope>
         </dependency>
         <dependency>
             <groupId>com.hibegin</groupId>
