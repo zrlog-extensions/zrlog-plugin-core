@@ -13,24 +13,25 @@
         <native.image.mainClass>com.zrlog.plugincore.server.Application</native.image.mainClass>
         <native.image.agentMainClass>com.zrlog.plugincore.server.GraalvmAgentApplication</native.image.agentMainClass>
         <java.version>11</java.version>
-        <project.build.outputTimestamp>2013-01-01T00:00:00Z</project.build.outputTimestamp>
+        <mysql-scope>compile</mysql-scope>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>com.hibegin</groupId>
             <artifactId>zrlog-plugin-common</artifactId>
-            <version>3.2.13</version>
+            <version>3.2.15</version>
         </dependency>
         <dependency>
             <groupId>com.hibegin</groupId>
             <artifactId>simplewebserver</artifactId>
-            <version>4.0.105</version>
+            <version>4.0.114</version>
         </dependency>
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <version>9.3.0</version>
+            <scope>${mysql-scope}</scope>
         </dependency>
         <dependency>
             <groupId>com.hibegin</groupId>

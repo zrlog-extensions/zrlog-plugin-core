@@ -5,9 +5,9 @@ echo "real target folder ${basePath}"
 
 java -version
 sh bin/build-info.sh
-./mvnw clean package
-./mvnw -Pnative -Dagent exec:exec@java-agent -U
-./mvnw -Pnative package
+./mvnw ${2} clean package
+./mvnw ${2} -Pnative -Dagent exec:exec@java-agent -U
+./mvnw ${2} -Pnative package
 binName="plugin-core"
 if [ -f "target/${binName}.exe" ];
 then

@@ -51,6 +51,8 @@ public class PluginHttpServerConfig extends AbstractServerConfig {
         serverConfig.addStaticResourceMapper("/admin/plugins/static", "/static/static");
         serverConfig.setRequestExecutor(Executors.newFixedThreadPool(50));
         serverConfig.setDecodeExecutor(Executors.newFixedThreadPool(10));
+        //optimize cpu usage
+        serverConfig.setSelectNowSleepTime(200);
         return serverConfig;
     }
 

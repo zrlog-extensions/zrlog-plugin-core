@@ -3,12 +3,10 @@ package com.zrlog.plugincore.server.impl;
 import com.hibegin.common.util.EnvKit;
 import com.hibegin.http.server.api.ISocketServer;
 import com.zrlog.plugin.IOSession;
-import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugin.data.codec.SocketCodec;
 import com.zrlog.plugin.data.codec.SocketDecode;
 import com.zrlog.plugin.data.codec.SocketEncode;
-import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.config.PluginConfig;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.util.PluginUtil;
@@ -48,7 +46,9 @@ public class NioServer implements ISocketServer {
         }
         while (selector.isOpen()) {
             try {
-                selector.select();
+                if (selector.select(200) <= 0) {
+                    continue;
+                }
                 Set<SelectionKey> keys = selector.selectedKeys();
                 Iterator<SelectionKey> iter = keys.iterator();
                 while (iter.hasNext()) {
