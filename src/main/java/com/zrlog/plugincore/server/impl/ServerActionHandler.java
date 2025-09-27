@@ -240,7 +240,7 @@ public class ServerActionHandler implements IActionHandler {
             publicInfo.setApiHomeUrl("http://127.0.0.1:" + (Application.BLOG_PORT > 0 ? Application.BLOG_PORT : 6058));
             publicInfo.setTitle((String) response.get("title"));
             publicInfo.setSecondTitle((String) response.get("second_title"));
-            publicInfo.setAdminColorPrimary((String) response.get("admin_color_primary"));
+            publicInfo.setAdminColorPrimary(Objects.requireNonNullElse((String) response.get("admin_color_primary"), "#1677ff"));
             publicInfo.setDarkMode(ResultValueConvertUtils.toBoolean(response.get("admin_darkMode")));
             session.sendJsonMsg(publicInfo, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
         } catch (SQLException e) {
