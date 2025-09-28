@@ -177,27 +177,22 @@ public class PluginScanRunnable extends BaseLockObject implements Runnable {
                 runnablePlugins.put(pluginVO.getPlugin().getShortName(), pluginVO.getPlugin().getId());
             });
         }
-        if (EnvKit.isLambda()) {
-            getDownloadedPluginList().forEach((key, value) -> {
-                if (runnablePlugins.containsKey(key)) {
-                    return;
-                }
-                runnablePlugins.put(key, value);
-            });
-        }
-
+        getDownloadedPluginList().forEach((key, value) -> {
+            if (runnablePlugins.containsKey(key)) {
+                return;
+            }
+            runnablePlugins.put(key, value);
+        });
         return runnablePlugins;
     }
 
-    /**
-     * FaaS 模式下，存在的插件即为需要运行
-     *
-     * @return
-     */
     private Map<String, String> getDownloadedPluginList() {
         if (!EnvKit.isFaaSMode()) {
-            return new HashMap<>();
+            Map<String, String> requiredPlugins = new HashMap<>();
+            requiredPlugins.put("comment", UUID.randomUUID().toString());
+            return requiredPlugins;
         }
+        //FaaS 模式下，存在的插件即为需要运行
         Map<String, String> runnablePlugins = new HashMap<>();
         //System.out.println("PluginConfig.getInstance().getPluginBasePath() = " + PluginConfig.getInstance().getPluginBasePath());
         File[] files = new File(PluginConfig.getInstance().getPluginBasePath()).listFiles();
