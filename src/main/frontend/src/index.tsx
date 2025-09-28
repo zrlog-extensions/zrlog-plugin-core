@@ -18,7 +18,8 @@ export interface PluginCoreInfoResponse {
     pluginCenter: string
     dark: boolean
     primaryColor: string
-    plugins: Plugin[]
+    plugins: Plugin[];
+    requiredPlugins: string[]
 }
 
 export interface Plugin {

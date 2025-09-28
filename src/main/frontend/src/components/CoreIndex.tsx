@@ -1,5 +1,5 @@
 import React from "react";
-import {Button, Card, Col, Divider, Empty, Image, Popconfirm, Row,} from "antd";
+import {Button, Card, Col, Divider, Empty, Image, message, Popconfirm, Row,} from "antd";
 import Title from "antd/es/typography/Title";
 import {CloudDownloadOutlined, DeleteOutlined, SettingOutlined,} from "@ant-design/icons";
 import axios from "axios";
@@ -18,7 +18,13 @@ type CoreIndexProps = {
 
 const CoreIndex: React.FC<CoreIndexProps> = ({data}) => {
 
+    const [messageApi, contextHolder] = message.useMessage({maxCount: 3});
+
     const deletePlugin = (pluginName: string) => {
+        if (data.requiredPlugins.includes(pluginName)) {
+            messageApi.info("必要插件，无法删除")
+            return;
+        }
         axios.get("api/uninstall?name=" + pluginName).then(() => {
             window.location.reload();
         });
@@ -26,6 +32,7 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data}) => {
 
     return (
         <Content>
+            {contextHolder}
             <Title style={{
                 marginBottom: 0,
                 fontWeight: 600,
