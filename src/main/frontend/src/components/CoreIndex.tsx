@@ -21,11 +21,11 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data}) => {
     const [messageApi, contextHolder] = message.useMessage({maxCount: 3});
 
     const deletePlugin = (pluginName: string) => {
-        if (data.requiredPlugins.includes(pluginName)) {
-            messageApi.info("必要插件，无法删除")
-            return;
-        }
-        axios.get("api/uninstall?name=" + pluginName).then(() => {
+        axios.get("api/uninstall?name=" + pluginName).then(({data}) => {
+            if (data.code > 0) {
+                messageApi.error(data.message);
+                return;
+            }
             window.location.reload();
         });
     };

@@ -92,6 +92,12 @@ public class PluginApiController extends Controller {
     public Map<String, Object> uninstall() {
         IOSession session = getSession();
         String pluginName = getRequest().getParaToStr("name");
+        if (PluginUtil.getRequiredPlugins().containsKey(pluginName)) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("code", 1);
+            map.put("message", "必要插件，无法移除");
+            return map;
+        }
         if (session != null) {
             session.sendMsg(new MsgPacket(genInfo(), ContentType.JSON, MsgPacketStatus.SEND_REQUEST, IdUtil.getInt(), ActionType.PLUGIN_UNINSTALL.name()));
         }
