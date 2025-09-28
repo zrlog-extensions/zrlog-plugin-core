@@ -22,7 +22,9 @@ const Settings: FunctionComponent<PropsWithChildren<SettingsProps>> = ({children
 
     const getBody = () => {
         return <Modal title={"设置"} open={show} onOk={async () => {
-            await axios.post("api/setting/update", state);
+            const params = new URLSearchParams();
+            params.set("commentPluginName", state.commentPluginName);
+            await axios.post("api/setting/update", params.toString());
             setShow(false);
         }} onCancel={() => setShow(false)}>
             <FormItem label={"评论插件"}>
@@ -42,7 +44,7 @@ const Settings: FunctionComponent<PropsWithChildren<SettingsProps>> = ({children
         {getBody()}
         <Button style={style} onClick={async () => {
             const {data} = await axios.get("api/setting/load")
-            setState({...state, ...data});
+            setState(data);
             setShow(true);
         }}>{children}</Button>
     </>
