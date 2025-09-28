@@ -349,4 +349,9 @@ public class ServerActionHandler implements IActionHandler {
             session.sendJsonMsg(new HashMap<>(), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
         }
     }
+
+    @Override
+    public void listComment(IOSession session, MsgPacket msgPacket) {
+
+    }
 }

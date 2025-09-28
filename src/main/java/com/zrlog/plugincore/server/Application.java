@@ -26,7 +26,7 @@ import java.util.logging.FileHandler;
 public class Application {
 
     public static String BLOG_PLUGIN_TOKEN = "";
-    public static String BLOG_API_HOME_URL = "http://localhost:17080";
+    public static String BLOG_API_HOME_URL = "http://localhost:7080";
     public static Boolean nativeAgent = false;
     public static String NATIVE_INFO = "";
 
