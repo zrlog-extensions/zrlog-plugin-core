@@ -30,7 +30,7 @@ const Settings: FunctionComponent<PropsWithChildren<SettingsProps>> = ({children
                     setState({
                         commentPluginName: e,
                     })
-                }} defaultValue={state.commentPluginName}>
+                }} defaultValue={state.commentPluginName} style={{maxWidth: 156}}>
                     <Option value={"comment"}>默认</Option>
                     <Option value={"changyan"}>畅言</Option>
                 </Select>
