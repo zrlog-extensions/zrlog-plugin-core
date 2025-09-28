@@ -17,7 +17,7 @@ public class SettingController extends Controller {
     public Map<String, Object> load() throws SQLException {
         Map<String, Object> map = new HashMap<>();
         map.put("disableAutoDownloadLostFile", PluginCoreDAO.getInstance().getPluginCore().getSetting().isDisableAutoDownloadLostFile());
-        map.put("comment_plugin_name", new WebSiteDAO().getWebSiteByNameIn(List.of("comment_plugin_name")).get("comment_plugin_name"));
+        map.put("commentPluginName", new WebSiteDAO().getWebSiteByNameIn(List.of("comment_plugin_name")).get("comment_plugin_name"));
         return map;
     }
 
@@ -26,7 +26,7 @@ public class SettingController extends Controller {
         Map<String, Object> map = new HashMap<>();
         PluginCoreDAO.getInstance().getPluginCore().getSetting().setDisableAutoDownloadLostFile(request.getParaToBool(
                 "disableAutoDownloadLostFile"));
-        String commentPlugin = request.getParaToStr("commentPluginName", "base");
+        String commentPlugin = request.getParaToStr("commentPluginName", "comment");
         new WebSiteDAO().saveOrUpdate("comment_plugin_name", commentPlugin);
         map.put("code", 0);
         map.put("message", "成功");
