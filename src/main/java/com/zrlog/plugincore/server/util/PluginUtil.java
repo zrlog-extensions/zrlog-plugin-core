@@ -15,10 +15,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -32,6 +29,12 @@ public class PluginUtil {
     private static final Logger LOGGER = LoggerUtil.getLogger(PluginUtil.class);
 
     private static PluginScanRunnable pluginScanRunnable;
+    private static final Map<String, String> requiredPlugins = new HashMap<>();
+
+
+    static {
+        requiredPlugins.put("comment", "comment_system");
+    }
 
     public static void loadPlugins(PluginCore pluginCore) {
         try {
@@ -45,6 +48,10 @@ public class PluginUtil {
             LOGGER.log(Level.WARNING, "start plugin exception ", e);
         }
 
+    }
+
+    public static Map<String, String> getRequiredPlugins() {
+        return requiredPlugins;
     }
 
     public static String getPluginName(File file) {

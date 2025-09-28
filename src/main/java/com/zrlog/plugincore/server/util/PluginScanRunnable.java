@@ -188,9 +188,7 @@ public class PluginScanRunnable extends BaseLockObject implements Runnable {
 
     private Map<String, String> getDownloadedPluginList() {
         if (!EnvKit.isFaaSMode()) {
-            Map<String, String> requiredPlugins = new HashMap<>();
-            requiredPlugins.put("comment", "comment_system");
-            return requiredPlugins;
+            return PluginUtil.getRequiredPlugins();
         }
         //FaaS 模式下，存在的插件即为需要运行
         Map<String, String> runnablePlugins = new HashMap<>();
