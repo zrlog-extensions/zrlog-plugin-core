@@ -22,6 +22,5 @@ server/plugin.txt
 release.properties
 pom.xml.releaseBackup
 **/.DS_Store
-src/main/resources/static
 plugin-core.bgv
 plugin-core-Darwin-arm64.bin
