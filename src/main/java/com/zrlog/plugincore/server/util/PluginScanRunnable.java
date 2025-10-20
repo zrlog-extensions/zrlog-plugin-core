@@ -226,11 +226,8 @@ public class PluginScanRunnable extends BaseLockObject implements Runnable {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         ExecutorService executorService = Executors.newFixedThreadPool(10);
         try {
-            for (PluginVO pluginVO : pluginCore.getPluginInfoMap().values()) {
-                if (pluginVO.getStatus() != PluginStatus.START) {
-                    continue;
-                }
-                File file = PluginUtil.getPluginFile(pluginVO.getPlugin().getShortName());
+            for (String pluginShortName : getAllRunnablePlugin().keySet()) {
+                File file = PluginUtil.getPluginFile(pluginShortName);
                 if (file.exists() && file.length() > 0) {
                     continue;
                 }
