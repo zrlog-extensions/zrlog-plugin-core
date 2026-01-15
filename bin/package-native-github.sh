@@ -17,6 +17,8 @@ then
   sourceFile="target/${binName}.exe"
   targetFile="${basePath}/${binName}-Windows-$(uname -m).exe"
   choco install upx
+  mv ${sourceFile} ${targetFile}
+  upx --best ${targetFile}
 fi
 if [[ "$(uname -s)" == "Linux" ]];
 then
@@ -24,12 +26,13 @@ then
   sourceFile="target/${binName}"
   targetFile="${basePath}/${binName}-$(uname -s)-$(dpkg --print-architecture).bin"
   sudo apt install upx -y
+  mv ${sourceFile} ${targetFile}
+  upx --best ${targetFile}
 else
   echo "MacOS"
   sourceFile="target/${binName}"
   targetFile="${basePath}/${binName}-$(uname -s)-$(uname -m).bin"
   brew install upx
+  mv ${sourceFile} ${targetFile}
+#  upx --best ${targetFile}
 fi
-
-mv ${sourceFile} ${targetFile}
-upx --best ${targetFile}
