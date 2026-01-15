@@ -9,17 +9,25 @@ sh bin/build-info.sh
 ./mvnw ${2} -Pnative -Dagent exec:exec@java-agent -U
 ./mvnw ${2} -Pnative package
 binName="plugin-core"
+targetFile=""
+sourceFile=""
 if [ -f "target/${binName}.exe" ];
 then
   echo "window"
-  mv "target/${binName}.exe" "${basePath}/${binName}-Windows-$(uname -m).exe"
-  exit 0;
+  sourceFile="target/${binName}.exe"
+  targetFile="${basePath}/${binName}-Windows-$(uname -m).exe"
 fi
 if [[ "$(uname -s)" == "Linux" ]];
 then
   echo "Linux"
-  mv target/${binName} ${basePath}/${binName}-$(uname -s)-$(dpkg --print-architecture).bin
+  sourceFile="target/${binName}"
+  targetFile="${basePath}/${binName}-$(uname -s)-$(dpkg --print-architecture).bin"
+  sudo apt install upx -y
 else
   echo "MacOS"
-  mv target/${binName} ${basePath}/${binName}-$(uname -s)-$(uname -m).bin
+  sourceFile="target/${binName}"
+  targetFile="${basePath}/${binName}-$(uname -s)-$(uname -m).bin"
 fi
+
+mv ${sourceFile} ${targetFile}
+upx --best ${targetFile}
