@@ -28,7 +28,7 @@ else
   echo "MacOS"
   sourceFile="target/${binName}"
   targetFile="${basePath}/${binName}-$(uname -s)-$(uname -m).bin"
-  brew install upnx
+  brew install upx
 fi
 
 mv ${sourceFile} ${targetFile}
