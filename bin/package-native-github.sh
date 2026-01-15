@@ -16,6 +16,7 @@ then
   echo "window"
   sourceFile="target/${binName}.exe"
   targetFile="${basePath}/${binName}-Windows-$(uname -m).exe"
+  choco install upx
 fi
 if [[ "$(uname -s)" == "Linux" ]];
 then
@@ -27,6 +28,7 @@ else
   echo "MacOS"
   sourceFile="target/${binName}"
   targetFile="${basePath}/${binName}-$(uname -s)-$(uname -m).bin"
+  brew install upnx
 fi
 
 mv ${sourceFile} ${targetFile}
