@@ -24,3 +24,4 @@ pom.xml.releaseBackup
 **/.DS_Store
 plugin-core.bgv
 plugin-core-Darwin-arm64.bin
+src/main/resources/static

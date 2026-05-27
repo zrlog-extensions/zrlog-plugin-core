@@ -8,12 +8,14 @@
     <packaging>jar</packaging>
 
     <properties>
+        <outputDirectory>${project.build.directory}</outputDirectory>
         <imageName>plugin-core</imageName>
         <native.maven.plugin.version>0.10.2</native.maven.plugin.version>
         <native.image.mainClass>com.zrlog.plugincore.server.Application</native.image.mainClass>
         <native.image.agentMainClass>com.zrlog.plugincore.server.GraalvmAgentApplication</native.image.agentMainClass>
         <java.version>11</java.version>
         <mysql-scope>compile</mysql-scope>
+        <frontendBuildOutputPath>../resources/static</frontendBuildOutputPath>
     </properties>
 
     <dependencies>
@@ -46,7 +48,6 @@
     </dependencies>
 
     <build>
-        <finalName>plugin-core</finalName>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
@@ -90,6 +91,15 @@
                 </executions>
             </plugin>
             <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.1</version>
+                <configuration>
+                    <encoding>UTF-8</encoding>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                </configuration>
+            </plugin>
+            <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <version>3.7.1</version>
                 <executions>
@@ -101,7 +111,6 @@
                         </goals>
                     </execution>
                 </executions>
-
                 <configuration>
                     <archive>
                         <manifest>
@@ -114,14 +123,6 @@
                     </descriptorRefs>
                     <appendAssemblyId>false</appendAssemblyId>
                     <outputDirectory>${outputDirectory}</outputDirectory>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
                 </configuration>
             </plugin>
         </plugins>
@@ -164,8 +165,7 @@
                             <fallback>false</fallback>
                             <buildArgs>
                                 <arg>
-                                    -Ob
-                                    --enable-sbom
+                                    -Os
                                     -H:+BuildReport
                                     -H:+UnlockExperimentalVMOptions
                                     --allow-incomplete-classpath
@@ -219,6 +219,9 @@
                                 </goals>
                                 <configuration>
                                     <arguments>build</arguments>
+                                    <environmentVariables>
+                                        <BUILD_PATH>${frontendBuildOutputPath}</BUILD_PATH>
+                                    </environmentVariables>
                                 </configuration>
                                 <phase>generate-resources</phase>
                             </execution>
@@ -230,7 +233,7 @@
                             <workingDirectory>src/main/frontend</workingDirectory>
                             <installDirectory>target</installDirectory>
                             <nodeDownloadRoot>https://npmmirror.com/mirrors/node/</nodeDownloadRoot>
-                            <yarnDownloadRoot>https://dl.zrlog.com/yarnpkg/yarn/releases/download/</yarnDownloadRoot>
+                            <yarnDownloadRoot>https://github.com/yarnpkg/yarn/releases/download/</yarnDownloadRoot>
                             <npmRegistryURL>https://registry.npmmirror.com</npmRegistryURL>
                         </configuration>
                     </plugin>
@@ -238,5 +241,4 @@
             </build>
         </profile>
     </profiles>
-
 </project>
