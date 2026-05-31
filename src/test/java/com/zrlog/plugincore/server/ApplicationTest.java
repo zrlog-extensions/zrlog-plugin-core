@@ -1,5 +1,7 @@
 package com.zrlog.plugincore.server;
 
+import com.zrlog.plugin.RunConstants;
+import com.zrlog.plugin.type.RunType;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -40,15 +42,15 @@ public class ApplicationTest {
 
     @Test
     public void shouldSkipRuntimeWorkerBootstrapInNativeAgentMode() {
-        Boolean previous = Application.nativeAgent;
+        RunType previous = RunConstants.runType;
         try {
-            Application.nativeAgent = true;
+            RunConstants.runType = RunType.AGENT;
             assertFalse(Application.shouldBootstrapRuntimeWorkers());
 
-            Application.nativeAgent = false;
+            RunConstants.runType = RunType.BLOG;
             assertTrue(Application.shouldBootstrapRuntimeWorkers());
         } finally {
-            Application.nativeAgent = previous;
+            RunConstants.runType = previous;
         }
     }
 

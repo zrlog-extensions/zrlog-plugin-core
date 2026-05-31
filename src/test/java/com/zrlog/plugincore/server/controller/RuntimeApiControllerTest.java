@@ -2,7 +2,8 @@ package com.zrlog.plugincore.server.controller;
 
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.message.PluginCapability;
-import com.zrlog.plugincore.server.Application;
+import com.zrlog.plugin.RunConstants;
+import com.zrlog.plugin.type.RunType;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -12,13 +13,13 @@ public class RuntimeApiControllerTest {
 
     @Test
     public void shouldNotLoadRuntimeStatesInNativeAgentMode() {
-        Boolean previous = Application.nativeAgent;
+        RunType previous = RunConstants.runType;
         try {
-            Application.nativeAgent = true;
+            RunConstants.runType = RunType.AGENT;
 
             assertTrue(RuntimeApiController.runtimeStatesForCurrentMode().isEmpty());
         } finally {
-            Application.nativeAgent = previous;
+            RunConstants.runType = previous;
         }
     }
 

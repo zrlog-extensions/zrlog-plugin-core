@@ -29,7 +29,6 @@ public class Application {
 
     public static String BLOG_PLUGIN_TOKEN = "";
     public static String BLOG_API_HOME_URL = "http://localhost:7080";
-    public static Boolean nativeAgent = false;
     public static String NATIVE_INFO = "";
 
     static {
@@ -57,7 +56,7 @@ public class Application {
         if (args != null && args.length > 0 && EnvKit.isDevMode()) {
             LoggerUtil.getLogger(Application.class).info("args = " + Arrays.toString(args));
         }
-        if (Objects.isNull(args) || args.length == 0) {
+        if ((Objects.isNull(args) || args.length == 0) && !isNativeAgent()) {
             RunConstants.runType = RunType.DEV;
             System.getProperties().put("sws.run.mode", "dev");
         }
@@ -73,7 +72,9 @@ public class Application {
             blogRunTime.setPath(DevUtil.blogRuntimePath());
             blogRunTime.setVersion("1.5");
         } else {
-            RunConstants.runType = EnvKit.isDevMode() ? RunType.DEV : RunType.BLOG;
+            if (!isNativeAgent()) {
+                RunConstants.runType = EnvKit.isDevMode() ? RunType.DEV : RunType.BLOG;
+            }
             int port = (args.length > 4) ? Integer.parseInt(args[4]) : -1;
             blogRunTime.setPath((args.length > 5) ? args[5] : DevUtil.blogRuntimePath());
             blogRunTime.setVersion((args.length > 6) ? args[6] : DevUtil.blogVersion());
@@ -151,13 +152,17 @@ public class Application {
     }
 
     static boolean shouldBootstrapRuntimeWorkers() {
-        return !Boolean.TRUE.equals(nativeAgent);
+        return !isNativeAgent();
+    }
+
+    public static boolean isNativeAgent() {
+        return RunConstants.runType == RunType.AGENT;
     }
 
     private static void loadHttpServer(Integer serverPort) {
         PluginHttpServerConfig config = new PluginHttpServerConfig(serverPort);
         WebServerBuilder build = new WebServerBuilder.Builder().config(config).build();
-        if (nativeAgent) {
+        if (isNativeAgent()) {
             config.getServerConfig().addCreateSuccessHandle(() -> {
                 Thread.sleep(5000);
                 System.exit(0);

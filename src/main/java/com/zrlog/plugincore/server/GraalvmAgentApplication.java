@@ -61,7 +61,6 @@ public class GraalvmAgentApplication {
         PathUtil.setRootPath(basePath);
         File file = new File(basePath + "/src/main/resources");
         PluginNativeImageUtils.doLoopResourceLoad(file.listFiles(), file.getPath() + "/", "/");
-        Application.nativeAgent = true;
         Application.main(args);
     }
 

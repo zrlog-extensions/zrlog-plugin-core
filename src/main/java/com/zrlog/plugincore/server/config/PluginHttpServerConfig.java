@@ -50,7 +50,7 @@ public class PluginHttpServerConfig extends AbstractServerConfig {
 
     private ServerConfig initServerConfig() {
         ServerConfig serverConfig = new ServerConfig().setApplicationName("zrlog-plugin-http-server").setDisablePrintWebServerInfo(true);
-        serverConfig.setNativeImageAgent(Application.nativeAgent);
+        serverConfig.setNativeImageAgent(Application.isNativeAgent());
         serverConfig.setHost("127.0.0.1");
         serverConfig.setPort(port);
         serverConfig.setDisableSession(true);

@@ -60,7 +60,7 @@ public class PluginApiController extends Controller {
     @ResponseBody
     public Map<String, Object> plugins() {
         AdminTheme adminTheme = AdminTheme.fromRequest(getRequest());
-        PluginCore pluginCore = Boolean.TRUE.equals(Application.nativeAgent) ? null : PluginCoreDAO.getInstance().loadSnapshot();
+        PluginCore pluginCore = Application.isNativeAgent() ? null : PluginCoreDAO.getInstance().loadSnapshot();
         Map<String, Object> map = new HashMap<>();
         map.put("plugins", pluginsForCurrentMode(pluginCore));
         map.put("setting", pluginCore == null ? new PluginCoreSetting() : pluginCore.getSetting());
@@ -75,11 +75,11 @@ public class PluginApiController extends Controller {
     }
 
     static List<?> pluginsForCurrentMode() {
-        return Boolean.TRUE.equals(Application.nativeAgent) ? Collections.emptyList() : pluginsForCurrentMode(PluginCoreDAO.getInstance().loadSnapshot());
+        return Application.isNativeAgent() ? Collections.emptyList() : pluginsForCurrentMode(PluginCoreDAO.getInstance().loadSnapshot());
     }
 
     static List<?> pluginsForCurrentMode(PluginCore pluginCore) {
-        if (Boolean.TRUE.equals(Application.nativeAgent) || pluginCore == null || pluginCore.getPluginInfoMap() == null) {
+        if (Application.isNativeAgent() || pluginCore == null || pluginCore.getPluginInfoMap() == null) {
             return Collections.emptyList();
         }
         return pluginCore.getPluginInfoMap().values().stream()

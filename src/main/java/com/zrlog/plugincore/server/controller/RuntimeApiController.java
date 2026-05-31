@@ -703,7 +703,7 @@ public class RuntimeApiController extends Controller {
     }
 
     private List<Plugin> commentProviderPlugins() {
-        if (Boolean.TRUE.equals(Application.nativeAgent)) {
+        if (Application.isNativeAgent()) {
             return Collections.emptyList();
         }
         List<Plugin> providers = new ArrayList<>();
@@ -717,7 +717,7 @@ public class RuntimeApiController extends Controller {
     }
 
     static List<?> runtimeStatesForCurrentMode() {
-        return Boolean.TRUE.equals(Application.nativeAgent) ? Collections.emptyList() : PluginRuntimeStates.runtimeInstancesForDisplay();
+        return Application.isNativeAgent() ? Collections.emptyList() : PluginRuntimeStates.runtimeInstancesForDisplay();
     }
 
     private boolean isCommentProviderPlugin(Plugin plugin) {

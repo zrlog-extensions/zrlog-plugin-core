@@ -1,7 +1,8 @@
 package com.zrlog.plugincore.server.controller;
 
-import com.zrlog.plugincore.server.Application;
+import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.message.Plugin;
+import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.config.PluginCore;
 import com.zrlog.plugincore.server.config.PluginVO;
 import org.junit.Test;
@@ -40,21 +41,21 @@ public class PluginApiControllerTest {
 
     @Test
     public void shouldNotLoadPluginListsInNativeAgentMode() {
-        Boolean previous = Application.nativeAgent;
+        RunType previous = RunConstants.runType;
         try {
-            Application.nativeAgent = true;
+            RunConstants.runType = RunType.AGENT;
 
             assertTrue(PluginApiController.pluginsForCurrentMode().isEmpty());
         } finally {
-            Application.nativeAgent = previous;
+            RunConstants.runType = previous;
         }
     }
 
     @Test
     public void shouldBuildPluginListFromProvidedSnapshot() {
-        Boolean previous = Application.nativeAgent;
+        RunType previous = RunConstants.runType;
         try {
-            Application.nativeAgent = false;
+            RunConstants.runType = RunType.BLOG;
             PluginCore pluginCore = new PluginCore();
             Plugin plugin = new Plugin();
             plugin.setId("plugin-id");
@@ -69,7 +70,7 @@ public class PluginApiControllerTest {
             assertEquals("comment", ((Plugin) plugins.get(0)).getShortName());
             assertEquals("", ((Plugin) plugins.get(0)).getPreviewImageBase64());
         } finally {
-            Application.nativeAgent = previous;
+            RunConstants.runType = previous;
         }
     }
 
