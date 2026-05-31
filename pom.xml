@@ -4,7 +4,7 @@
     <artifactId>plugin-core</artifactId>
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.zrlog</groupId>
-    <version>3.2</version>
+    <version>4.0.0</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -18,16 +18,33 @@
         <frontendBuildOutputPath>../resources/static</frontendBuildOutputPath>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>central-snapshots</id>
+            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>central-center</id>
+            <url>https://repo1.maven.org/maven2/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>com.hibegin</groupId>
             <artifactId>zrlog-plugin-common</artifactId>
-            <version>3.2.16</version>
+            <version>4.0.5-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.hibegin</groupId>
             <artifactId>simplewebserver</artifactId>
-            <version>4.0.114</version>
+            <version>4.1.6</version>
         </dependency>
         <dependency>
             <groupId>com.mysql</groupId>
@@ -44,6 +61,12 @@
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
             <version>1.15.3</version>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -95,8 +118,8 @@
                 <version>3.1</version>
                 <configuration>
                     <encoding>UTF-8</encoding>
-                    <source>1.8</source>
-                    <target>1.8</target>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
                 </configuration>
             </plugin>
             <plugin>
@@ -166,15 +189,18 @@
                             <buildArgs>
                                 <arg>
                                     -Os
+                                    --enable-sbom
                                     -H:+BuildReport
                                     -H:+UnlockExperimentalVMOptions
                                     --allow-incomplete-classpath
-                                    --initialize-at-build-time=sun.security.krb5.SCDynamicStoreConfig
-                                    --initialize-at-build-time=java.util.ImmutableCollections$ListN
-                                    --trace-class-initialization=sun.security.krb5.SCDynamicStoreConfig
-                                    -H:+UnlockExperimentalVMOptions
-                                    -march=compatibility --enable-preview -H:DashboardDump=${imageName}
-                                    -H:+DashboardAll -H:IncludeResources= --enable-url-protocols=http --enable-url-protocols=https --enable-monitoring=heapdump
+                                    -march=compatibility
+                                    --enable-preview
+                                    -H:DashboardDump=${imageName}
+                                    -H:+DashboardAll
+                                    -H:IncludeResources=
+                                    --enable-url-protocols=http
+                                    --enable-url-protocols=https
+                                    --enable-monitoring=heapdump
                                 </arg>
                             </buildArgs>
                             <mainClass>${native.image.mainClass}</mainClass>
@@ -227,7 +253,7 @@
                             </execution>
                         </executions>
                         <configuration>
-                            <nodeVersion>v16.15.1</nodeVersion>
+                            <nodeVersion>v20.20.2</nodeVersion>
                             <yarnVersion>v1.22.18</yarnVersion>
                             <npmVersion>8.11.0</npmVersion>
                             <workingDirectory>src/main/frontend</workingDirectory>

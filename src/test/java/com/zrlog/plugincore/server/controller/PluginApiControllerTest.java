@@ -1,0 +1,76 @@
+package com.zrlog.plugincore.server.controller;
+
+import com.zrlog.plugincore.server.Application;
+import com.zrlog.plugin.message.Plugin;
+import com.zrlog.plugincore.server.config.PluginCore;
+import com.zrlog.plugincore.server.config.PluginVO;
+import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+public class PluginApiControllerTest {
+
+    @Test
+    public void shouldReportStartedWhenRuntimeIsOnDemand() {
+        Map<String, Object> response = PluginApiController.statusResponse(true, false, Arrays.asList("comment"));
+
+        assertEquals(0, response.get("code"));
+        assertEquals("STARTED", response.get("status"));
+        assertEquals(Arrays.asList("comment"), response.get("runningPlugins"));
+    }
+
+    @Test
+    public void shouldReportStartedWhenAllPluginsAreRunningWithoutOnDemand() {
+        Map<String, Object> response = PluginApiController.statusResponse(false, true, Arrays.asList("comment", "oss"));
+
+        assertEquals("STARTED", response.get("status"));
+    }
+
+    @Test
+    public void shouldReportStartingWhenWaitingForPluginsWithoutOnDemand() {
+        Map<String, Object> response = PluginApiController.statusResponse(false, false, Arrays.asList("comment"));
+
+        assertEquals("STARTING", response.get("status"));
+    }
+
+    @Test
+    public void shouldNotLoadPluginListsInNativeAgentMode() {
+        Boolean previous = Application.nativeAgent;
+        try {
+            Application.nativeAgent = true;
+
+            assertTrue(PluginApiController.pluginsForCurrentMode().isEmpty());
+        } finally {
+            Application.nativeAgent = previous;
+        }
+    }
+
+    @Test
+    public void shouldBuildPluginListFromProvidedSnapshot() {
+        Boolean previous = Application.nativeAgent;
+        try {
+            Application.nativeAgent = false;
+            PluginCore pluginCore = new PluginCore();
+            Plugin plugin = new Plugin();
+            plugin.setId("plugin-id");
+            plugin.setShortName("comment");
+            PluginVO pluginVO = new PluginVO();
+            pluginVO.setPlugin(plugin);
+            pluginCore.getPluginInfoMap().put("comment", pluginVO);
+
+            List<?> plugins = PluginApiController.pluginsForCurrentMode(pluginCore);
+
+            assertEquals(1, plugins.size());
+            assertEquals("comment", ((Plugin) plugins.get(0)).getShortName());
+            assertEquals("", ((Plugin) plugins.get(0)).getPreviewImageBase64());
+        } finally {
+            Application.nativeAgent = previous;
+        }
+    }
+
+}

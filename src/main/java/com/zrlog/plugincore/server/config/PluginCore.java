@@ -17,6 +17,9 @@ public class PluginCore {
     }
 
     public PluginCoreSetting getSetting() {
+        if (setting == null) {
+            setting = new PluginCoreSetting();
+        }
         return setting;
     }
 

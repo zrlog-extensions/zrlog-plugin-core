@@ -8,12 +8,12 @@ import com.zrlog.plugin.data.codec.SocketCodec;
 import com.zrlog.plugin.data.codec.SocketDecode;
 import com.zrlog.plugin.data.codec.SocketEncode;
 import com.zrlog.plugincore.server.config.PluginConfig;
-import com.zrlog.plugincore.server.dao.PluginCoreDAO;
-import com.zrlog.plugincore.server.util.PluginUtil;
+import com.zrlog.plugincore.server.plugin.PluginBootstrap;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
@@ -33,6 +33,8 @@ public class NioServer implements ISocketServer {
     private static final Logger LOGGER = LoggerUtil.getLogger(NioServer.class);
 
     private Selector selector;
+    private ServerSocketChannel serverChannel;
+    private int port;
     private final Map<Socket, IOSession> decoderMap = new ConcurrentHashMap<>();
     private final Executor executor = Executors.newFixedThreadPool(8);
 
@@ -75,6 +77,9 @@ public class NioServer implements ISocketServer {
                     iter.remove();
                 }
             } catch (Exception e) {
+                if (e instanceof ClosedSelectorException) {
+                    return;
+                }
                 LOGGER.log(Level.SEVERE, "", e);
             }
         }
@@ -82,7 +87,8 @@ public class NioServer implements ISocketServer {
 
     @Override
     public void destroy(String s) {
-
+        closeQuietly(selector);
+        closeQuietly(serverChannel);
     }
 
     @Override
@@ -98,19 +104,35 @@ public class NioServer implements ISocketServer {
     @Override
     public boolean create(String s, int port) {
         try {
-            ServerSocketChannel serverChannel = ServerSocketChannel.open();
+            serverChannel = ServerSocketChannel.open();
             serverChannel.socket().bind(new InetSocketAddress(s, port));
             serverChannel.configureBlocking(false);
             selector = Selector.open();
             serverChannel.register(selector, SelectionKey.OP_ACCEPT);
+            this.port = port;
 
             LOGGER.info("zrlog-plugin-core-server listening on port -> " + port);
-            PluginUtil.loadPlugins(PluginCoreDAO.getInstance().getPluginCore());
             return true;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "", e);
         }
         return false;
+    }
+
+    private void closeQuietly(AutoCloseable closeable) {
+        if (closeable == null) {
+            return;
+        }
+        try {
+            closeable.close();
+        } catch (Exception e) {
+            LOGGER.log(Level.FINE, "close plugin socket server error", e);
+        }
+    }
+
+    @Override
+    public int getPort() {
+        return port;
     }
 
     private void dispose(IOSession session, SocketChannel channel, SelectionKey key) {
@@ -127,6 +149,7 @@ public class NioServer implements ISocketServer {
             } catch (IOException ex) {
                 LOGGER.log(Level.SEVERE, "close channel error " + e.getMessage());
             }
+            PluginBootstrap.unregisterPluginSession(session);
             LOGGER.log(Level.SEVERE, "dispose error " + e.getMessage());
         } finally {
             if (EnvKit.isDevMode()) {

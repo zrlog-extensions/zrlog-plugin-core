@@ -1,0 +1,53 @@
+package com.zrlog.plugincore.server;
+
+import com.zrlog.plugin.message.CapabilityInvokeRequest;
+import com.zrlog.plugin.message.CapabilityInvokeResult;
+import com.zrlog.plugin.message.Plugin;
+import com.zrlog.plugin.message.PluginCapability;
+import com.zrlog.plugin.message.SchedulerQueryRequest;
+import com.zrlog.plugin.message.SchedulerQueryResult;
+import com.zrlog.plugincore.server.runtime.notification.NotificationProviderSetting;
+import com.zrlog.plugincore.server.runtime.notification.NotificationSetting;
+import com.zrlog.plugincore.server.runtime.scheduler.SchedulerProviderSetting;
+import com.zrlog.plugincore.server.runtime.scheduler.SchedulerSetting;
+import com.zrlog.plugincore.server.runtime.service.ServiceProviderSetting;
+import com.zrlog.plugincore.server.runtime.service.ServiceSetting;
+import org.junit.Test;
+
+import java.util.List;
+
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
+
+public class GraalvmAgentApplicationTest {
+
+    @Test
+    public void shouldRegisterNestedRuntimeGsonModels() {
+        List<Class<?>> classes = GraalvmAgentApplication.runtimeGsonClasses();
+
+        assertTrue(classes.contains(Plugin.class));
+        assertTrue(classes.contains(PluginCapability.class));
+        assertTrue(classes.contains(CapabilityInvokeRequest.class));
+        assertTrue(classes.contains(CapabilityInvokeResult.class));
+        assertTrue(classes.contains(SchedulerQueryRequest.class));
+        assertTrue(classes.contains(SchedulerQueryResult.class));
+        assertTrue(classes.contains(SchedulerSetting.class));
+        assertTrue(classes.contains(SchedulerProviderSetting.class));
+        assertTrue(classes.contains(NotificationSetting.class));
+        assertTrue(classes.contains(NotificationProviderSetting.class));
+        assertTrue(classes.contains(ServiceSetting.class));
+        assertTrue(classes.contains(ServiceProviderSetting.class));
+    }
+
+    @Test
+    public void shouldWarmupRuntimeRegistrationAndActionModels() {
+        NativeRuntimeWarmup.Result result = NativeRuntimeWarmup.run();
+
+        assertEquals(2, result.getCapabilityCount());
+        assertTrue(result.getAutomationCount() >= 1);
+        assertTrue(result.isSchedulerQuerySuccess());
+        assertTrue(result.isSchedulerUpdateRejected());
+        assertEquals(1, result.getNotificationSuccessCount());
+        assertEquals(0, result.getNotificationFailedCount());
+    }
+}

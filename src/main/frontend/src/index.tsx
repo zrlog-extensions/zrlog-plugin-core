@@ -3,11 +3,12 @@ import {createRoot} from "react-dom/client";
 import * as serviceWorker from './serviceWorker';
 import zh_CN from "antd/es/locale/zh_CN";
 import {legacyLogicalPropertiesTransformer, StyleProvider} from "@ant-design/cssinjs";
-import {useEffect, useState} from "react";
+import {useCallback, useEffect, useState} from "react";
 import {App, ConfigProvider, theme} from "antd";
 import {BrowserRouter} from "react-router-dom";
 import AppBase from "./AppBase";
 import axios from "axios";
+import {apiPath} from "./api";
 
 const {darkAlgorithm, defaultAlgorithm} = theme;
 
@@ -18,9 +19,13 @@ export interface PluginCoreInfoResponse {
     pluginCenter: string
     dark: boolean
     primaryColor: string
-    commentPluginName: string;
     plugins: Plugin[];
     requiredPlugins: string[]
+    setting?: PluginCoreSetting
+}
+
+export interface PluginCoreSetting {
+    disableAutoDownloadLostFile?: boolean
 }
 
 export interface Plugin {
@@ -35,7 +40,25 @@ export interface Plugin {
     indexPage: string
     previewImageBase64: string
     services: string[]
+    capabilities?: PluginCapability[]
     dependentService: string[]
+}
+
+export interface PluginCapability {
+    key: string
+    label?: string
+    type?: string
+}
+
+const covertData = (data: PluginCoreInfoResponse) => {
+    let locationHref = window.location.href;
+    if (locationHref.endsWith("/")) {
+        locationHref = locationHref.substring(0, locationHref.length - 1);
+    }
+    return {
+        ...data,
+        pluginCenter: data.pluginCenter.replace(`#locationHref`, locationHref)
+    }
 }
 
 const loadFromDocument = () => {
@@ -50,27 +73,19 @@ const loadFromDocument = () => {
     }
 }
 
-const covertData = (data: PluginCoreInfoResponse) => {
-    let locationHref = window.location.href;
-    if (locationHref.endsWith("/")) {
-        locationHref = locationHref.substring(0, locationHref.length - 1);
-    }
-    return {
-        ...data,
-        pluginCenter: data.pluginCenter.replace(`#locationHref`, locationHref)
-    }
-}
-
 const Index = () => {
     const [pluginInfo, setPluginInfo] = useState<PluginCoreInfoResponse | null>(loadFromDocument);
 
+    const reloadPluginInfo = useCallback(async () => {
+        const {data} = await axios.get(apiPath("/plugins"));
+        setPluginInfo(covertData(data));
+    }, []);
+
     useEffect(() => {
         if (pluginInfo === null) {
-            axios.get("api/plugins").then(({data}) => {
-                setPluginInfo(covertData(data));
-            });
+            reloadPluginInfo();
         }
-    }, []);
+    }, [pluginInfo, reloadPluginInfo]);
 
     if (pluginInfo === null) {
         return <></>
@@ -100,7 +115,7 @@ const Index = () => {
             <BrowserRouter>
                 <StyleProvider transformers={[legacyLogicalPropertiesTransformer]}>
                     <App>
-                        <AppBase pluginInfo={pluginInfo}/>
+                        <AppBase pluginInfo={pluginInfo} onPluginInfoRefresh={reloadPluginInfo}/>
                     </App>
                 </StyleProvider>
             </BrowserRouter>

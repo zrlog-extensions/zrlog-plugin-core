@@ -1,0 +1,480 @@
+package com.zrlog.plugincore.server.runtime.scheduler;
+
+import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
+import com.zrlog.plugincore.server.dao.PluginCoreDAO;
+import com.zrlog.plugin.common.BasicCronParser;
+import com.zrlog.plugin.common.CronParseException;
+import com.zrlog.plugin.message.PluginCapability;
+import com.zrlog.plugincore.server.runtime.state.PluginRuntimeSetting;
+
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+
+public class RuntimeAutomationService {
+
+    private static final int STORE_UPDATE_RETRIES = 3;
+
+    private final AutomationStore automationStore;
+    private final CapabilityStore capabilityStore;
+    private final BasicCronParser cronParser;
+
+    public RuntimeAutomationService(AutomationStore automationStore, CapabilityStore capabilityStore, BasicCronParser cronParser) {
+        this.automationStore = automationStore;
+        this.capabilityStore = capabilityStore;
+        this.cronParser = cronParser;
+    }
+
+    public List<PluginAutomation> list() {
+        return automationStore.list();
+    }
+
+    public List<PluginAutomation> listWithSystemAutomations() {
+        ensureSystemAutomations(ZonedDateTime.now());
+        return automationStore.list();
+    }
+
+    public void ensureSystemAutomations(ZonedDateTime now) {
+        if (now == null) {
+            now = ZonedDateTime.now(ZoneId.systemDefault());
+        }
+        PluginRuntimeSetting runtimeSetting = PluginCoreDAO.getInstance().loadSnapshot().getSetting().getRuntime();
+        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
+            AutomationStore.AutomationDocumentSnapshot snapshot = automationStore.loadSnapshot();
+            List<PluginAutomation> automations = new ArrayList<>(snapshot.getDocument().getItems());
+            boolean changed = RuntimeSystemAutomations.ensureRuntimeMaintenance(automations, runtimeSetting, cronParser, now);
+            if (!changed) {
+                return;
+            }
+            snapshot.getDocument().setItems(automations);
+            if (automationStore.saveDocumentIfUnchanged(snapshot)) {
+                return;
+            }
+        }
+        throw new IllegalStateException("Failed to ensure system automations due to concurrent modification");
+    }
+
+    public List<PluginAutomation> ensureDefaultAutomations(List<PluginCapability> capabilities, ZonedDateTime now) {
+        List<PluginAutomation> created = new ArrayList<>();
+        if (capabilities == null) {
+            return created;
+        }
+        List<PluginCapability> registeredCapabilities = capabilityStore.listAll();
+        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
+            AutomationStore.AutomationDocumentSnapshot snapshot = automationStore.loadSnapshot();
+            AutomationMutationResult result = ensureDefaultAutomationItems(
+                    snapshot.getDocument().getItems(), capabilities, registeredCapabilities, now);
+            if (!result.isChanged()) {
+                return result.getCreated();
+            }
+            snapshot.getDocument().setItems(result.getItems());
+            if (automationStore.saveDocumentIfUnchanged(snapshot)) {
+                return result.getCreated();
+            }
+        }
+        throw new IllegalStateException("Failed to update default automations due to concurrent modification");
+    }
+
+    private AutomationMutationResult ensureDefaultAutomationItems(List<PluginAutomation> currentItems,
+                                                                  List<PluginCapability> capabilities,
+                                                                  List<PluginCapability> registeredCapabilities,
+                                                                  ZonedDateTime now) {
+        List<PluginAutomation> created = new ArrayList<>();
+        List<PluginAutomation> automations = new ArrayList<>(currentItems);
+        boolean changed = false;
+        for (PluginCapability capability : capabilities) {
+            if (!canCreateDefaultAutomation(capability)) {
+                continue;
+            }
+            Optional<PluginAutomation> existing = findAutomationForCapability(automations, capability);
+            if (existing.isPresent()) {
+                changed = removeOrphanedAutomationsByCapabilityKey(automations, capability, registeredCapabilities) || changed;
+                continue;
+            }
+            Optional<PluginAutomation> stale = findOrphanedAutomationByCapabilityKey(automations, capability, registeredCapabilities);
+            if (stale.isPresent()) {
+                PluginAutomation automation = stale.get();
+                automation.setPluginId(capability.getPluginId());
+                automation.setCapabilityKey(capability.getKey());
+                prepareAutomation(automation, now, capability, automations);
+                created.add(automation);
+                changed = true;
+                continue;
+            }
+            PluginAutomation automation = new PluginAutomation();
+            automation.setId(defaultAutomationId(capability));
+            automation.setName(defaultAutomationName(capability));
+            automation.setPluginId(capability.getPluginId());
+            automation.setCapabilityKey(capability.getKey());
+            automation.setCron(capability.getDefaultCron());
+            automation.setEnabled(Boolean.TRUE);
+            automation.setPayload(new HashMap<>());
+            prepareAutomation(automation, now, capability, automations);
+            automations.add(automation);
+            created.add(automation);
+            changed = true;
+        }
+        return new AutomationMutationResult(automations, created, changed);
+    }
+
+    public Optional<PluginAutomation> ensureDefaultAutomation(PluginCapability capability, ZonedDateTime now) {
+        List<PluginAutomation> created = ensureDefaultAutomations(Collections.singletonList(capability), now);
+        return created.isEmpty() ? Optional.empty() : Optional.of(created.get(0));
+    }
+
+    public PluginAutomation save(PluginAutomation input, ZonedDateTime now) {
+        if (RuntimeSystemAutomations.isRuntimeMaintenance(input)) {
+            return saveSystemAutomation(input, now);
+        }
+        preserveExistingCapabilityBinding(input);
+        validate(input);
+        Optional<PluginCapability> capability = capabilityStore.find(input.getPluginId(), input.getCapabilityKey());
+        if (!capability.isPresent()) {
+            throw new CronParseException("Capability not found");
+        }
+        if (capability.get().getExposure() == null || !capability.get().getExposure().contains("scheduler")) {
+            throw new CronParseException("Capability is not exposed to scheduler");
+        }
+        if (Boolean.FALSE.equals(capability.get().getEnabled())) {
+            throw new CronParseException("Capability is disabled");
+        }
+        ZoneId zoneId = ZoneId.systemDefault();
+        if (now == null) {
+            now = ZonedDateTime.now(zoneId);
+        }
+        PluginAutomation baseInput = copyAutomation(input);
+        List<PluginCapability> registeredCapabilities = capabilityStore.listAll();
+        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
+            AutomationStore.AutomationDocumentSnapshot snapshot = automationStore.loadSnapshot();
+            SaveAutomationResult result = saveAutomationItems(
+                    snapshot.getDocument().getItems(), copyAutomation(baseInput), now, zoneId, registeredCapabilities);
+            snapshot.getDocument().setItems(result.getItems());
+            if (automationStore.saveDocumentIfUnchanged(snapshot)) {
+                copyAutomation(result.getSaved(), input);
+                return input;
+            }
+        }
+        throw new IllegalStateException("Failed to save automation due to concurrent modification");
+    }
+
+    private PluginAutomation saveSystemAutomation(PluginAutomation input, ZonedDateTime now) {
+        ZoneId zoneId = ZoneId.systemDefault();
+        if (now == null) {
+            now = ZonedDateTime.now(zoneId);
+        }
+        PluginAutomation baseInput = RuntimeSystemAutomations.prepareRuntimeMaintenanceSave(input, cronParser, now);
+        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
+            AutomationStore.AutomationDocumentSnapshot snapshot = automationStore.loadSnapshot();
+            List<PluginAutomation> automations = new ArrayList<>(snapshot.getDocument().getItems());
+            PluginAutomation saved = copyAutomation(baseInput);
+            List<PluginAutomation> next = new ArrayList<>();
+            boolean replaced = false;
+            for (PluginAutomation old : automations) {
+                if (RuntimeSystemAutomations.isRuntimeMaintenance(old)) {
+                    if (!replaced) {
+                        saved.setLastRunAt(old.getLastRunAt());
+                        next.add(saved);
+                        replaced = true;
+                    }
+                    continue;
+                }
+                next.add(old);
+            }
+            if (!replaced) {
+                next.add(saved);
+            }
+            snapshot.getDocument().setItems(next);
+            if (automationStore.saveDocumentIfUnchanged(snapshot)) {
+                PluginRuntimeSetting runtimeSetting = RuntimeSystemAutomations.runtimeSettingFromPayload(saved.getPayload());
+                PluginCoreDAO.getInstance().update(pluginCore -> {
+                    PluginRuntimeSetting runtime = pluginCore.getSetting().getRuntime();
+                    runtime.setOnDemandEnabled(runtimeSetting.getOnDemandEnabled());
+                    runtime.setIdleStopEnabled(runtimeSetting.getIdleStopEnabled());
+                    runtime.setIdleTimeoutSeconds(runtimeSetting.getIdleTimeoutSeconds());
+                });
+                return saved;
+            }
+        }
+        throw new IllegalStateException("Failed to save system automation due to concurrent modification");
+    }
+
+    public boolean delete(String id) {
+        if (id == null || id.trim().isEmpty()) {
+            return false;
+        }
+        if (Objects.equals(RuntimeSystemAutomations.RUNTIME_MAINTENANCE_ID, id)) {
+            return false;
+        }
+        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
+            AutomationStore.AutomationDocumentSnapshot snapshot = automationStore.loadSnapshot();
+            List<PluginAutomation> automations = new ArrayList<>(snapshot.getDocument().getItems());
+            boolean removed = automations.removeIf(item -> Objects.equals(id, item.getId()));
+            if (!removed) {
+                return false;
+            }
+            snapshot.getDocument().setItems(automations);
+            if (automationStore.saveDocumentIfUnchanged(snapshot)) {
+                return true;
+            }
+        }
+        throw new IllegalStateException("Failed to delete automation due to concurrent modification");
+    }
+
+    private SaveAutomationResult saveAutomationItems(List<PluginAutomation> currentItems,
+                                                     PluginAutomation input,
+                                                     ZonedDateTime now,
+                                                     ZoneId zoneId,
+                                                     List<PluginCapability> registeredCapabilities) {
+        List<PluginAutomation> automations = new ArrayList<>(currentItems);
+        String id = input.getId();
+        if (id == null || id.trim().isEmpty()) {
+            id = existingAutomationId(automations, input).orElse(UUID.randomUUID().toString());
+        }
+        input.setId(id);
+        input.setTriggerType("cron");
+        input.setTimezone(zoneId.getId());
+        if (input.getEnabled() == null) {
+            input.setEnabled(Boolean.TRUE);
+        }
+        input.setNextRunAt(SchedulerTimes.nextRunAtMillis(cronParser, input.getCron(), zoneId, now));
+        if (input.getPayload() == null) {
+            input.setPayload(new HashMap<>());
+        }
+
+        List<PluginAutomation> next = new ArrayList<>();
+        boolean saved = false;
+        for (PluginAutomation old : automations) {
+            if (Objects.equals(id, old.getId()) || sameCapability(old, input)
+                    || orphanedSameCapabilityKey(old, input, registeredCapabilities)) {
+                if (!saved) {
+                    if (Objects.equals(id, old.getId())) {
+                        input.setPluginId(old.getPluginId());
+                        input.setCapabilityKey(old.getCapabilityKey());
+                    }
+                    input.setLastRunAt(old.getLastRunAt());
+                    next.add(input);
+                    saved = true;
+                }
+                continue;
+            }
+            next.add(old);
+        }
+        if (!saved) {
+            next.add(input);
+        }
+        return new SaveAutomationResult(next, input);
+    }
+
+    private void preserveExistingCapabilityBinding(PluginAutomation input) {
+        if (input == null || isBlank(input.getId())) {
+            return;
+        }
+        for (PluginAutomation automation : automationStore.list()) {
+            if (Objects.equals(input.getId(), automation.getId())) {
+                input.setPluginId(automation.getPluginId());
+                input.setCapabilityKey(automation.getCapabilityKey());
+                return;
+            }
+        }
+    }
+
+    private void validate(PluginAutomation input) {
+        if (input == null) {
+            throw new CronParseException("Automation is empty");
+        }
+        if (isBlank(input.getName())) {
+            throw new CronParseException("Automation name is empty");
+        }
+        if (isBlank(input.getPluginId())) {
+            throw new CronParseException("Plugin id is empty");
+        }
+        if (isBlank(input.getCapabilityKey())) {
+            throw new CronParseException("Capability key is empty");
+        }
+        if (isBlank(input.getCron())) {
+            throw new CronParseException("Cron expression is empty");
+        }
+    }
+
+    private boolean canCreateDefaultAutomation(PluginCapability capability) {
+        return capability != null
+                && Objects.equals("scheduled", capability.getType())
+                && capability.getExposure() != null
+                && capability.getExposure().contains("scheduler")
+                && !Boolean.FALSE.equals(capability.getEnabled())
+                && !isBlank(capability.getPluginId())
+                && !isBlank(capability.getKey())
+                && !isBlank(capability.getDefaultCron());
+    }
+
+    private Optional<String> existingAutomationId(List<PluginAutomation> automations, PluginAutomation input) {
+        return automations.stream()
+                .filter(item -> sameCapability(item, input))
+                .map(PluginAutomation::getId)
+                .filter(id -> id != null && !id.trim().isEmpty())
+                .findFirst();
+    }
+
+    private PluginAutomation prepareAutomation(PluginAutomation input,
+                                               ZonedDateTime now,
+                                               PluginCapability capability,
+                                               List<PluginAutomation> automations) {
+        validate(input);
+        if (capability.getExposure() == null || !capability.getExposure().contains("scheduler")) {
+            throw new CronParseException("Capability is not exposed to scheduler");
+        }
+        if (Boolean.FALSE.equals(capability.getEnabled())) {
+            throw new CronParseException("Capability is disabled");
+        }
+        ZoneId zoneId = ZoneId.systemDefault();
+        if (now == null) {
+            now = ZonedDateTime.now(zoneId);
+        }
+        String id = input.getId();
+        if (id == null || id.trim().isEmpty()) {
+            id = existingAutomationId(automations, input).orElse(UUID.randomUUID().toString());
+        }
+        input.setId(id);
+        input.setTriggerType("cron");
+        input.setTimezone(zoneId.getId());
+        if (input.getEnabled() == null) {
+            input.setEnabled(Boolean.TRUE);
+        }
+        input.setNextRunAt(SchedulerTimes.nextRunAtMillis(cronParser, input.getCron(), zoneId, now));
+        if (input.getPayload() == null) {
+            input.setPayload(new HashMap<>());
+        }
+        return input;
+    }
+
+    private Optional<PluginAutomation> findAutomationForCapability(List<PluginAutomation> automations, PluginCapability capability) {
+        return automations.stream()
+                .filter(item -> Objects.equals(item.getPluginId(), capability.getPluginId())
+                        && Objects.equals(item.getCapabilityKey(), capability.getKey()))
+                .findFirst();
+    }
+
+    private Optional<PluginAutomation> findOrphanedAutomationByCapabilityKey(List<PluginAutomation> automations,
+                                                                            PluginCapability capability,
+                                                                            List<PluginCapability> registeredCapabilities) {
+        return automations.stream()
+                .filter(item -> Objects.equals(item.getCapabilityKey(), capability.getKey()))
+                .filter(item -> !findCapability(registeredCapabilities, item.getPluginId(), item.getCapabilityKey()).isPresent())
+                .findFirst();
+    }
+
+    private boolean removeOrphanedAutomationsByCapabilityKey(List<PluginAutomation> automations,
+                                                            PluginCapability capability,
+                                                            List<PluginCapability> registeredCapabilities) {
+        return automations.removeIf(item -> Objects.equals(item.getCapabilityKey(), capability.getKey())
+                && !findCapability(registeredCapabilities, item.getPluginId(), item.getCapabilityKey()).isPresent());
+    }
+
+    private Optional<PluginCapability> findCapability(List<PluginCapability> capabilities, String pluginId, String key) {
+        return capabilities.stream()
+                .filter(item -> Objects.equals(pluginId, item.getPluginId()))
+                .filter(item -> Objects.equals(key, item.getKey()))
+                .findFirst();
+    }
+
+    private boolean sameCapability(PluginAutomation left, PluginAutomation right) {
+        return Objects.equals(left.getPluginId(), right.getPluginId())
+                && Objects.equals(left.getCapabilityKey(), right.getCapabilityKey());
+    }
+
+    private boolean orphanedSameCapabilityKey(PluginAutomation left,
+                                             PluginAutomation right,
+                                             List<PluginCapability> registeredCapabilities) {
+        return Objects.equals(left.getCapabilityKey(), right.getCapabilityKey())
+                && !findCapability(registeredCapabilities, left.getPluginId(), left.getCapabilityKey()).isPresent();
+    }
+
+    private PluginAutomation copyAutomation(PluginAutomation source) {
+        PluginAutomation target = new PluginAutomation();
+        copyAutomation(source, target);
+        return target;
+    }
+
+    private void copyAutomation(PluginAutomation source, PluginAutomation target) {
+        target.setId(source.getId());
+        target.setPluginId(source.getPluginId());
+        target.setCapabilityKey(source.getCapabilityKey());
+        target.setName(source.getName());
+        target.setTriggerType(source.getTriggerType());
+        target.setCron(source.getCron());
+        target.setTimezone(source.getTimezone());
+        target.setEnabled(source.getEnabled());
+        target.setSystem(source.getSystem());
+        target.setDeletable(source.getDeletable());
+        target.setNextRunAt(source.getNextRunAt());
+        target.setLastRunAt(source.getLastRunAt());
+        target.setLeaseOwner(source.getLeaseOwner());
+        target.setLeaseUntil(source.getLeaseUntil());
+        target.setPayload(source.getPayload() == null ? null : new HashMap<>(source.getPayload()));
+    }
+
+    private String defaultAutomationId(PluginCapability capability) {
+        return "default:" + capability.getPluginId() + ":" + capability.getKey();
+    }
+
+    private String defaultAutomationName(PluginCapability capability) {
+        if (!isBlank(capability.getLabel())) {
+            return capability.getLabel();
+        }
+        return capability.getKey();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private static class AutomationMutationResult {
+        private final List<PluginAutomation> items;
+        private final List<PluginAutomation> created;
+        private final boolean changed;
+
+        private AutomationMutationResult(List<PluginAutomation> items,
+                                         List<PluginAutomation> created,
+                                         boolean changed) {
+            this.items = items;
+            this.created = created;
+            this.changed = changed;
+        }
+
+        public List<PluginAutomation> getItems() {
+            return items;
+        }
+
+        public List<PluginAutomation> getCreated() {
+            return created;
+        }
+
+        public boolean isChanged() {
+            return changed;
+        }
+    }
+
+    private static class SaveAutomationResult {
+        private final List<PluginAutomation> items;
+        private final PluginAutomation saved;
+
+        private SaveAutomationResult(List<PluginAutomation> items, PluginAutomation saved) {
+            this.items = items;
+            this.saved = saved;
+        }
+
+        public List<PluginAutomation> getItems() {
+            return items;
+        }
+
+        public PluginAutomation getSaved() {
+            return saved;
+        }
+    }
+}

@@ -3,17 +3,14 @@ package com.zrlog.plugincore.server.config;
 import com.hibegin.common.dao.DAO;
 import com.hibegin.common.dao.DataSourceWrapperImpl;
 import com.hibegin.common.util.EnvKit;
-import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugin.common.model.BlogRunTime;
 import com.zrlog.plugin.type.RunType;
-import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 public class PluginConfig {
@@ -23,7 +20,6 @@ public class PluginConfig {
     private RunType runType;
     private int masterPort;
     private String pluginBasePath;
-    private final Map<String, IOSession> sessionMap = new ConcurrentHashMap<>();
     private BlogRunTime blogRunTime;
 
     public static PluginConfig getInstance() {
@@ -35,8 +31,8 @@ public class PluginConfig {
         instance.dbPropertiesFile = _dbPropertiesFile;
         instance.masterPort = masterPort;
         instance.blogRunTime = blogRunTime;
-        new File(pluginBasePath).mkdir();
-        instance.pluginBasePath = pluginBasePath;
+        instance.pluginBasePath = resolvePluginBasePath(masterPort, pluginBasePath);
+        new File(instance.pluginBasePath).mkdirs();
 
         try (FileInputStream fis = new FileInputStream(_dbPropertiesFile)) {
             Properties properties = new Properties();
@@ -72,36 +68,26 @@ public class PluginConfig {
         return pluginBasePath;
     }
 
-    public String getPluginHomeFolder(String pluginName) {
+    public String getPluginHomeFolder(String pluginShortName) {
         if (EnvKit.isFaaSMode()) {
-            return "/tmp/" + masterPort + "/" + pluginName + "/usr/";
+            return getFaaSRuntimeRoot(masterPort) + "/" + pluginShortName + "/usr/";
         }
-        return PluginConfig.getInstance().getPluginBasePath() + "/" + pluginName + "/usr/";
+        return PluginConfig.getInstance().getPluginBasePath() + "/" + pluginShortName + "/usr/";
     }
 
-    public String getPluginTempFolder(String pluginName) {
+    public String getPluginTempFolder(String pluginShortName) {
         if (EnvKit.isFaaSMode()) {
-            return "/tmp/" + masterPort + "/" + pluginName + "/tmp/";
+            return getFaaSRuntimeRoot(masterPort) + "/" + pluginShortName + "/tmp/";
         }
-        return PluginConfig.getInstance().getPluginBasePath() + "/" + pluginName + "/tmp/";
+        return PluginConfig.getInstance().getPluginBasePath() + "/" + pluginShortName + "/tmp/";
     }
 
-
-    public IOSession getIOSessionByPluginName(String pluginName) {
-        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginInfoMap().get(pluginName);
-        if (pluginVO != null) {
-            return sessionMap.get(pluginVO.getPlugin().getId());
-        }
-
-        return null;
+    static String resolvePluginBasePath(int masterPort, String pluginBasePath) {
+        return pluginBasePath;
     }
 
-    public Map<String, IOSession> getSessionMap() {
-        return sessionMap;
-    }
-
-    public List<IOSession> getAllSessions() {
-        return new ArrayList<>(sessionMap.values());
+    public static String getFaaSRuntimeRoot(int masterPort) {
+        return "/tmp/" + masterPort;
     }
 
     public BlogRunTime getBlogRunTime() {

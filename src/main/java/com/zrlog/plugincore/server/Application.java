@@ -13,6 +13,8 @@ import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.config.PluginConfig;
 import com.zrlog.plugincore.server.config.PluginHttpServerConfig;
 import com.zrlog.plugincore.server.impl.NioServer;
+import com.zrlog.plugincore.server.plugin.PluginBootstrap;
+import com.zrlog.plugincore.server.runtime.scheduler.InternalSchedulerRunner;
 import com.zrlog.plugincore.server.util.DevUtil;
 import com.zrlog.plugincore.server.util.LambdaEnv;
 import com.zrlog.plugincore.server.util.ListenWebServerThread;
@@ -47,6 +49,7 @@ public class Application {
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
+        configureFaaSRuntimeRoot(args);
         init();
         if (Objects.nonNull(args) && ParseArgsUtil.justTips(args, "plugin-core", (String) ConfigKit.get("version", ""))) {
             return;
@@ -95,13 +98,60 @@ public class Application {
         loadPluginServer(serverPort);
     }
 
+    static void configureFaaSRuntimeRoot(String[] args) {
+        if (!EnvKit.isFaaSMode()) {
+            return;
+        }
+        configureWritableRuntimeRoot(parseMasterPort(args));
+    }
+
+    static void configureWritableRuntimeRoot(int masterPort) {
+        String runtimeRoot = PluginConfig.getFaaSRuntimeRoot(masterPort) + "/plugin-core";
+        setPathProperty("sws.root.path", runtimeRoot);
+        setPathProperty("sws.log.path", runtimeRoot + "/log");
+        setPathProperty("sws.cache.path", runtimeRoot + "/cache");
+        setPathProperty("sws.temp.path", runtimeRoot + "/temp");
+        setPathProperty("java.io.tmpdir", runtimeRoot + "/tmp");
+        setPathProperty("user.home", runtimeRoot + "/usr");
+        setPathProperty("user.dir", runtimeRoot);
+    }
+
+    private static void setPathProperty(String key, String value) {
+        new File(value).mkdirs();
+        System.setProperty(key, value);
+    }
+
+    private static int parseMasterPort(String[] args) {
+        if (args == null || args.length <= 1) {
+            return ConfigKit.getServerPort();
+        }
+        return Integer.parseInt(args[1]);
+    }
+
     private static void loadPluginServer(Integer httpPort) {
+        boolean bootstrapRuntimeWorkers = shouldBootstrapRuntimeWorkers();
+        if (bootstrapRuntimeWorkers) {
+            PluginBootstrap.verifyPluginCoreReadable();
+        }
         ISocketServer socketServer = new NioServer();
         if (!socketServer.create()) {
             return;
         }
-        new Thread(socketServer::listen).start();
-        loadHttpServer(httpPort);
+        new Thread(socketServer::listen, "zrlog-plugin-socket").start();
+        try {
+            if (bootstrapRuntimeWorkers) {
+                PluginBootstrap.loadPluginsAsync();
+                InternalSchedulerRunner.start();
+            }
+            loadHttpServer(httpPort);
+        } catch (RuntimeException e) {
+            socketServer.destroy("plugin bootstrap failed");
+            throw e;
+        }
+    }
+
+    static boolean shouldBootstrapRuntimeWorkers() {
+        return !Boolean.TRUE.equals(nativeAgent);
     }
 
     private static void loadHttpServer(Integer serverPort) {

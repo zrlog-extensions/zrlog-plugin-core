@@ -6,6 +6,9 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public class CmdUtil {
 
@@ -108,6 +111,30 @@ public class CmdUtil {
         Runtime rt = Runtime.getRuntime();
         try {
             return rt.exec(cmd);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static Process getProcess(File workingDirectory, Map<String, String> environment, String cmd, Object... args) {
+        List<String> command = new ArrayList<>();
+        command.add(cmd);
+        if (args != null) {
+            for (Object arg : args) {
+                command.add(String.valueOf(arg));
+            }
+        }
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        if (workingDirectory != null) {
+            workingDirectory.mkdirs();
+            processBuilder.directory(workingDirectory);
+        }
+        if (environment != null) {
+            processBuilder.environment().putAll(environment);
+        }
+        try {
+            return processBuilder.start();
         } catch (IOException e) {
             e.printStackTrace();
         }

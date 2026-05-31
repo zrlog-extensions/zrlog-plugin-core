@@ -1,12 +1,11 @@
 package com.zrlog.plugincore.server.config;
 
 import com.zrlog.plugin.message.Plugin;
-import com.zrlog.plugincore.server.type.PluginStatus;
 
 public class PluginVO {
 
     private Plugin plugin;
-    private PluginStatus status;
+    private String fileMd5;
 
     public Plugin getPlugin() {
         return plugin;
@@ -16,11 +15,11 @@ public class PluginVO {
         this.plugin = plugin;
     }
 
-    public PluginStatus getStatus() {
-        return status;
+    public String getFileMd5() {
+        return fileMd5;
     }
 
-    public void setStatus(PluginStatus status) {
-        this.status = status;
+    public void setFileMd5(String fileMd5) {
+        this.fileMd5 = fileMd5;
     }
 }

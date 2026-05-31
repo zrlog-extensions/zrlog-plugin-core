@@ -1,50 +1,64 @@
-import {Button, Modal, Select} from "antd";
-import FormItem from "antd/es/form/FormItem";
-import {Option} from "rc-select";
-import {CSSProperties, FunctionComponent, PropsWithChildren, useState} from "react";
+import {Button, Form, Modal, Switch, message} from "antd";
+import {CSSProperties, FunctionComponent, PropsWithChildren, useEffect, useState} from "react";
 import axios from "axios";
+import {PluginCoreSetting} from "../index";
 
 type SettingsStatus = {
-    commentPluginName: string;
+    autoDownloadLostFile: boolean;
 }
 
 type SettingsProps = {
     style: CSSProperties;
+    setting?: PluginCoreSetting;
 }
 
-const Settings: FunctionComponent<PropsWithChildren<SettingsProps>> = ({children, style}) => {
+const stateFromSetting = (setting?: PluginCoreSetting): SettingsStatus => ({
+    autoDownloadLostFile: setting?.disableAutoDownloadLostFile !== true
+});
+
+const Settings: FunctionComponent<PropsWithChildren<SettingsProps>> = ({children, style, setting}) => {
 
     const [show, setShow] = useState(false);
+    const [messageApi, contextHolder] = message.useMessage({maxCount: 3});
 
-    const [state, setState] = useState<SettingsStatus>({
-        commentPluginName: "comment"
-    })
+    const [savedState, setSavedState] = useState<SettingsStatus>(stateFromSetting(setting))
+    const [state, setState] = useState<SettingsStatus>(stateFromSetting(setting))
+
+    useEffect(() => {
+        const nextState = stateFromSetting(setting);
+        setSavedState(nextState);
+        setState(nextState);
+    }, [setting?.disableAutoDownloadLostFile]);
 
     const getBody = () => {
-        return <Modal title={"设置"} open={show} onOk={async () => {
+        return <Modal title={"插件设置"} open={show} onOk={async () => {
             const params = new URLSearchParams();
-            params.set("commentPluginName", state.commentPluginName);
-            await axios.post("api/setting/update", params.toString());
+            params.set("disableAutoDownloadLostFile", String(!state.autoDownloadLostFile));
+            const {data} = await axios.post("api/setting/update", params.toString());
+            if (data.code > 0) {
+                messageApi.error(data.message);
+                return;
+            }
+            setSavedState(state);
             setShow(false);
-        }} onCancel={() => setShow(false)}>
-            <FormItem label={"评论插件"}>
-                <Select onChange={(e) => {
+        }} onCancel={() => {
+            setState(savedState);
+            setShow(false);
+        }}>
+            <Form.Item label={"自动补齐必要插件"} style={{marginBottom: 0}}>
+                <Switch checked={state.autoDownloadLostFile} onChange={(checked) => {
                     setState({
-                        commentPluginName: e,
+                        autoDownloadLostFile: checked,
                     })
-                }} defaultValue={state.commentPluginName} style={{maxWidth: 156}}>
-                    <Option value={"comment"}>默认</Option>
-                    <Option value={"changyan"}>畅言</Option>
-                </Select>
-            </FormItem>
+                }}/>
+            </Form.Item>
         </Modal>
     }
 
     return <>
+        {contextHolder}
         {getBody()}
-        <Button style={style} onClick={async () => {
-            const {data} = await axios.get("api/setting/load")
-            setState(data);
+        <Button style={style} onClick={() => {
             setShow(true);
         }}>{children}</Button>
     </>

@@ -25,3 +25,4 @@ pom.xml.releaseBackup
 plugin-core.bgv
 plugin-core-Darwin-arm64.bin
 src/main/resources/static
+src/main/frontend/build

@@ -10,25 +10,52 @@ import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.api.IActionHandler;
 import com.zrlog.plugin.common.model.Comment;
 import com.zrlog.plugin.common.model.CreateArticleRequest;
-import com.zrlog.plugin.common.model.PublicInfo;
 import com.zrlog.plugin.common.model.TemplatePath;
 import com.zrlog.plugin.data.codec.BaseHttpRequestInfo;
 import com.zrlog.plugin.data.codec.HttpResponseInfo;
 import com.zrlog.plugin.data.codec.MsgPacket;
 import com.zrlog.plugin.data.codec.MsgPacketStatus;
+import com.zrlog.plugin.common.BasicCronParser;
+import com.zrlog.plugin.message.CapabilityInvokeRequest;
+import com.zrlog.plugin.message.CapabilityInvokeResult;
+import com.zrlog.plugin.message.NotificationRequest;
 import com.zrlog.plugin.message.Plugin;
+import com.zrlog.plugin.message.PluginCapability;
+import com.zrlog.plugin.message.SchedulerQueryRequest;
+import com.zrlog.plugin.message.SchedulerQueryResult;
+import com.zrlog.plugin.message.SchedulerUpdateRequest;
+import com.zrlog.plugin.message.SchedulerUpdateResult;
 import com.zrlog.plugin.type.ActionType;
 import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.Application;
 import com.zrlog.plugincore.server.config.PluginConfig;
 import com.zrlog.plugincore.server.dao.ArticleDAO;
 import com.zrlog.plugincore.server.dao.CommentDAO;
+import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.dao.TypeDAO;
 import com.zrlog.plugincore.server.dao.WebSiteDAO;
 import com.zrlog.plugincore.server.handle.ServiceMsgPacketHandler;
-import com.zrlog.plugincore.server.type.PluginStatus;
+import com.zrlog.plugincore.server.plugin.PluginBootstrap;
+import com.zrlog.plugincore.server.plugin.PluginSessions;
+import com.zrlog.plugincore.server.runtime.capability.CapabilityRegistrationService;
+import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
+import com.zrlog.plugincore.server.runtime.capability.InvokeContext;
+import com.zrlog.plugincore.server.runtime.capability.RuntimeCapabilityInvokerFactory;
+import com.zrlog.plugincore.server.runtime.notification.NotificationDeliveryStore;
+import com.zrlog.plugincore.server.runtime.notification.NotificationProviderResolver;
+import com.zrlog.plugincore.server.runtime.notification.NotificationPublishResult;
+import com.zrlog.plugincore.server.runtime.notification.NotificationRuntime;
+import com.zrlog.plugincore.server.runtime.scheduler.AutomationStore;
+import com.zrlog.plugincore.server.runtime.scheduler.RuntimeAutomationService;
+import com.zrlog.plugincore.server.runtime.scheduler.SchedulerQueryService;
+import com.zrlog.plugincore.server.runtime.scheduler.SchedulerUpdateService;
+import com.zrlog.plugincore.server.runtime.state.DefaultPluginRuntimeStarter;
+import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
+import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateStore;
+import com.zrlog.plugin.common.KvRepository;
+import com.zrlog.plugincore.server.runtime.store.WebsiteRuntimeKvStore;
 import com.zrlog.plugincore.server.util.HttpUtils;
-import com.zrlog.plugincore.server.util.PluginUtil;
+import com.zrlog.plugincore.server.util.PublicInfoLoader;
 import org.jsoup.Jsoup;
 
 import java.nio.charset.StandardCharsets;
@@ -69,16 +96,165 @@ public class ServerActionHandler implements IActionHandler {
     public void initConnect(IOSession session, MsgPacket msgPacket) {
         Plugin plugin = new Gson().fromJson(msgPacket.getDataStr(), Plugin.class);
         session.setPlugin(plugin);
+        String pluginName = PluginSessions.nameOrShortName(plugin);
+        WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+        CapabilityStore capabilityStore = new CapabilityStore(kvStore);
+        List<PluginCapability> capabilities;
+        try {
+            capabilities = initializePluginLifecycle(session, msgPacket, plugin, pluginName, kvStore, capabilityStore);
+        } catch (RuntimeException e) {
+            failPluginLifecycleInitialization(session, msgPacket, plugin, pluginName, runtimeStateService(kvStore, session), e);
+            return;
+        }
+        bootstrapRuntimeFeaturesBestEffort(kvStore, capabilityStore, capabilities);
+        //doRefreshCache(20);
+    }
+
+    private List<PluginCapability> initializePluginLifecycle(IOSession session,
+                                                             MsgPacket msgPacket,
+                                                             Plugin plugin,
+                                                             String pluginName,
+                                                             WebsiteRuntimeKvStore kvStore,
+                                                             CapabilityStore capabilityStore) {
+        PluginBootstrap.registerPlugin(session);
+        PluginRuntimeStateService stateService = runtimeStateService(kvStore, session);
+        Long processId = PluginSessions.processId(session);
+        stateService.markInitializing(plugin.getId(), pluginName, null, processId);
+        List<PluginCapability> capabilities = new CapabilityRegistrationService(capabilityStore)
+                .registerCapabilitiesFromInitPayload(plugin, msgPacket.getDataStr());
+        stateService.markReady(plugin.getId(), pluginName, processId);
         Map<String, String> map = new HashMap<>();
         map.put("runType", RunConstants.runType.toString());
         session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-        PluginUtil.registerPlugin(PluginStatus.START, session);
-        //doRefreshCache(20);
+        return capabilities;
+    }
+
+    private void failPluginLifecycleInitialization(IOSession session,
+                                                   MsgPacket msgPacket,
+                                                   Plugin plugin,
+                                                   String pluginName,
+                                                   PluginRuntimeStateService stateService,
+                                                   RuntimeException e) {
+        LOGGER.log(Level.WARNING, "init plugin runtime error", e);
+        session.sendJsonMsg(errorMap(e.getMessage()), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+        if (plugin == null) {
+            return;
+        }
+        if (plugin.getShortName() != null && !plugin.getShortName().trim().isEmpty()) {
+            PluginBootstrap.stopPlugin(plugin.getShortName());
+        }
+        String pluginId = plugin.getId();
+        if (pluginId != null && !pluginId.trim().isEmpty()) {
+            stateService.markFailed(pluginId, pluginName, e.getMessage());
+        }
+    }
+
+    private void bootstrapRuntimeFeaturesBestEffort(KvRepository kvStore,
+                                                    CapabilityStore capabilityStore,
+                                                    List<PluginCapability> capabilities) {
+        try {
+            new RuntimeAutomationService(new AutomationStore(kvStore), capabilityStore, new BasicCronParser())
+                    .ensureDefaultAutomations(capabilities, null);
+        } catch (RuntimeException e) {
+            // Scheduler bootstrap is runtime feature setup; it must not fail plugin lifecycle initialization.
+            LOGGER.log(Level.WARNING, "init plugin default automations error", e);
+        }
+    }
+
+    private Map<String, Object> errorMap(String message) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("success", false);
+        map.put("message", message == null || message.trim().isEmpty() ? "Plugin init failed" : message);
+        return map;
+    }
+
+    @Override
+    public void capabilityInvoke(IOSession session, MsgPacket msgPacket) {
+        WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+        CapabilityInvokeRequest request = new Gson().fromJson(msgPacket.getDataStr(), CapabilityInvokeRequest.class);
+        if (request == null) {
+            sendCapabilityResult(session, msgPacket, capabilityError("Capability invoke request is invalid"));
+            return;
+        }
+        InvokeContext context = new InvokeContext();
+        context.setSource("internal");
+        context.setRequestId(request.getRequestId());
+        context.setTraceId(request.getTraceId());
+        CapabilityInvokeResult result = RuntimeCapabilityInvokerFactory.socket(kvStore)
+                .invoke(request.getPluginId(), request.getCapabilityKey(), request.getPayload(), context);
+        sendCapabilityResult(session, msgPacket, result);
+    }
+
+    @Override
+    public void notificationPublish(IOSession session, MsgPacket msgPacket) {
+        WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+        NotificationRequest request = new Gson().fromJson(msgPacket.getDataStr(), NotificationRequest.class);
+        if (Objects.isNull(request.getSourcePluginId())) {
+            request.setSourcePluginId(session.getPlugin().getId());
+        }
+        if (Objects.isNull(request.getSourcePluginName())) {
+            request.setSourcePluginName(PluginSessions.nameOrShortName(session.getPlugin()));
+        }
+        NotificationRuntime notificationRuntime = new NotificationRuntime(
+                new CapabilityStore(kvStore),
+                new NotificationDeliveryStore(kvStore),
+                new NotificationProviderResolver(),
+                PluginCoreDAO.getInstance().loadSnapshot().getSetting().getNotification(),
+                RuntimeCapabilityInvokerFactory.socket(kvStore)
+        );
+        NotificationPublishResult result = notificationRuntime.publish(request);
+        session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(),
+                result.getFailedCount() == 0 ? MsgPacketStatus.RESPONSE_SUCCESS : MsgPacketStatus.RESPONSE_ERROR);
+    }
+
+    @Override
+    public void schedulerQuery(IOSession session, MsgPacket msgPacket) {
+        WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+        SchedulerQueryRequest request = new Gson().fromJson(msgPacket.getDataStr(), SchedulerQueryRequest.class);
+        SchedulerQueryResult result = new SchedulerQueryService(
+                new AutomationStore(kvStore),
+                new CapabilityStore(kvStore)
+        ).query(session.getPlugin(), request);
+        session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(),
+                result.isSuccess() ? MsgPacketStatus.RESPONSE_SUCCESS : MsgPacketStatus.RESPONSE_ERROR);
+    }
+
+    @Override
+    public void schedulerUpdate(IOSession session, MsgPacket msgPacket) {
+        WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+        SchedulerUpdateRequest request = new Gson().fromJson(msgPacket.getDataStr(), SchedulerUpdateRequest.class);
+        SchedulerUpdateResult result = new SchedulerUpdateService(
+                new AutomationStore(kvStore),
+                new CapabilityStore(kvStore),
+                new BasicCronParser()
+        ).update(session.getPlugin(), request, null);
+        session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(),
+                result.isSuccess() ? MsgPacketStatus.RESPONSE_SUCCESS : MsgPacketStatus.RESPONSE_ERROR);
+    }
+
+    private void sendCapabilityResult(IOSession session, MsgPacket msgPacket, CapabilityInvokeResult result) {
+        session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(),
+                result.isSuccess() ? MsgPacketStatus.RESPONSE_SUCCESS : MsgPacketStatus.RESPONSE_ERROR);
+    }
+
+    private CapabilityInvokeResult capabilityError(String message) {
+        CapabilityInvokeResult result = new CapabilityInvokeResult();
+        result.setSuccess(false);
+        result.setErrorMessage(message);
+        return result;
     }
 
     @Override
     public void getFile(IOSession session, MsgPacket msgPacket) {
 
+    }
+
+    private PluginRuntimeStateService runtimeStateService(KvRepository kvStore, IOSession session) {
+        return new PluginRuntimeStateService(
+                new PluginRuntimeStateStore(kvStore),
+                new DefaultPluginRuntimeStarter(),
+                PluginSessions.runtimeInstanceId(session)
+        );
     }
 
     private String toWebSiteName(IOSession session, String key) {
@@ -108,14 +284,19 @@ public class ServerActionHandler implements IActionHandler {
         Map<String, Object> map = new Gson().fromJson(msgPacket.getDataStr(), Map.class);
 
         Map<String, Object> resultMap = new HashMap<>();
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            Map<String, Object> result = new HashMap<>();
-            try {
-                result.put("result", new WebSiteDAO().saveOrUpdate(toWebSiteName(session, entry.getKey()), entry.getValue()));
-            } catch (SQLException e) {
-                LOGGER.log(Level.SEVERE, "", e);
+        try {
+            Map<String, Object> values = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                values.put(toWebSiteName(session, entry.getKey()), entry.getValue());
             }
-            resultMap.put(entry.getKey(), result);
+            Map<String, Boolean> results = new WebSiteDAO().saveOrUpdate(values);
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                Map<String, Object> result = new HashMap<>();
+                result.put("result", Boolean.TRUE.equals(results.get(toWebSiteName(session, entry.getKey()))));
+                resultMap.put(entry.getKey(), result);
+            }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "", e);
         }
         if (map.get("syncTemplate") != null) {
             if (ResultValueConvertUtils.toBoolean(map.get("syncTemplate"))) {
@@ -217,18 +398,8 @@ public class ServerActionHandler implements IActionHandler {
 
     @Override
     public void loadPublicInfo(IOSession session, MsgPacket msgPacket) {
-        String[] keys = "title,second_title,host,admin_darkMode,admin_color_primary".split(",");
         try {
-            Map<String, Object> response = new WebSiteDAO().getWebSiteByNameIn(Arrays.asList(keys));
-            // convert to publicInfo
-            PublicInfo publicInfo = new PublicInfo();
-            publicInfo.setHomeUrl("http://" + response.get("host"));
-            publicInfo.setApiHomeUrl(Application.BLOG_API_HOME_URL);
-            publicInfo.setTitle((String) response.get("title"));
-            publicInfo.setSecondTitle((String) response.get("second_title"));
-            publicInfo.setAdminColorPrimary(Objects.requireNonNullElse((String) response.get("admin_color_primary"), "#1677ff"));
-            publicInfo.setDarkMode(ResultValueConvertUtils.toBoolean(response.get("admin_darkMode")));
-            session.sendJsonMsg(publicInfo, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+            session.sendJsonMsg(PublicInfoLoader.loadPublicInfo(), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "", e);
         }
@@ -237,7 +408,7 @@ public class ServerActionHandler implements IActionHandler {
     @Override
     public void getCurrentTemplate(IOSession session, MsgPacket msgPacket) {
         try {
-            String templatePath = (String) new WebSiteDAO().set("name", "template").queryFirst("value");
+            String templatePath = (String) new WebSiteDAO().queryValueByName("template");
             TemplatePath template = new TemplatePath();
             template.setValue(templatePath);
             session.sendJsonMsg(template, ActionType.CURRENT_TEMPLATE.name(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);

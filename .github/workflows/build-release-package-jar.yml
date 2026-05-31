@@ -7,6 +7,9 @@ jobs:
   build:
     name: plugin relase package ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    concurrency:
+      group: deploy-on-${{ matrix.os }}-jar   # 同一个 group 的任务会排队执行
+      cancel-in-progress: true # 取消前一个任务
     strategy:
       matrix:
         os: [ubuntu-latest]
@@ -30,6 +33,5 @@ jobs:
       - name: Build with Maven
         run: |
           mkdir -p /tmp/download
-          bash -e bin/build-info.sh
-          bash -e ./mvnw clean package assembly:single -DoutputDirectory=/tmp/download/plugin/core
+          bash -e bin/compile-jar.sh -DoutputDirectory=/tmp/download/plugin/core
           bash bin/upload-bin.sh ${{ secrets.SECRET_ID }} ${{ secrets.SECRET_KEY }} ${{ secrets.BUCKET }} /tmp/download plugin ${{ secrets.HOST }}

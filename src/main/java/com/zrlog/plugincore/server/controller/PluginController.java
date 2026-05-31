@@ -6,11 +6,16 @@ import com.hibegin.http.server.web.Controller;
 import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugin.data.codec.HttpRequestInfo;
+import com.zrlog.plugin.data.codec.MsgPacket;
+import com.zrlog.plugin.data.codec.MsgPacketStatus;
+import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
 import com.zrlog.plugincore.server.config.PluginConfig;
 import com.zrlog.plugincore.server.handle.ServiceMsgPacketHandler;
-import com.zrlog.plugincore.server.util.BooleanUtils;
+import com.zrlog.plugincore.server.plugin.PluginBootstrap;
+import com.zrlog.plugincore.server.plugin.PluginFiles;
+import com.zrlog.plugincore.server.plugin.PluginSessions;
+import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStates;
 import com.zrlog.plugincore.server.util.HttpMsgUtil;
-import com.zrlog.plugincore.server.util.PluginUtil;
 import com.zrlog.plugincore.server.util.StringUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -20,6 +25,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -36,25 +42,18 @@ public class PluginController extends Controller {
         Document document = Jsoup.parse(Objects.requireNonNull(PluginController.class.getResourceAsStream("/static/index.html")), "UTF-8", "");
         document.title("插件管理");
         document.body().removeAttr("class");
-        if (BooleanUtils.isTrue(getRequest().getHeader("Dark-Mode"))) {
+        Map<String, Object> pluginData = new PluginApiController(request, response).plugins();
+        if (Boolean.TRUE.equals(pluginData.get("dark"))) {
             document.body().addClass("dark");
         } else {
             document.body().addClass("light");
         }
-        String jsonStr = new Gson().toJson(new PluginApiController(request, response).plugins());
+        String jsonStr = new Gson().toJson(pluginData);
         Element pluginInfo = document.getElementById("pluginInfo");
         if (Objects.nonNull(pluginInfo)) {
             pluginInfo.text(jsonStr);
         }
         response.renderHtmlStr(document.html());
-    }
-
-    public void downloadResult() throws IOException {
-        index();
-    }
-
-    public void pluginStarted() throws IOException {
-        index();
     }
 
 
@@ -64,22 +63,24 @@ public class PluginController extends Controller {
             return;
         }
         String fileName = downloadUrl.substring(downloadUrl.lastIndexOf("/") + 1);
-        String pluginName = PluginUtil.getPluginName(new File(fileName));
+        String pluginShortName = PluginFiles.getPluginShortName(new File(fileName));
         try {
             File path = new File(PluginConfig.getInstance().getPluginBasePath());
             File file = new File(path + "/" + fileName);
             if (file.exists()) {
-                response.redirect("/admin/plugins/downloadResult?message=插件已经存在了" +
-                        "&pluginName=" + pluginName);
+                if (!PluginBootstrap.startPluginFileForMetadata(file)) {
+                    throw new RuntimeException("插件已经存在，但启动插件获取元数据超时");
+                }
+                response.redirect("/admin/plugins/downloadResult?message=插件已经存在，已启动插件" +
+                        "&pluginName=" + pluginShortName);
                 return;
             }
-            File pluginFile = PluginUtil.downloadPlugin(PluginUtil.getPluginFile(pluginName).getName());
-            PluginUtil.loadPlugin(pluginFile, UUID.randomUUID().toString());
+            PluginBootstrap.downloadAndStartPlugin(PluginFiles.getPluginFile(pluginShortName).getName());
             response.redirect("/admin/plugins/downloadResult?message=下载插件成功" +
-                    "&pluginName=" + pluginName);
+                    "&pluginName=" + pluginShortName);
         } catch (Exception e) {
             response.redirect("/admin/plugins/downloadResult?message=" + e.getMessage() +
-                    "&pluginName=" + pluginName);
+                    "&pluginName=" + pluginShortName);
             LOGGER.log(Level.FINER, "download error ", e);
         }
     }
@@ -89,23 +90,36 @@ public class PluginController extends Controller {
         String name = getRequest().getParaToStr("name");
         if (StringUtils.isEmpty(name)) {
             LOGGER.warning("Missing service name");
-            getResponse().renderCode(404);
+            getResponse().renderCode(400);
             return;
         }
-        IOSession session = ServiceMsgPacketHandler.getServiceSessionWithRetry(name, 0);
+        IOSession session = ServiceMsgPacketHandler.getServiceSessionWithRetry(name, 60);
         if (Objects.isNull(session)) {
-            getResponse().renderCode(404);
+            getResponse().renderCode(503);
             return;
         }
-        int msgId = session.requestService(name, request.decodeParamMap());
-        getResponse().addHeader("Content-Type", "application/json");
-        ByteArrayInputStream bin = new ByteArrayInputStream(session.getResponseMsgPacketByMsgId(msgId).getData().array());
-        getResponse().write(bin);
-    }
-
-
-    private HttpRequestInfo genInfo() {
-        return HttpMsgUtil.genInfo(getRequest());
+        PluginRuntimeStateService stateService = PluginRuntimeStates.newStateService(session);
+        String pluginId = session.getPlugin().getId();
+        String pluginName = PluginSessions.nameOrShortName(session.getPlugin());
+        String errorMessage = null;
+        stateService.markInvocationStart(pluginId, pluginName);
+        try {
+            int msgId = session.requestService(name, request.decodeParamMap());
+            MsgPacket responseMsgPacket = session.getResponseMsgPacketByMsgId(msgId);
+            if (responseMsgPacket == null) {
+                errorMessage = "service " + name + " not response";
+                getResponse().renderCode(500);
+                return;
+            }
+            if (responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_ERROR) {
+                errorMessage = "service " + name + " response error";
+            }
+            getResponse().addHeader("Content-Type", "application/json");
+            ByteArrayInputStream bin = new ByteArrayInputStream(responseMsgPacket.getData().array());
+            getResponse().write(bin);
+        } finally {
+            stateService.markInvocationEnd(pluginId, pluginName, errorMessage);
+        }
     }
 
     public void upload() {
