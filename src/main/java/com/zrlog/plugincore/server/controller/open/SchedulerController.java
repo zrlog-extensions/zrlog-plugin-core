@@ -6,6 +6,7 @@ import com.zrlog.plugincore.server.config.PluginCoreSetting;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.RuntimeCapabilityInvokerFactory;
+import com.zrlog.plugincore.server.runtime.capability.RuntimeSources;
 import com.zrlog.plugincore.server.runtime.scheduler.AutomationRunStore;
 import com.zrlog.plugincore.server.runtime.scheduler.AutomationStore;
 import com.zrlog.plugincore.server.runtime.scheduler.BearerSchedulerAuth;
@@ -33,7 +34,7 @@ public class SchedulerController extends Controller {
                 RuntimeCapabilityInvokerFactory.socket(kvStore),
                 new BasicCronParser()
         );
-        SchedulerTickResult result = new SchedulerTickService(setting.getScheduler(), schedulerRuntime).tick(ZonedDateTime.now());
+        SchedulerTickResult result = new SchedulerTickService(setting.getScheduler(), schedulerRuntime).tick(ZonedDateTime.now(), RuntimeSources.TICK);
         response.renderJson(result);
     }
 }

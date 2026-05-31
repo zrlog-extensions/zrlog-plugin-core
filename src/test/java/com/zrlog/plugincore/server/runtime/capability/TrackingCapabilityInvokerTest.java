@@ -94,6 +94,19 @@ public class TrackingCapabilityInvokerTest {
         assertEquals("Capability is not exposed to scheduler", new InvocationLogStore(kvStore).list().get(0).getErrorMessage());
     }
 
+    @Test
+    public void shouldAllowTickSourceForSchedulerExposureAndWriteTickLog() {
+        InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
+        CapabilityStore capabilityStore = new CapabilityStore(kvStore);
+        capabilityStore.register(capability("plugin-a", "reminder.scanDueTasks", "scheduler"));
+        TrackingCapabilityInvoker invoker = invoker(kvStore, successDelegate(), new FakeStarter(true), capabilityStore);
+
+        CapabilityInvokeResult result = invoker.invoke("plugin-a", "reminder.scanDueTasks", null, context("tick"));
+
+        assertTrue(result.isSuccess());
+        assertEquals("tick", new InvocationLogStore(kvStore).list().get(0).getSource());
+    }
+
     private TrackingCapabilityInvoker invoker(InMemoryRuntimeKvStore kvStore,
                                               CapabilityInvoker delegate,
                                               PluginRuntimeStarter starter) {

@@ -7,6 +7,7 @@ import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityInvoker;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.InvokeContext;
+import com.zrlog.plugincore.server.runtime.capability.RuntimeSources;
 import com.zrlog.plugincore.server.runtime.lock.DistributedLock;
 import com.zrlog.plugincore.server.runtime.state.PluginIdleStopRunner;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeSetting;
@@ -75,10 +76,15 @@ public class SchedulerRuntime {
     }
 
     public SchedulerTickResult tick(ZonedDateTime now) {
+        return tick(now, RuntimeSources.SCHEDULER);
+    }
+
+    public SchedulerTickResult tick(ZonedDateTime now, String source) {
         ensureSystemAutomations(now);
         SchedulerTickResult result = new SchedulerTickResult();
         List<PluginAutomation> automations = automationStore.list();
         List<ClaimedAutomation> claimedAutomations = new ArrayList<>();
+        String invocationSource = invocationSource(source);
         for (PluginAutomation automation : automations) {
             if (!Boolean.TRUE.equals(automation.getEnabled())) {
                 result.skipped();
@@ -127,7 +133,7 @@ public class SchedulerRuntime {
         try {
             List<CompletableFuture<SchedulerTickResult>> futures = new ArrayList<>();
             for (ClaimedAutomation claimedAutomation : claimedAutomations) {
-                futures.add(CompletableFuture.supplyAsync(() -> executeClaimedAutomation(claimedAutomation, now), executorService));
+                futures.add(CompletableFuture.supplyAsync(() -> executeClaimedAutomation(claimedAutomation, now, invocationSource), executorService));
             }
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
             for (CompletableFuture<SchedulerTickResult> future : futures) {
@@ -156,10 +162,10 @@ public class SchedulerRuntime {
         throw new IllegalStateException("Failed to ensure scheduler system automations due to concurrent modification");
     }
 
-    private SchedulerTickResult executeClaimedAutomation(ClaimedAutomation claimedAutomation, ZonedDateTime now) {
+    private SchedulerTickResult executeClaimedAutomation(ClaimedAutomation claimedAutomation, ZonedDateTime now, String source) {
         SchedulerTickResult result = new SchedulerTickResult();
         try {
-            PluginAutomationRun run = executeAutomation(claimedAutomation.getAutomation(), now);
+            PluginAutomationRun run = executeAutomation(claimedAutomation.getAutomation(), now, source);
             automationRunStore.append(run);
             if (Objects.equals("success", run.getStatus())) {
                 result.executed();
@@ -200,7 +206,7 @@ public class SchedulerRuntime {
                 if (claimed == null) {
                     throw new CronParseException("Automation is already running");
                 }
-                PluginAutomationRun run = executeAutomation(claimed, now);
+                PluginAutomationRun run = executeAutomation(claimed, now, RuntimeSources.TICK);
                 automationRunStore.append(run);
                 finishClaimedAutomation(claimed, now, true);
                 return run;
@@ -321,7 +327,11 @@ public class SchedulerRuntime {
         automation.setLeaseUntil(null);
     }
 
-    private PluginAutomationRun executeAutomation(PluginAutomation automation, ZonedDateTime now) {
+    private String invocationSource(String source) {
+        return source == null || source.trim().isEmpty() ? RuntimeSources.SCHEDULER : source.trim();
+    }
+
+    private PluginAutomationRun executeAutomation(PluginAutomation automation, ZonedDateTime now, String source) {
         PluginAutomationRun run = newRun(automation, now);
         if (RuntimeSystemAutomations.isRuntimeMaintenance(automation)) {
             executeRuntimeMaintenance(automation, now);
@@ -329,7 +339,7 @@ public class SchedulerRuntime {
             return finish(run, now);
         }
         InvokeContext context = new InvokeContext();
-        context.setSource("scheduler");
+        context.setSource(invocationSource(source));
         context.setRequestId(UUID.randomUUID().toString());
         context.setAuditRequired(true);
         CapabilityInvokeResult invokeResult = capabilityInvoker.invoke(automation.getPluginId(), automation.getCapabilityKey(), automation.getPayload(), context);

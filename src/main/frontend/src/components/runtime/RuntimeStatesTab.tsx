@@ -208,6 +208,16 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
     ];
 
     const invocationStatusTag = (value: string) => value === "success" ? <Tag color="success">成功</Tag> : <Tag color="error">失败</Tag>;
+    const invocationSourceLabel = (value?: string) => {
+        const labels: Record<string, string> = {
+            scheduler: "定时调度",
+            tick: "手动/外部",
+            notification: "通知",
+            runtime_event: "运行时事件",
+            internal: "内部调用"
+        };
+        return value ? (labels[value] || value) : "-";
+    };
     const invocationLogCell = (record: InvocationLog) => (
         <Space direction="vertical" size={8} style={{width: "100%", minWidth: 0}}>
             {renderCapability(record.pluginId, record.capabilityKey, undefined, record.pluginPreviewImageBase64, record.pluginName)}
@@ -215,7 +225,7 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
                 <Space direction="vertical" size={4} style={{width: "100%"}}>
                     <Space size={[4, 4]} wrap>
                         {invocationStatusTag(record.status)}
-                        {record.source && <Tag>{record.source}</Tag>}
+                        {record.source && <Tag>{invocationSourceLabel(record.source)}</Tag>}
                         {record.durationMs != null && <Tag>{record.durationMs} ms</Tag>}
                     </Space>
                     <Text type="secondary" style={{fontSize: 12}}>{formatTime(record.startedAt)}</Text>
@@ -231,7 +241,7 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
 
     const invocationLogColumns: ColumnsType<InvocationLog> = [
         {title: "能力", key: "capability", render: (_, record) => invocationLogCell(record)},
-        {title: "来源", dataIndex: "source", width: 120, render: formatTime, responsive: ["md"]},
+        {title: "来源", dataIndex: "source", width: 120, render: invocationSourceLabel, responsive: ["md"]},
         {
             title: "状态",
             dataIndex: "status",

@@ -1,5 +1,7 @@
 package com.zrlog.plugincore.server.runtime.scheduler;
 
+import com.zrlog.plugincore.server.runtime.capability.RuntimeSources;
+
 public class SchedulerTickService {
 
     private final SchedulerSetting schedulerSetting;
@@ -11,10 +13,14 @@ public class SchedulerTickService {
     }
 
     public SchedulerTickResult tick(java.time.ZonedDateTime now) {
+        return tick(now, RuntimeSources.SCHEDULER);
+    }
+
+    public SchedulerTickResult tick(java.time.ZonedDateTime now, String source) {
         if (schedulerSetting != null) {
             schedulerSetting.ensureDefaultProvider();
         }
-        return schedulerRuntime.tick(now);
+        return schedulerRuntime.tick(now, source);
     }
 
     public PluginAutomationRun runNow(String automationId, java.time.ZonedDateTime now) {

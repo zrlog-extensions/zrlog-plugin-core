@@ -8,6 +8,7 @@ import com.zrlog.plugincore.server.runtime.InMemoryRuntimeKvStore;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityInvoker;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.InvokeContext;
+import com.zrlog.plugincore.server.runtime.capability.RuntimeSources;
 import com.zrlog.plugincore.server.runtime.capability.TrackingCapabilityInvoker;
 import com.zrlog.plugincore.server.runtime.invocation.InvocationLogStore;
 import com.zrlog.plugincore.server.runtime.state.PluginIdentity;
@@ -53,6 +54,7 @@ public class SchedulerRuntimeTest {
         assertEquals(1, result.getExecutedCount());
         assertEquals(1, runStore.list().size());
         assertEquals("success", runStore.list().get(0).getStatus());
+        assertEquals("scheduler", new InvocationLogStore(kvStore).list().get(0).getSource());
         assertEquals(Long.valueOf(SchedulerTimes.millis(now())), automationStore.list().get(0).getLastRunAt());
         assertEquals(Long.valueOf(SchedulerTimes.millis(now().plusMinutes(5))), automationStore.list().get(0).getNextRunAt());
     }
@@ -124,8 +126,26 @@ public class SchedulerRuntimeTest {
 
         assertEquals("success", run.getStatus());
         assertEquals(1, runStore.list().size());
+        assertEquals("tick", new InvocationLogStore(kvStore).list().get(0).getSource());
         assertEquals(Long.valueOf(SchedulerTimes.millis(now())), automationStore.list().get(0).getLastRunAt());
         assertEquals(Long.valueOf(SchedulerTimes.millis(now().plusMinutes(30))), automationStore.list().get(0).getNextRunAt());
+    }
+
+    @Test
+    public void shouldLogTickSourceWhenManualTickExecutesDueAutomation() {
+        InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
+        AutomationStore automationStore = new AutomationStore(kvStore);
+        AutomationRunStore runStore = new AutomationRunStore(kvStore);
+        CapabilityStore capabilityStore = new CapabilityStore(kvStore);
+        capabilityStore.register(capability("plugin-a", "reminder.scanDueTasks", "scheduler"));
+        PluginAutomation automation = automation("a1", true);
+        automation.setNextRunAt(SchedulerTimes.millis(now()));
+        automationStore.saveAll(Collections.singletonList(automation));
+
+        SchedulerTickResult result = runtime(kvStore, automationStore, runStore, capabilityStore, successInvoker()).tick(now(), RuntimeSources.TICK);
+
+        assertEquals(1, result.getExecutedCount());
+        assertEquals("tick", new InvocationLogStore(kvStore).list().get(0).getSource());
     }
 
     @Test

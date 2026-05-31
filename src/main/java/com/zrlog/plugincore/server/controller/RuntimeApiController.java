@@ -17,6 +17,7 @@ import com.zrlog.plugincore.server.plugin.PluginBootstrap;
 import com.zrlog.plugincore.server.plugin.PluginSessions;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.RuntimeCapabilityInvokerFactory;
+import com.zrlog.plugincore.server.runtime.capability.RuntimeSources;
 import com.zrlog.plugincore.server.runtime.invocation.CapabilityInvocationLog;
 import com.zrlog.plugincore.server.runtime.invocation.InvocationLogStore;
 import com.zrlog.plugincore.server.runtime.notification.*;
@@ -107,7 +108,7 @@ public class RuntimeApiController extends Controller {
     @ResponseBody
     public Map<String, Object> schedulerTick() {
         try {
-            SchedulerTickResult result = schedulerTickService().tick(ZonedDateTime.now());
+            SchedulerTickResult result = schedulerTickService().tick(ZonedDateTime.now(), RuntimeSources.TICK);
             Map<String, Object> map = success();
             map.put("result", result);
             return map;

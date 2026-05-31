@@ -7,7 +7,6 @@ import com.zrlog.plugincore.server.runtime.invocation.InvocationLogStore;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
 import com.zrlog.plugincore.server.runtime.util.RuntimeDates;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -104,8 +103,7 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
     }
 
     private boolean isExposedTo(PluginCapability capability, String source) {
-        List<String> exposure = capability.getExposure();
-        return exposure != null && exposure.contains(source);
+        return RuntimeSources.isExposedTo(capability.getExposure(), source);
     }
 
     private void appendLog(String pluginId,
