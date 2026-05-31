@@ -34,7 +34,7 @@ public final class PluginSessions {
         attachProcessInfo(session, pluginScanRunnable);
         PluginVO pluginVO = new PluginVO();
         pluginVO.setPlugin(session.getPlugin());
-        pluginVO.setFileMd5(PluginFiles.pluginFileMd5(PluginFiles.getPluginFile(session.getPlugin().getShortName())));
+        pluginVO.setFileMd5(PluginFiles.pluginFileMd5(PluginFiles.getAvailablePluginFile(session.getPlugin().getShortName())));
         PluginCoreDAO.getInstance().update(pluginCore ->
                 pluginCore.getPluginInfoMap().put(session.getPlugin().getShortName(), pluginVO));
         registerLocalSession(session);

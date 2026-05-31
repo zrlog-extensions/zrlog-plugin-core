@@ -43,7 +43,7 @@ public class DefaultPluginRuntimeStarter implements PluginRuntimeStarter {
 
     @Override
     public String runtimeMode(PluginIdentity identity) {
-        File pluginFile = PluginFiles.getPluginFile(identity.getPluginShortName());
+        File pluginFile = PluginFiles.getAvailablePluginFile(identity.getPluginShortName());
         if (pluginFile.getName().endsWith(".jar")) {
             return "process";
         }

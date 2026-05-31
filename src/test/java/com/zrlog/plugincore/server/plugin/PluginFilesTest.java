@@ -64,6 +64,22 @@ public class PluginFilesTest {
         assertEquals("Plugin file not found: reminder", PluginFiles.missingPluginFileMessage("reminder", false));
     }
 
+    @Test
+    public void shouldUseConfiguredPathForDownloadedPluginsOutsideFaaS() {
+        File file = PluginFiles.downloadPluginFile("changyan-Linux-amd64.bin", false, 9080,
+                "/var/task/conf/plugins/installed-plugins");
+
+        assertEquals("/var/task/conf/plugins/installed-plugins/changyan-Linux-amd64.bin", file.getPath());
+    }
+
+    @Test
+    public void shouldUseWritablePathForDownloadedPluginsInFaaS() {
+        File file = PluginFiles.downloadPluginFile("changyan-Linux-amd64.bin", true, 9080,
+                "/var/task/conf/plugins/installed-plugins");
+
+        assertEquals("/tmp/9080/plugins/installed-plugins/changyan-Linux-amd64.bin", file.getPath());
+    }
+
     private static void writeFile(File directory, String name) throws Exception {
         try (FileOutputStream outputStream = new FileOutputStream(new File(directory, name))) {
             outputStream.write("plugin".getBytes(StandardCharsets.UTF_8));

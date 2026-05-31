@@ -62,7 +62,7 @@ public class RuntimeApiController extends Controller {
         map.put("enabled", setting.getEnabled());
         map.put("externalHost", setting.getExternalHost());
         map.put("effectiveExternalHost", SchedulerExternalEndpoint.effectiveHost(setting.getExternalHost(), fallbackHomeUrl));
-        map.put("externalTickPath", SchedulerExternalEndpoint.EXTERNAL_TICK_PATH);
+        map.put("externalTickPath", SchedulerExternalEndpoint.EXTERNAL_TICK_EXPOSE_PATH);
         map.put("externalTickUrl", SchedulerExternalEndpoint.tickUrl(setting.getExternalHost(), fallbackHomeUrl));
         map.put("providers", setting.getProviders());
         map.put("systemTimezone", ZoneId.systemDefault().getId());

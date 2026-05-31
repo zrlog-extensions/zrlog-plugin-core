@@ -1,5 +1,6 @@
 package com.zrlog.plugincore.server.plugin;
 
+import com.hibegin.common.util.EnvKit;
 import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugin.common.SecurityUtils;
 import com.zrlog.plugincore.server.Application;
@@ -102,8 +103,20 @@ public final class PluginFiles {
         return new File(PluginConfig.getInstance().getPluginBasePath() + "/" + filename);
     }
 
+    public static File getAvailablePluginFile(String pluginShortName) {
+        File configuredFile = getPluginFile(pluginShortName);
+        if (configuredFile.exists() && configuredFile.length() > 0) {
+            return configuredFile;
+        }
+        File downloadedFile = downloadPluginFile(configuredFile.getName());
+        if (downloadedFile.exists() && downloadedFile.length() > 0) {
+            return downloadedFile;
+        }
+        return configuredFile;
+    }
+
     public static File ensurePluginFile(String pluginShortName) {
-        File file = getPluginFile(pluginShortName);
+        File file = getAvailablePluginFile(pluginShortName);
         if (file.exists() && file.length() > 0) {
             return file;
         }
@@ -137,12 +150,28 @@ public final class PluginFiles {
 
     private static File downloadPluginByUrl(String url, String fileName) throws Exception {
         LOGGER.info("download plugin " + fileName + " from " + url);
-        File downloadFile = new File(PluginConfig.getInstance().getPluginBasePath() + "/" + fileName);
+        File downloadFile = downloadPluginFile(fileName);
+        File parentFile = downloadFile.getParentFile();
+        if (parentFile != null) {
+            parentFile.mkdirs();
+        }
         copyInputStreamToFile(HttpUtils.doGetRequest(url, new HashMap<>()), downloadFile.toString());
         if (downloadFile.length() == 0) {
             throw new RuntimeException("Download error");
         }
         return downloadFile;
+    }
+
+    static File downloadPluginFile(String fileName) {
+        return downloadPluginFile(fileName, EnvKit.isFaaSMode(), PluginConfig.getInstance().getMasterPort(),
+                PluginConfig.getInstance().getPluginBasePath());
+    }
+
+    static File downloadPluginFile(String fileName, boolean faaSMode, int masterPort, String pluginBasePath) {
+        if (!faaSMode) {
+            return new File(pluginBasePath + "/" + fileName);
+        }
+        return new File(PluginConfig.getFaaSRuntimeRoot(masterPort) + "/plugins/installed-plugins/" + fileName);
     }
 
     public static File downloadPlugin(String fileName) throws Exception {

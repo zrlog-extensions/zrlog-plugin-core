@@ -59,7 +59,8 @@ public class PluginHttpServerConfig extends AbstractServerConfig {
         serverConfig.getInterceptors().add(MethodInterceptor.class);
         serverConfig.addErrorHandle(404, new PluginHandle());
         //open
-        serverConfig.getRouter().addMapper(SchedulerExternalEndpoint.EXTERNAL_TICK_PATH, SchedulerController.class, "tick");
+        serverConfig.getRouter().addMapper(SchedulerExternalEndpoint.EXTERNAL_TICK_EXPOSE_PATH, SchedulerController.class, "tick");
+        serverConfig.getRouter().addMapper(SchedulerExternalEndpoint.EXTERNAL_TICK_REAL_PATH, SchedulerController.class, "tick");
         for (String basePath : getBasePath()) {
             addApiMappers(serverConfig, basePath + "/api");
             addPageMappers(serverConfig, basePath);

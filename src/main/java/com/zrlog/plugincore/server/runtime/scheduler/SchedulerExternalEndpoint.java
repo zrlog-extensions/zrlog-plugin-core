@@ -2,7 +2,8 @@ package com.zrlog.plugincore.server.runtime.scheduler;
 
 public class SchedulerExternalEndpoint {
 
-    public static final String EXTERNAL_TICK_PATH = "/api/plugin/open/scheduler/tick";
+    public static final String EXTERNAL_TICK_EXPOSE_PATH = "/api/plugin/open/scheduler/tick";
+    public static final String EXTERNAL_TICK_REAL_PATH = "/open/scheduler/tick";
 
     private SchedulerExternalEndpoint() {
     }
@@ -18,9 +19,9 @@ public class SchedulerExternalEndpoint {
     public static String tickUrl(String configuredHost, String fallbackHomeUrl) {
         String host = effectiveHost(configuredHost, fallbackHomeUrl);
         if (host.isEmpty()) {
-            return EXTERNAL_TICK_PATH;
+            return EXTERNAL_TICK_EXPOSE_PATH;
         }
-        return host + EXTERNAL_TICK_PATH;
+        return host + EXTERNAL_TICK_EXPOSE_PATH;
     }
 
     public static String normalizeHost(String host) {

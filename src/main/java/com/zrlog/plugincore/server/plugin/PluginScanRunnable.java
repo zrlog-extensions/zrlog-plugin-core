@@ -357,7 +357,7 @@ public class PluginScanRunnable implements Runnable {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         ExecutorService executorService = Executors.newFixedThreadPool(pluginStartThreads(entries.size()));
         for (Map.Entry<String, String> pluginVO : entries) {
-            File file = PluginFiles.getPluginFile(pluginVO.getKey());
+            File file = PluginFiles.getAvailablePluginFile(pluginVO.getKey());
             if (!file.getName().endsWith(".jar") && !file.getName().endsWith(".bin") && !file.getName().endsWith(".exe")) {
                 continue;
             }

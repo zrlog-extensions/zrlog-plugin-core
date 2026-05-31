@@ -56,8 +56,8 @@ public class PluginHttpServerConfigTest {
         RunConstants.runType = RunType.BLOG;
         Router router = new PluginHttpServerConfig(0).getServerConfig().getRouter();
 
-        assertRoute(router, SchedulerExternalEndpoint.EXTERNAL_TICK_PATH, HttpMethod.POST);
-        assertMissing(router, "/admin/plugins" + SchedulerExternalEndpoint.EXTERNAL_TICK_PATH, HttpMethod.POST);
+        assertRoute(router, SchedulerExternalEndpoint.EXTERNAL_TICK_EXPOSE_PATH, HttpMethod.POST);
+        assertMissing(router, "/admin/plugins" + SchedulerExternalEndpoint.EXTERNAL_TICK_EXPOSE_PATH, HttpMethod.POST);
     }
 
     private void assertRuntimePages(Router router, String prefix) {
