@@ -567,7 +567,7 @@ public class RuntimeApiController extends Controller {
             map.put("id", log.getId());
             map.put("pluginId", log.getPluginId());
             Plugin plugin = pluginsById.get(log.getPluginId());
-            map.put("pluginName", pluginDisplayName(plugin));
+            map.put("pluginName", runtimePluginDisplayName(log.getPluginId(), plugin));
             map.put("pluginPreviewImageBase64", pluginPreviewImageBase64(plugin));
             map.put("capabilityKey", log.getCapabilityKey());
             map.put("source", log.getSource());

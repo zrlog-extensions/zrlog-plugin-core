@@ -32,6 +32,7 @@ public class RuntimeEventRuntime {
             result.setFailedCount(1);
             return result;
         }
+        ensureRequestId(request);
         for (PluginCapability handler : handlerResolver.resolve(request, capabilityStore.listAll())) {
             CapabilityInvokeResult invokeResult = capabilityInvoker.invoke(
                     handler.getPluginId(), handler.getKey(), eventPayload(request), invokeContext(request));
@@ -42,6 +43,12 @@ public class RuntimeEventRuntime {
             }
         }
         return result;
+    }
+
+    private void ensureRequestId(RuntimeEventRequest request) {
+        if (request.getRequestId() == null || request.getRequestId().trim().isEmpty()) {
+            request.setRequestId(UUID.randomUUID().toString());
+        }
     }
 
     private InvokeContext invokeContext(RuntimeEventRequest request) {

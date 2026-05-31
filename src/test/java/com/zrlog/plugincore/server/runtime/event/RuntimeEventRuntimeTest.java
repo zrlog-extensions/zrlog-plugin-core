@@ -18,6 +18,7 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class RuntimeEventRuntimeTest {
@@ -73,6 +74,35 @@ public class RuntimeEventRuntimeTest {
         assertEquals(1, result.getFailedCount());
         assertEquals(1, result.getHandlerCount());
         assertTrue(result.getHandlerPluginIds().contains("cache-plugin"));
+    }
+
+    @Test
+    public void shouldReuseGeneratedRequestIdForAllHandlers() {
+        InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
+        CapabilityStore capabilityStore = new CapabilityStore(kvStore);
+        capabilityStore.register(handler("cache-a", "plugin.cache.refresh", RuntimeEvents.REFRESH_CACHE));
+        capabilityStore.register(handler("cache-b", "plugin.cache.refresh", RuntimeEvents.REFRESH_CACHE));
+        RuntimeEventRequest request = refreshCacheRequest();
+        request.setRequestId(null);
+        final List<String> contextRequestIds = new ArrayList<String>();
+        final List<String> payloadRequestIds = new ArrayList<String>();
+
+        RuntimeEventPublishResult result = runtime(capabilityStore, new CapabilityInvoker() {
+            @Override
+            public CapabilityInvokeResult invoke(String pluginId, String capabilityKey, Map<String, Object> payload, InvokeContext context) {
+                contextRequestIds.add(context.getRequestId());
+                payloadRequestIds.add((String) payload.get("requestId"));
+                CapabilityInvokeResult result = new CapabilityInvokeResult();
+                result.setSuccess(true);
+                return result;
+            }
+        }).publish(request);
+
+        assertEquals(2, result.getSuccessCount());
+        assertNotNull(request.getRequestId());
+        assertFalse(request.getRequestId().trim().isEmpty());
+        assertEquals(Arrays.asList(request.getRequestId(), request.getRequestId()), contextRequestIds);
+        assertEquals(contextRequestIds, payloadRequestIds);
     }
 
     @Test

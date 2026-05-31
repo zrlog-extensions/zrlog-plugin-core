@@ -28,6 +28,8 @@ import com.zrlog.plugincore.server.runtime.event.RuntimeEventHandlerResolver;
 import com.zrlog.plugincore.server.runtime.event.RuntimeEventPublishResult;
 import com.zrlog.plugincore.server.runtime.event.RuntimeEventRequest;
 import com.zrlog.plugincore.server.runtime.event.RuntimeEventRuntime;
+import com.zrlog.plugincore.server.runtime.invocation.CapabilityInvocationLog;
+import com.zrlog.plugincore.server.runtime.invocation.InvocationLogStore;
 import com.zrlog.plugincore.server.runtime.state.DefaultPluginRuntimeStarter;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateStore;
@@ -42,6 +44,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class PluginApiController extends Controller {
@@ -160,10 +163,13 @@ public class PluginApiController extends Controller {
     @ResponseBody
     public Map<String, Object> refreshCache() {
         WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
-        RuntimeEventPublishResult eventResult = runtimeEventRuntime(kvStore).publish(refreshCacheRequest());
+        RuntimeEventRequest eventRequest = refreshCacheRequest();
+        long startedAtMs = System.currentTimeMillis();
+        RuntimeEventPublishResult eventResult = runtimeEventRuntime(kvStore).publish(eventRequest);
         int legacySessionCount = broadcastLegacyRefreshCache(eventResult.getHandlerPluginIds());
         int failedCount = eventResult.getFailedCount();
         int successCount = eventResult.getSuccessCount() + legacySessionCount;
+        new InvocationLogStore(kvStore).append(refreshCacheInvocationLog(eventRequest, eventResult, startedAtMs, System.currentTimeMillis()));
 
         Map<String, Object> map = new HashMap<>();
         map.put("code", failedCount == 0 ? 0 : 1);
@@ -198,6 +204,28 @@ public class PluginApiController extends Controller {
         payload.put("actionType", ActionType.REFRESH_CACHE.name());
         request.setPayload(payload);
         return request;
+    }
+
+    static CapabilityInvocationLog refreshCacheInvocationLog(RuntimeEventRequest request,
+                                                             RuntimeEventPublishResult result,
+                                                             long startedAtMs,
+                                                             long finishedAtMs) {
+        CapabilityInvocationLog log = new CapabilityInvocationLog();
+        log.setId(UUID.randomUUID().toString());
+        log.setPluginId("__system__");
+        log.setCapabilityKey(RuntimeEvents.REFRESH_CACHE);
+        log.setSource(RuntimeEventRuntime.SOURCE);
+        log.setRequestId(request == null ? null : request.getRequestId());
+        log.setTraceId(request == null ? null : request.getTraceId());
+        log.setStartedAt(startedAtMs);
+        log.setFinishedAt(finishedAtMs);
+        log.setDurationMs(finishedAtMs - startedAtMs);
+        int failedCount = result == null ? 0 : result.getFailedCount();
+        log.setStatus(failedCount == 0 ? "success" : "error");
+        if (failedCount > 0) {
+            log.setErrorMessage("Runtime event handlers failed: " + failedCount);
+        }
+        return log;
     }
 
     private RuntimeEventRuntime runtimeEventRuntime(KvRepository kvStore) {

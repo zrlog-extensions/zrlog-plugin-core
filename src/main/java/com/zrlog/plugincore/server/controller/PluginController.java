@@ -4,17 +4,23 @@ package com.zrlog.plugincore.server.controller;
 import com.google.gson.Gson;
 import com.hibegin.http.server.web.Controller;
 import com.zrlog.plugin.IOSession;
+import com.zrlog.plugin.common.KvRepository;
 import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugin.data.codec.HttpRequestInfo;
 import com.zrlog.plugin.data.codec.MsgPacket;
 import com.zrlog.plugin.data.codec.MsgPacketStatus;
+import com.zrlog.plugin.message.PluginCapability;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
 import com.zrlog.plugincore.server.config.PluginConfig;
 import com.zrlog.plugincore.server.handle.ServiceMsgPacketHandler;
 import com.zrlog.plugincore.server.plugin.PluginBootstrap;
 import com.zrlog.plugincore.server.plugin.PluginFiles;
 import com.zrlog.plugincore.server.plugin.PluginSessions;
+import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
+import com.zrlog.plugincore.server.runtime.invocation.ServiceInvocationLogs;
+import com.zrlog.plugincore.server.runtime.service.ServiceProviderResolver;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStates;
+import com.zrlog.plugincore.server.runtime.store.WebsiteRuntimeKvStore;
 import com.zrlog.plugincore.server.util.HttpMsgUtil;
 import com.zrlog.plugincore.server.util.StringUtils;
 import org.jsoup.Jsoup;
@@ -101,7 +107,10 @@ public class PluginController extends Controller {
         PluginRuntimeStateService stateService = PluginRuntimeStates.newStateService(session);
         String pluginId = session.getPlugin().getId();
         String pluginName = PluginSessions.nameOrShortName(session.getPlugin());
+        String capabilityKey = serviceCapabilityKey(name, pluginId);
+        String requestId = UUID.randomUUID().toString();
         String errorMessage = null;
+        long startedAtMs = System.currentTimeMillis();
         stateService.markInvocationStart(pluginId, pluginName);
         try {
             int msgId = session.requestService(name, request.decodeParamMap());
@@ -119,7 +128,23 @@ public class PluginController extends Controller {
             getResponse().write(bin);
         } finally {
             stateService.markInvocationEnd(pluginId, pluginName, errorMessage);
+            ServiceInvocationLogs.append(kvStore(), pluginId, capabilityKey, requestId, null,
+                    startedAtMs, System.currentTimeMillis(), errorMessage);
         }
+    }
+
+    private String serviceCapabilityKey(String serviceName, String pluginId) {
+        PluginCapability provider = new ServiceProviderResolver()
+                .providersFor(serviceName, new CapabilityStore(kvStore()).listByType("service"))
+                .stream()
+                .filter(item -> Objects.equals(pluginId, item.getPluginId()))
+                .findFirst()
+                .orElse(null);
+        return provider == null || StringUtils.isEmpty(provider.getKey()) ? serviceName : provider.getKey();
+    }
+
+    private KvRepository kvStore() {
+        return new WebsiteRuntimeKvStore();
     }
 
     public void upload() {

@@ -7,6 +7,7 @@ public final class RuntimeSources {
 
     public static final String SCHEDULER = "scheduler";
     public static final String TICK = "tick";
+    public static final String INTERNAL = "internal";
 
     private RuntimeSources() {
     }

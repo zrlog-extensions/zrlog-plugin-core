@@ -1,10 +1,15 @@
 package com.zrlog.plugincore.server.controller;
 
+import com.zrlog.plugin.RuntimeEvents;
 import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.config.PluginCore;
 import com.zrlog.plugincore.server.config.PluginVO;
+import com.zrlog.plugincore.server.runtime.event.RuntimeEventPublishResult;
+import com.zrlog.plugincore.server.runtime.event.RuntimeEventRequest;
+import com.zrlog.plugincore.server.runtime.event.RuntimeEventRuntime;
+import com.zrlog.plugincore.server.runtime.invocation.CapabilityInvocationLog;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -72,6 +77,23 @@ public class PluginApiControllerTest {
         } finally {
             RunConstants.runType = previous;
         }
+    }
+
+    @Test
+    public void shouldBuildRefreshCacheSystemInvocationLog() {
+        RuntimeEventRequest request = new RuntimeEventRequest();
+        request.setEventType(RuntimeEvents.REFRESH_CACHE);
+        request.setRequestId("refresh-cache-1");
+        RuntimeEventPublishResult result = new RuntimeEventPublishResult();
+
+        CapabilityInvocationLog log = PluginApiController.refreshCacheInvocationLog(request, result, 100L, 145L);
+
+        assertEquals("__system__", log.getPluginId());
+        assertEquals(RuntimeEvents.REFRESH_CACHE, log.getCapabilityKey());
+        assertEquals(RuntimeEventRuntime.SOURCE, log.getSource());
+        assertEquals("refresh-cache-1", log.getRequestId());
+        assertEquals("success", log.getStatus());
+        assertEquals(Long.valueOf(45L), log.getDurationMs());
     }
 
 }
