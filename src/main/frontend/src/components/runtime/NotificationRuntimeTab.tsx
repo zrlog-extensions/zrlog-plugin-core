@@ -3,7 +3,7 @@ import {Button, Grid, Space, Table, Tag, Tooltip, Typography, message} from "ant
 import {CheckOutlined, ReloadOutlined} from "@ant-design/icons";
 import type {ColumnsType} from "antd/es/table";
 import axios from "axios";
-import {apiPath, Capability, formatTime, NotificationDelivery, NotificationProviderRow, paginationFromResponse, RuntimePagination, useCapabilityView} from "./common";
+import {apiPath, Capability, formatEpoch, formatTime, NotificationDelivery, NotificationProviderRow, paginationFromResponse, RuntimePagination, useCapabilityView} from "./common";
 
 const {Text} = Typography;
 
@@ -139,7 +139,7 @@ const NotificationRuntimeTab: React.FC = () => {
                         {deliveryStatusTag(record.status)}
                         <Tag>{record.channel}</Tag>
                     </Space>
-                    <Text type="secondary" style={{fontSize: 12}}>{formatTime(record.createdAt)}</Text>
+                    <Text type="secondary" style={{fontSize: 12}}>{formatEpoch(record.createdAt)}</Text>
                     {record.errorMessage && (
                         <Text type="danger" ellipsis style={{fontSize: 12, maxWidth: "100%"}}>
                             {record.errorMessage}
@@ -160,7 +160,7 @@ const NotificationRuntimeTab: React.FC = () => {
             responsive: ["md"],
             render: deliveryStatusTag
         },
-        {title: "时间", dataIndex: "createdAt", width: 240, render: formatTime, responsive: ["md"]},
+        {title: "时间", dataIndex: "createdAt", width: 240, render: formatEpoch, responsive: ["md"]},
         {title: "错误", dataIndex: "errorMessage", render: formatTime, responsive: ["md"]}
     ];
 

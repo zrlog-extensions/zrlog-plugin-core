@@ -9,8 +9,8 @@ public class CapabilityInvocationLog {
     private String requestId;
     private String traceId;
     private String status;
-    private String startedAt;
-    private String finishedAt;
+    private Long startedAt;
+    private Long finishedAt;
     private Long durationMs;
     private String errorMessage;
 
@@ -70,19 +70,19 @@ public class CapabilityInvocationLog {
         this.status = status;
     }
 
-    public String getStartedAt() {
+    public Long getStartedAt() {
         return startedAt;
     }
 
-    public void setStartedAt(String startedAt) {
+    public void setStartedAt(Long startedAt) {
         this.startedAt = startedAt;
     }
 
-    public String getFinishedAt() {
+    public Long getFinishedAt() {
         return finishedAt;
     }
 
-    public void setFinishedAt(String finishedAt) {
+    public void setFinishedAt(Long finishedAt) {
         this.finishedAt = finishedAt;
     }
 

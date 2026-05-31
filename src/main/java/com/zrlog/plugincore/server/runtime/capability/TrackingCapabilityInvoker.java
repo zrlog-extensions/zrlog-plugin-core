@@ -5,7 +5,6 @@ import com.zrlog.plugin.message.PluginCapability;
 import com.zrlog.plugincore.server.runtime.invocation.CapabilityInvocationLog;
 import com.zrlog.plugincore.server.runtime.invocation.InvocationLogStore;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
-import com.zrlog.plugincore.server.runtime.util.RuntimeDates;
 
 import java.util.Map;
 import java.util.Optional;
@@ -43,19 +42,18 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
             context.setRequestId(UUID.randomUUID().toString());
         }
         long startedAtMs = System.currentTimeMillis();
-        String startedAt = RuntimeDates.nowString();
         CapabilityInvokeResult result;
         String validationError = validationError(pluginId, capabilityKey, context);
         if (validationError != null) {
             result = error(validationError);
-            appendLog(pluginId, capabilityKey, context, result, startedAt, startedAtMs);
+            appendLog(pluginId, capabilityKey, context, result, startedAtMs);
             return result;
         }
         Optional<PluginCapability> capability = capability(pluginId, capabilityKey);
         String pluginName = capability.map(PluginCapability::getPluginName).orElse(null);
         if (!stateService.ensureStarted(pluginId)) {
             result = error("Plugin start failed");
-            appendLog(pluginId, capabilityKey, context, result, startedAt, startedAtMs);
+            appendLog(pluginId, capabilityKey, context, result, startedAtMs);
             return result;
         }
         stateService.markInvocationStart(pluginId, pluginName);
@@ -65,7 +63,7 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
             result = error(e.getMessage());
         }
         stateService.markInvocationEnd(pluginId, pluginName, result.isSuccess() ? null : result.getErrorMessage());
-        appendLog(pluginId, capabilityKey, context, result, startedAt, startedAtMs);
+        appendLog(pluginId, capabilityKey, context, result, startedAtMs);
         return result;
     }
 
@@ -110,8 +108,8 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
                            String capabilityKey,
                            InvokeContext context,
                            CapabilityInvokeResult result,
-                           String startedAt,
                            long startedAtMs) {
+        long finishedAtMs = System.currentTimeMillis();
         CapabilityInvocationLog log = new CapabilityInvocationLog();
         log.setId(UUID.randomUUID().toString());
         log.setPluginId(pluginId);
@@ -119,9 +117,9 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
         log.setSource(context.getSource());
         log.setRequestId(context.getRequestId());
         log.setTraceId(context.getTraceId());
-        log.setStartedAt(startedAt);
-        log.setFinishedAt(RuntimeDates.nowString());
-        log.setDurationMs(System.currentTimeMillis() - startedAtMs);
+        log.setStartedAt(startedAtMs);
+        log.setFinishedAt(finishedAtMs);
+        log.setDurationMs(finishedAtMs - startedAtMs);
         log.setStatus(result.isSuccess() ? "success" : "error");
         log.setErrorMessage(result.getErrorMessage());
         invocationLogStore.append(log);

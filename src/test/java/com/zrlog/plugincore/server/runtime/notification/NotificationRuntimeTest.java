@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class NotificationRuntimeTest {
 
@@ -32,6 +33,7 @@ public class NotificationRuntimeTest {
         assertEquals(1, deliveryStore.list().size());
         assertEquals("success", deliveryStore.list().get(0).getStatus());
         assertEquals("email-plugin", deliveryStore.list().get(0).getProviderPluginId());
+        assertTrue(deliveryStore.list().get(0).getCreatedAt() > 0);
     }
 
     @Test

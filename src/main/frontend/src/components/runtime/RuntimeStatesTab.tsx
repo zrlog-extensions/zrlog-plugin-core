@@ -228,7 +228,7 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
                         {record.source && <Tag>{invocationSourceLabel(record.source)}</Tag>}
                         {record.durationMs != null && <Tag>{record.durationMs} ms</Tag>}
                     </Space>
-                    <Text type="secondary" style={{fontSize: 12}}>{formatTime(record.startedAt)}</Text>
+                    <Text type="secondary" style={{fontSize: 12}}>{formatEpoch(record.startedAt)}</Text>
                     {record.errorMessage && (
                         <Text type="danger" ellipsis style={{fontSize: 12, maxWidth: "100%"}}>
                             {record.errorMessage}
@@ -250,7 +250,7 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
             render: invocationStatusTag
         },
         {title: "耗时", dataIndex: "durationMs", width: 100, render: (value?: number) => value == null ? "-" : `${value} ms`, responsive: ["md"]},
-        {title: "开始时间", dataIndex: "startedAt", width: 240, render: formatTime, responsive: ["md"]},
+        {title: "开始时间", dataIndex: "startedAt", width: 240, render: formatEpoch, responsive: ["md"]},
         {title: "错误", dataIndex: "errorMessage", render: formatTime, responsive: ["md"]}
     ];
 

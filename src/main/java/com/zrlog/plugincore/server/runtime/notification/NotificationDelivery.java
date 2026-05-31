@@ -8,7 +8,7 @@ public class NotificationDelivery {
     private String capabilityKey;
     private String status;
     private String errorMessage;
-    private String createdAt;
+    private Long createdAt;
 
     public String getId() {
         return id;
@@ -58,11 +58,11 @@ public class NotificationDelivery {
         this.errorMessage = errorMessage;
     }
 
-    public String getCreatedAt() {
+    public Long getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(String createdAt) {
+    public void setCreatedAt(Long createdAt) {
         this.createdAt = createdAt;
     }
 }

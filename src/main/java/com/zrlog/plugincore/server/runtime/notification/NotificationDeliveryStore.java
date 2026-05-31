@@ -12,7 +12,7 @@ import java.util.Optional;
 
 public class NotificationDeliveryStore {
 
-    public static final String KEY = "plugin.runtime.notificationDeliveries";
+    public static final String KEY = "plugin.runtime.notificationDeliveries.v2";
     private static final int MAX_ITEMS = 500;
     private static final int STORE_UPDATE_RETRIES = 3;
 
@@ -87,7 +87,7 @@ public class NotificationDeliveryStore {
 
     private String documentJson(NotificationDeliveryDocument document) {
         document.setSchema(KEY);
-        document.setVersion(1);
+        document.setVersion(2);
         document.setUpdatedAt(RuntimeDates.nowString());
         return gson.toJson(document);
     }

@@ -6,7 +6,7 @@ import java.util.List;
 public class NotificationDeliveryDocument {
 
     private String schema = NotificationDeliveryStore.KEY;
-    private Integer version = 1;
+    private Integer version = 2;
     private String updatedAt;
     private List<NotificationDelivery> items = new ArrayList<>();
 

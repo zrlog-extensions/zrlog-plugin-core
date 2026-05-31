@@ -12,7 +12,7 @@ import java.util.Optional;
 
 public class InvocationLogStore {
 
-    public static final String KEY = "plugin.runtime.invocationLogs";
+    public static final String KEY = "plugin.runtime.invocationLogs.v2";
     private static final int MAX_ITEMS = 1000;
     private static final int STORE_UPDATE_RETRIES = 3;
 
@@ -87,7 +87,7 @@ public class InvocationLogStore {
 
     private String documentJson(InvocationLogDocument document) {
         document.setSchema(KEY);
-        document.setVersion(1);
+        document.setVersion(2);
         document.setUpdatedAt(RuntimeDates.nowString());
         return gson.toJson(document);
     }

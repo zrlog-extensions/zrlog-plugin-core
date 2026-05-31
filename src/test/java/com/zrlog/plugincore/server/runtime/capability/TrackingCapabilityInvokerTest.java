@@ -33,6 +33,8 @@ public class TrackingCapabilityInvokerTest {
         assertTrue(result.isSuccess());
         assertEquals(1, new InvocationLogStore(kvStore).list().size());
         assertEquals("success", new InvocationLogStore(kvStore).list().get(0).getStatus());
+        assertTrue(new InvocationLogStore(kvStore).list().get(0).getStartedAt() > 0);
+        assertTrue(new InvocationLogStore(kvStore).list().get(0).getFinishedAt() > 0);
         PluginRuntimeState state = new PluginRuntimeStateStore(kvStore).find("plugin-a").get();
         assertEquals("ready", state.getStatus());
         assertEquals(Integer.valueOf(0), state.getActiveInvocationCount());

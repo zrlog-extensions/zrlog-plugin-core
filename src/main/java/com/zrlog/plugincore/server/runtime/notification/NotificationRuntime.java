@@ -6,8 +6,6 @@ import com.zrlog.plugin.message.PluginCapability;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityInvoker;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.InvokeContext;
-import com.zrlog.plugincore.server.runtime.util.RuntimeDates;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -107,7 +105,7 @@ public class NotificationRuntime {
             delivery.setProviderPluginId(provider.getPluginId());
             delivery.setCapabilityKey(provider.getKey());
         }
-        delivery.setCreatedAt(RuntimeDates.nowString());
+        delivery.setCreatedAt(System.currentTimeMillis());
         return delivery;
     }
 }

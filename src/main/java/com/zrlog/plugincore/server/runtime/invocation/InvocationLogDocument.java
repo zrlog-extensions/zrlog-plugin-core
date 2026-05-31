@@ -6,7 +6,7 @@ import java.util.List;
 public class InvocationLogDocument {
 
     private String schema = InvocationLogStore.KEY;
-    private int version = 1;
+    private int version = 2;
     private String updatedAt;
     private List<CapabilityInvocationLog> items = new ArrayList<CapabilityInvocationLog>();
 

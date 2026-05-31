@@ -144,8 +144,8 @@ export type InvocationLog = {
     source?: string;
     requestId?: string;
     status: string;
-    startedAt?: string;
-    finishedAt?: string;
+    startedAt?: number;
+    finishedAt?: number;
     durationMs?: number;
     errorMessage?: string;
 }
@@ -172,7 +172,7 @@ export type NotificationDelivery = {
     capabilityKey?: string;
     status: string;
     errorMessage?: string;
-    createdAt?: string;
+    createdAt?: number;
 }
 
 export type ServiceProviderRow = {
