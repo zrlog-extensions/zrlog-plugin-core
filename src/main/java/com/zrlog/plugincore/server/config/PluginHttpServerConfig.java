@@ -36,6 +36,11 @@ public class PluginHttpServerConfig extends AbstractServerConfig {
         return serverConfig;
     }
 
+    /**
+     * "" 为正式环境使用，/admin/plugins 仅为兼容跳转路由
+     *
+     * @return
+     */
     private static List<String> getBasePath() {
         if (RunConstants.runType == RunType.DEV) {
             return Arrays.asList("", "/admin/plugins");
@@ -55,7 +60,6 @@ public class PluginHttpServerConfig extends AbstractServerConfig {
         serverConfig.addErrorHandle(404, new PluginHandle());
         //open
         serverConfig.getRouter().addMapper(SchedulerExternalEndpoint.EXTERNAL_TICK_PATH, SchedulerController.class, "tick");
-        // "" 为开发环境使用，实际运行会是 /admin/plugins 路由，
         for (String basePath : getBasePath()) {
             addApiMappers(serverConfig, basePath + "/api");
             addPageMappers(serverConfig, basePath);
