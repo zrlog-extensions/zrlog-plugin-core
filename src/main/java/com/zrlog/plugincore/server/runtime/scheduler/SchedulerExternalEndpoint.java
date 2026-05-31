@@ -2,8 +2,8 @@ package com.zrlog.plugincore.server.runtime.scheduler;
 
 public class SchedulerExternalEndpoint {
 
-    public static final String EXTERNAL_TICK_EXPOSE_PATH = "/api/plugin/open/scheduler/tick";
     public static final String EXTERNAL_TICK_REAL_PATH = "/open/scheduler/tick";
+    public static final String EXTERNAL_TICK_EXPOSE_PATH = "/api/plugin" + EXTERNAL_TICK_REAL_PATH;
 
     private SchedulerExternalEndpoint() {
     }
