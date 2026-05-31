@@ -1,5 +1,7 @@
 package com.zrlog.plugincore.server;
 
+import com.zrlog.plugin.RunConstants;
+import com.zrlog.plugin.type.RunType;
 import com.hibegin.common.util.Pid;
 import com.hibegin.http.server.util.NativeImageUtils;
 import com.hibegin.http.server.util.PathUtil;
@@ -49,6 +51,7 @@ import java.util.List;
 public class GraalvmAgentApplication {
 
     public static void main(String[] args) throws IOException, InterruptedException {
+        RunConstants.runType = RunType.AGENT;
         PluginNativeImageUtils.usedGsonObject();
         PluginNativeImageUtils.gsonNativeAgentByClazz(runtimeGsonClasses());
         NativeRuntimeWarmup.run();
