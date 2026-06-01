@@ -30,8 +30,10 @@ public class NotificationRuntimeTest {
                 .publish(request("email"));
 
         assertEquals(1, result.getSuccessCount());
+        assertEquals(1, result.getDeliveries().size());
         assertEquals(1, deliveryStore.list().size());
         assertEquals("success", deliveryStore.list().get(0).getStatus());
+        assertEquals("success", result.getDeliveries().get(0).getStatus());
         assertEquals("email-plugin", deliveryStore.list().get(0).getProviderPluginId());
         assertTrue(deliveryStore.list().get(0).getCreatedAt() > 0);
     }
@@ -73,7 +75,9 @@ public class NotificationRuntimeTest {
                 .publish(request("email"));
 
         assertEquals(1, result.getFailedCount());
+        assertEquals(1, result.getDeliveries().size());
         assertEquals("Notification channel provider not found", deliveryStore.list().get(0).getErrorMessage());
+        assertEquals("Notification channel provider not found", result.getDeliveries().get(0).getErrorMessage());
     }
 
     private NotificationRuntime runtime(CapabilityStore capabilityStore,

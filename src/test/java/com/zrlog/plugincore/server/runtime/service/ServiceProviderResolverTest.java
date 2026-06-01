@@ -51,18 +51,6 @@ public class ServiceProviderResolverTest {
         Assert.assertEquals("cos.uploadPrivate", resolved.getKey());
     }
 
-    @Test
-    public void resolveSupportsPersistedOldUploadCapabilityWithoutServiceName() {
-        PluginCapability qiniu = provider("qiniu-id", "qiniu.upload", null, "七牛云存储");
-
-        PluginCapability resolved = new ServiceProviderResolver()
-                .resolve("uploadService", Arrays.asList(qiniu), new ServiceSetting())
-                .orElse(null);
-
-        Assert.assertNotNull(resolved);
-        Assert.assertEquals("qiniu.upload", resolved.getKey());
-    }
-
     private PluginCapability provider(String pluginId, String key, String serviceName, String pluginName) {
         PluginCapability capability = new PluginCapability();
         capability.setPluginId(pluginId);

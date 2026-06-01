@@ -6,6 +6,8 @@ public class CapabilityInvocationLog {
     private String pluginId;
     private String capabilityKey;
     private String source;
+    private String riskLevel;
+    private Boolean auditRequired;
     private String requestId;
     private String traceId;
     private String status;
@@ -44,6 +46,22 @@ public class CapabilityInvocationLog {
 
     public void setSource(String source) {
         this.source = source;
+    }
+
+    public String getRiskLevel() {
+        return riskLevel;
+    }
+
+    public void setRiskLevel(String riskLevel) {
+        this.riskLevel = riskLevel;
+    }
+
+    public Boolean getAuditRequired() {
+        return auditRequired;
+    }
+
+    public void setAuditRequired(Boolean auditRequired) {
+        this.auditRequired = auditRequired;
     }
 
     public String getRequestId() {

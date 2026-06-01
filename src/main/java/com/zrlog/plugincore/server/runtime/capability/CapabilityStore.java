@@ -249,9 +249,19 @@ public class CapabilityStore {
         if (capability.getEnabled() == null) {
             capability.setEnabled(Boolean.TRUE);
         }
-        if (capability.getRiskLevel() == null) {
-            capability.setRiskLevel("low");
+        if (capability.getReadOnly() == null) {
+            capability.setReadOnly(Boolean.FALSE);
         }
+        if (capability.getRequiresConfirmation() == null) {
+            capability.setRequiresConfirmation(Boolean.FALSE);
+        }
+        if (capability.getTimeoutSeconds() == null) {
+            capability.setTimeoutSeconds(30);
+        }
+        if (capability.getConcurrency() == null) {
+            capability.setConcurrency(1);
+        }
+        CapabilityRiskPolicy.normalize(capability);
     }
 
     private boolean sameIdentity(PluginCapability left, PluginCapability right) {

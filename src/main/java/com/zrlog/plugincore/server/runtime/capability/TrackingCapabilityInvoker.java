@@ -47,13 +47,13 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
         String validationError = validationError(pluginId, capabilityKey, context, capability);
         if (validationError != null) {
             result = error(validationError);
-            appendLog(pluginId, capabilityKey, context, result, startedAtMs);
+            appendLog(pluginId, capabilityKey, context, result, startedAtMs, capability);
             return result;
         }
         String pluginName = capability.map(PluginCapability::getPluginName).orElse(null);
         if (!stateService.ensureStarted(pluginId)) {
             result = error("Plugin start failed");
-            appendLog(pluginId, capabilityKey, context, result, startedAtMs);
+            appendLog(pluginId, capabilityKey, context, result, startedAtMs, capability);
             return result;
         }
         stateService.markInvocationStart(pluginId, pluginName);
@@ -63,7 +63,7 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
             result = error(e.getMessage());
         }
         stateService.markInvocationEnd(pluginId, pluginName, result.isSuccess() ? null : result.getErrorMessage());
-        appendLog(pluginId, capabilityKey, context, result, startedAtMs);
+        appendLog(pluginId, capabilityKey, context, result, startedAtMs, capability);
         return result;
     }
 
@@ -92,6 +92,10 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
         if (!isExposedTo(capability.get(), context.getSource())) {
             return "Capability is not exposed to " + context.getSource();
         }
+        String policyError = CapabilityRiskPolicy.invocationError(capability.get(), context);
+        if (policyError != null) {
+            return policyError;
+        }
         return null;
     }
 
@@ -110,13 +114,18 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
                            String capabilityKey,
                            InvokeContext context,
                            CapabilityInvokeResult result,
-                           long startedAtMs) {
+                           long startedAtMs,
+                           Optional<PluginCapability> capability) {
         long finishedAtMs = System.currentTimeMillis();
         CapabilityInvocationLog log = new CapabilityInvocationLog();
         log.setId(UUID.randomUUID().toString());
         log.setPluginId(pluginId);
         log.setCapabilityKey(capabilityKey);
         log.setSource(context.getSource());
+        if (capability.isPresent()) {
+            log.setRiskLevel(CapabilityRiskPolicy.riskLevel(capability.get()));
+        }
+        log.setAuditRequired(CapabilityRiskPolicy.auditRequired(capability.orElse(null), context));
         log.setRequestId(context.getRequestId());
         log.setTraceId(context.getTraceId());
         log.setStartedAt(startedAtMs);

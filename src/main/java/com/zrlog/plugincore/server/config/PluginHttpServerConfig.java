@@ -112,6 +112,7 @@ public class PluginHttpServerConfig extends AbstractServerConfig {
         serverConfig.getRouter().addMapper(prefix + "/runtime-notification/channels", RuntimeApiController.class, "notificationChannels");
         serverConfig.getRouter().addMapper(prefix + "/runtime-notification/provider", RuntimeApiController.class, "notificationProviderUpdate");
         serverConfig.getRouter().addMapper(prefix + "/runtime-notification/provider/auto", RuntimeApiController.class, "notificationProviderAuto");
+        serverConfig.getRouter().addMapper(prefix + "/runtime-notification/test", RuntimeApiController.class, "notificationTest");
         serverConfig.getRouter().addMapper(prefix + "/runtime-notification/deliveries", RuntimeApiController.class, "notificationDeliveries");
         serverConfig.getRouter().addMapper(prefix + "/runtime-services/providers", RuntimeApiController.class, "serviceProviders");
         serverConfig.getRouter().addMapper(prefix + "/runtime-services/provider", RuntimeApiController.class, "serviceProviderUpdate");

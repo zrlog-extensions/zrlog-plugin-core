@@ -6,6 +6,7 @@ import com.zrlog.plugin.message.PluginCapability;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityInvoker;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.InvokeContext;
+import com.zrlog.plugincore.server.runtime.capability.RuntimeSources;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,9 @@ public class NotificationRuntime {
         NotificationPublishResult result = new NotificationPublishResult();
         if (request.getChannels() == null || request.getChannels().isEmpty()) {
             result.failed();
-            deliveryStore.append(failedDelivery(null, null, "No notification channels"));
+            NotificationDelivery delivery = failedDelivery(null, null, "No notification channels");
+            deliveryStore.append(delivery);
+            result.addDelivery(delivery);
             return result;
         }
         List<PluginCapability> capabilities = capabilityStore.listAll();
@@ -44,11 +47,14 @@ public class NotificationRuntime {
             Optional<PluginCapability> provider = providerResolver.resolve(channel, capabilities, notificationSetting);
             if (!provider.isPresent()) {
                 result.failed();
-                deliveryStore.append(failedDelivery(channel, null, "Notification channel provider not found"));
+                NotificationDelivery delivery = failedDelivery(channel, null, "Notification channel provider not found");
+                deliveryStore.append(delivery);
+                result.addDelivery(delivery);
                 continue;
             }
             NotificationDelivery delivery = invokeProvider(channel, provider.get(), request);
             deliveryStore.append(delivery);
+            result.addDelivery(delivery);
             if ("success".equals(delivery.getStatus())) {
                 result.success();
             } else {
@@ -60,7 +66,7 @@ public class NotificationRuntime {
 
     private NotificationDelivery invokeProvider(String channel, PluginCapability provider, NotificationRequest request) {
         InvokeContext context = new InvokeContext();
-        context.setSource("notification");
+        context.setSource(RuntimeSources.NOTIFICATION);
         context.setRequestId(request.getRequestId() == null ? UUID.randomUUID().toString() : request.getRequestId());
         context.setTraceId(request.getTraceId());
         context.setAuditRequired(true);

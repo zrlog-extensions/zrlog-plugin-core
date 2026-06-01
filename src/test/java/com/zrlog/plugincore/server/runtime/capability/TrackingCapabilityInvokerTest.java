@@ -3,6 +3,7 @@ package com.zrlog.plugincore.server.runtime.capability;
 import com.zrlog.plugin.message.CapabilityInvokeResult;
 import com.zrlog.plugin.message.PluginCapability;
 import com.zrlog.plugincore.server.runtime.InMemoryRuntimeKvStore;
+import com.zrlog.plugincore.server.runtime.invocation.CapabilityInvocationLog;
 import com.zrlog.plugincore.server.runtime.invocation.InvocationLogStore;
 import com.zrlog.plugincore.server.runtime.state.PluginIdentity;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStarter;
@@ -107,6 +108,27 @@ public class TrackingCapabilityInvokerTest {
 
         assertTrue(result.isSuccess());
         assertEquals("tick", new InvocationLogStore(kvStore).list().get(0).getSource());
+    }
+
+    @Test
+    public void shouldRejectHighRiskMcpInvocationAndWriteAuditLog() {
+        InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
+        CapabilityStore capabilityStore = new CapabilityStore(kvStore);
+        PluginCapability capability = capability("plugin-a", "dangerous.task", "mcp");
+        capability.setRiskLevel("high");
+        CapabilityDocument document = new CapabilityDocument();
+        document.setItems(Arrays.asList(capability));
+        capabilityStore.saveDocument(document);
+        TrackingCapabilityInvoker invoker = invoker(kvStore, neverDelegate(), new FakeStarter(true), capabilityStore);
+
+        CapabilityInvokeResult result = invoker.invoke("plugin-a", "dangerous.task", null, context("mcp"));
+
+        assertFalse(result.isSuccess());
+        assertEquals("High risk capability is not exposed to mcp", result.getErrorMessage());
+        CapabilityInvocationLog log = new InvocationLogStore(kvStore).list().get(0);
+        assertEquals("high", log.getRiskLevel());
+        assertEquals(Boolean.TRUE, log.getAuditRequired());
+        assertEquals("High risk capability is not exposed to mcp", log.getErrorMessage());
     }
 
     private TrackingCapabilityInvoker invoker(InMemoryRuntimeKvStore kvStore,

@@ -2,16 +2,23 @@ package com.zrlog.plugincore.server;
 
 import com.zrlog.plugin.message.CapabilityInvokeRequest;
 import com.zrlog.plugin.message.CapabilityInvokeResult;
+import com.zrlog.plugin.message.NotificationRequest;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.message.PluginCapability;
 import com.zrlog.plugin.message.SchedulerQueryRequest;
 import com.zrlog.plugin.message.SchedulerQueryResult;
+import com.zrlog.plugin.message.SchedulerUpdateRequest;
+import com.zrlog.plugin.message.SchedulerUpdateResult;
+import com.zrlog.plugincore.server.runtime.notification.NotificationDelivery;
 import com.zrlog.plugincore.server.runtime.notification.NotificationProviderSetting;
 import com.zrlog.plugincore.server.runtime.notification.NotificationSetting;
+import com.zrlog.plugincore.server.runtime.scheduler.PluginAutomation;
+import com.zrlog.plugincore.server.runtime.scheduler.PluginAutomationRun;
 import com.zrlog.plugincore.server.runtime.scheduler.SchedulerProviderSetting;
 import com.zrlog.plugincore.server.runtime.scheduler.SchedulerSetting;
 import com.zrlog.plugincore.server.runtime.service.ServiceProviderSetting;
 import com.zrlog.plugincore.server.runtime.service.ServiceSetting;
+import com.zrlog.plugincore.server.runtime.state.PluginRuntimeState;
 import org.junit.Test;
 
 import java.util.List;
@@ -29,14 +36,21 @@ public class GraalvmAgentApplicationTest {
         assertTrue(classes.contains(PluginCapability.class));
         assertTrue(classes.contains(CapabilityInvokeRequest.class));
         assertTrue(classes.contains(CapabilityInvokeResult.class));
+        assertTrue(classes.contains(NotificationRequest.class));
         assertTrue(classes.contains(SchedulerQueryRequest.class));
         assertTrue(classes.contains(SchedulerQueryResult.class));
+        assertTrue(classes.contains(SchedulerUpdateRequest.class));
+        assertTrue(classes.contains(SchedulerUpdateResult.class));
+        assertTrue(classes.contains(PluginAutomation.class));
+        assertTrue(classes.contains(PluginAutomationRun.class));
         assertTrue(classes.contains(SchedulerSetting.class));
         assertTrue(classes.contains(SchedulerProviderSetting.class));
+        assertTrue(classes.contains(NotificationDelivery.class));
         assertTrue(classes.contains(NotificationSetting.class));
         assertTrue(classes.contains(NotificationProviderSetting.class));
         assertTrue(classes.contains(ServiceSetting.class));
         assertTrue(classes.contains(ServiceProviderSetting.class));
+        assertTrue(classes.contains(PluginRuntimeState.class));
     }
 
     @Test
@@ -49,5 +63,7 @@ public class GraalvmAgentApplicationTest {
         assertTrue(result.isSchedulerUpdateRejected());
         assertEquals(1, result.getNotificationSuccessCount());
         assertEquals(0, result.getNotificationFailedCount());
+        assertEquals(2, result.getAnnotatedCapabilityCount());
+        assertEquals(4, result.getActionDispatchCount());
     }
 }

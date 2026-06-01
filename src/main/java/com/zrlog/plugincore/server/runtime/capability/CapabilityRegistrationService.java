@@ -11,12 +11,8 @@ import com.zrlog.plugincore.server.plugin.PluginSessions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public class CapabilityRegistrationService {
 
@@ -108,48 +104,7 @@ public class CapabilityRegistrationService {
             }
             capabilities.add(capability);
         }
-        fillMissingServiceNames(plugin, capabilities);
         return capabilities;
-    }
-
-    private void fillMissingServiceNames(Plugin plugin, List<PluginCapability> capabilities) {
-        if (plugin == null || plugin.getServices() == null || plugin.getServices().isEmpty()) {
-            return;
-        }
-        Set<String> services = new HashSet<String>(plugin.getServices());
-        List<PluginCapability> missingServiceCapabilities = capabilities.stream()
-                .filter(item -> Objects.equals("service", item.getType()))
-                .filter(item -> item.getServiceName() == null || item.getServiceName().trim().isEmpty())
-                .collect(Collectors.toList());
-        for (PluginCapability capability : missingServiceCapabilities) {
-            String serviceName = inferServiceName(services, capability);
-            if (serviceName != null) {
-                capability.setServiceName(serviceName);
-            }
-        }
-        // Compatibility fallback for plugins built before common emits serviceName. Remove when service providers require common >= 4.0.2.
-        List<String> legacyAliases = services.stream()
-                .filter(item -> !CapabilityStore.canGenerateLegacyCapability(item))
-                .collect(Collectors.toList());
-        if (missingServiceCapabilities.size() == 1 && legacyAliases.size() == 1) {
-            PluginCapability capability = missingServiceCapabilities.get(0);
-            if (capability.getServiceName() == null || capability.getServiceName().trim().isEmpty()) {
-                capability.setServiceName(legacyAliases.get(0));
-            }
-        }
-    }
-
-    private String inferServiceName(Set<String> services, PluginCapability capability) {
-        if (services.contains(capability.getKey())) {
-            return capability.getKey();
-        }
-        if (capability.getKey() != null && capability.getKey().endsWith(".upload") && services.contains("uploadService")) {
-            return "uploadService";
-        }
-        if (capability.getKey() != null && capability.getKey().endsWith(".uploadPrivate") && services.contains("uploadToPrivateService")) {
-            return "uploadToPrivateService";
-        }
-        return null;
     }
 
     private boolean isBlank(String value) {

@@ -89,6 +89,7 @@ public class PluginHttpServerConfigTest {
         assertRoute(router, prefix + "/runtime-notification/channels", HttpMethod.GET);
         assertRoute(router, prefix + "/runtime-notification/provider", HttpMethod.POST);
         assertRoute(router, prefix + "/runtime-notification/provider/auto", HttpMethod.POST);
+        assertRoute(router, prefix + "/runtime-notification/test", HttpMethod.POST);
         assertRoute(router, prefix + "/runtime-notification/deliveries", HttpMethod.GET);
         assertRoute(router, prefix + "/runtime-services/providers", HttpMethod.GET);
         assertRoute(router, prefix + "/runtime-services/provider", HttpMethod.POST);

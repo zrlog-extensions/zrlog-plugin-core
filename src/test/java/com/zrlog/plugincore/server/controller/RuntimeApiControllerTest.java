@@ -4,7 +4,11 @@ import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.message.PluginCapability;
 import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.type.RunType;
+import com.zrlog.plugincore.server.runtime.notification.NotificationDelivery;
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -43,5 +47,29 @@ public class RuntimeApiControllerTest {
         assertEquals("系统任务 / 运行态维护",
                 RuntimeApiController.automationTargetLabel("system:plugin-runtime-maintenance",
                         "__system__", "plugin.runtime.maintenance", "运行态维护", null, null));
+    }
+
+    @Test
+    public void shouldFindLatestNotificationDeliveryByProvider() {
+        NotificationDelivery oldDelivery = delivery("email", "email-plugin", "notification.email.send", "error", 100L);
+        NotificationDelivery newDelivery = delivery("email", "email-plugin", "notification.email.send", "success", 200L);
+        NotificationDelivery otherDelivery = delivery("webhook", "webhook-plugin", "notification.webhook.send", "success", 300L);
+
+        Map<String, NotificationDelivery> latest = RuntimeApiController.latestNotificationDeliveryByProvider(
+                Arrays.asList(oldDelivery, otherDelivery, newDelivery));
+
+        assertEquals(2, latest.size());
+        assertEquals("success", latest.get("email\nemail-plugin\nnotification.email.send").getStatus());
+        assertEquals(Long.valueOf(200L), latest.get("email\nemail-plugin\nnotification.email.send").getCreatedAt());
+    }
+
+    private NotificationDelivery delivery(String channel, String pluginId, String capabilityKey, String status, Long createdAt) {
+        NotificationDelivery delivery = new NotificationDelivery();
+        delivery.setChannel(channel);
+        delivery.setProviderPluginId(pluginId);
+        delivery.setCapabilityKey(capabilityKey);
+        delivery.setStatus(status);
+        delivery.setCreatedAt(createdAt);
+        return delivery;
     }
 }

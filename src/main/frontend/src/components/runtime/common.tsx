@@ -142,6 +142,8 @@ export type InvocationLog = {
     pluginPreviewImageBase64?: string;
     capabilityKey: string;
     source?: string;
+    riskLevel?: string;
+    auditRequired?: boolean;
     requestId?: string;
     status: string;
     startedAt?: number;
@@ -161,6 +163,10 @@ export type NotificationProviderRow = {
     selected: boolean;
     confirmed: boolean;
     reviewRequired: boolean;
+    lastDeliveryStatus?: string;
+    lastDeliveryAt?: number;
+    lastDeliveryError?: string;
+    updatedAt?: number;
 }
 
 export type NotificationDelivery = {

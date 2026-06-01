@@ -71,13 +71,6 @@ public class ServiceProviderResolver {
         if (Boolean.TRUE.equals(capability.getLegacy())) {
             return capability.getKey();
         }
-        // Compatibility fallback for persisted 4.0.1 capability records. Remove when all service providers have re-registered serviceName.
-        if (capability.getKey() != null && capability.getKey().endsWith(".upload")) {
-            return "uploadService";
-        }
-        if (capability.getKey() != null && capability.getKey().endsWith(".uploadPrivate")) {
-            return "uploadToPrivateService";
-        }
         return null;
     }
 

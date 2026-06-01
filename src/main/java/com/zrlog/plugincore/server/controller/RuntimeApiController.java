@@ -7,6 +7,7 @@ import com.hibegin.http.server.api.HttpRequest;
 import com.hibegin.http.server.web.Controller;
 import com.zrlog.plugin.common.BasicCronParser;
 import com.zrlog.plugin.common.KvRepository;
+import com.zrlog.plugin.message.NotificationRequest;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.message.PluginCapability;
 import com.zrlog.plugincore.server.Application;
@@ -301,6 +302,7 @@ public class RuntimeApiController extends Controller {
             channels.add(provider.getChannel());
         }
         Map<String, Plugin> pluginsById = pluginsById(pluginCore);
+        Map<String, NotificationDelivery> latestDeliveryByProvider = latestNotificationDeliveryByProvider(notificationDeliveryStore().list());
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         for (String channel : channels) {
             PluginCapability selected = resolver.resolve(channel, providers, setting).orElse(null);
@@ -323,6 +325,13 @@ public class RuntimeApiController extends Controller {
                         && Objects.equals(selected.getKey(), provider.getKey()));
                 item.put("confirmed", isConfiguredProvider(setting, channel, provider));
                 item.put("reviewRequired", reviewRequired);
+                NotificationDelivery lastDelivery = latestDeliveryByProvider.get(notificationProviderKey(channel, provider.getPluginId(), provider.getKey()));
+                if (lastDelivery != null) {
+                    item.put("lastDeliveryStatus", lastDelivery.getStatus());
+                    item.put("lastDeliveryAt", lastDelivery.getCreatedAt());
+                    item.put("lastDeliveryError", lastDelivery.getErrorMessage());
+                    item.put("updatedAt", lastDelivery.getCreatedAt());
+                }
                 items.add(item);
             }
         }
@@ -357,6 +366,44 @@ public class RuntimeApiController extends Controller {
         PluginCoreDAO.getInstance().update(pluginCore ->
                 pluginCore.getSetting().getNotification().getDefaultProviders().remove(channel));
         return success();
+    }
+
+    @ResponseBody
+    public Map<String, Object> notificationTest() {
+        String channel = getRequest().getParaToStr("channel");
+        String pluginId = getRequest().getParaToStr("pluginId");
+        String capabilityKey = getRequest().getParaToStr("capabilityKey");
+        KvRepository kvStore = kvStore();
+        CapabilityStore capabilityStore = new CapabilityStore(kvStore);
+        PluginCapability provider = capabilityStore.find(pluginId, capabilityKey).orElse(null);
+        if (!validNotificationProvider(provider, channel)) {
+            return error("通知通道能力不存在");
+        }
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        NotificationProviderSetting providerSetting = new NotificationProviderSetting();
+        providerSetting.setChannel(channel);
+        providerSetting.setPluginId(pluginId);
+        providerSetting.setCapabilityKey(capabilityKey);
+        NotificationSetting notificationSetting = new NotificationSetting();
+        notificationSetting.getDefaultProviders().put(channel, providerSetting);
+        NotificationRequest request = notificationTestRequest(channel);
+        NotificationPublishResult result = new NotificationRuntime(
+                capabilityStore,
+                new NotificationDeliveryStore(kvStore),
+                new NotificationProviderResolver(),
+                notificationSetting,
+                RuntimeCapabilityInvokerFactory.socket(kvStore, pluginCore)
+        ).publish(request);
+        NotificationDelivery delivery = result.getDeliveries() == null || result.getDeliveries().isEmpty()
+                ? null
+                : result.getDeliveries().get(0);
+        if (delivery == null) {
+            return error("测试通知没有生成投递记录");
+        }
+        Map<String, Object> map = success();
+        map.put("success", result.getSuccessCount() > 0);
+        map.put("delivery", notificationDeliveryResponse(delivery, pluginsById(pluginCore)));
+        return map;
     }
 
     @ResponseBody
@@ -591,6 +638,8 @@ public class RuntimeApiController extends Controller {
             map.put("pluginPreviewImageBase64", pluginPreviewImageBase64(plugin));
             map.put("capabilityKey", log.getCapabilityKey());
             map.put("source", log.getSource());
+            map.put("riskLevel", log.getRiskLevel());
+            map.put("auditRequired", log.getAuditRequired());
             map.put("requestId", log.getRequestId());
             map.put("traceId", log.getTraceId());
             map.put("status", log.getStatus());
@@ -606,20 +655,24 @@ public class RuntimeApiController extends Controller {
     private List<Map<String, Object>> notificationDeliveryResponses(List<NotificationDelivery> deliveries, Map<String, Plugin> pluginsById) {
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         for (NotificationDelivery delivery : deliveries) {
-            Map<String, Object> map = new HashMap<String, Object>();
-            map.put("id", delivery.getId());
-            map.put("channel", delivery.getChannel());
-            map.put("providerPluginId", delivery.getProviderPluginId());
-            Plugin plugin = pluginsById.get(delivery.getProviderPluginId());
-            map.put("providerPluginName", pluginDisplayName(plugin));
-            map.put("providerPluginPreviewImageBase64", pluginPreviewImageBase64(plugin));
-            map.put("capabilityKey", delivery.getCapabilityKey());
-            map.put("status", delivery.getStatus());
-            map.put("errorMessage", delivery.getErrorMessage());
-            map.put("createdAt", delivery.getCreatedAt());
-            items.add(map);
+            items.add(notificationDeliveryResponse(delivery, pluginsById));
         }
         return items;
+    }
+
+    private Map<String, Object> notificationDeliveryResponse(NotificationDelivery delivery, Map<String, Plugin> pluginsById) {
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("id", delivery.getId());
+        map.put("channel", delivery.getChannel());
+        map.put("providerPluginId", delivery.getProviderPluginId());
+        Plugin plugin = pluginsById.get(delivery.getProviderPluginId());
+        map.put("providerPluginName", pluginDisplayName(plugin));
+        map.put("providerPluginPreviewImageBase64", pluginPreviewImageBase64(plugin));
+        map.put("capabilityKey", delivery.getCapabilityKey());
+        map.put("status", delivery.getStatus());
+        map.put("errorMessage", delivery.getErrorMessage());
+        map.put("createdAt", delivery.getCreatedAt());
+        return map;
     }
 
     static String automationTargetLabel(String id,
@@ -697,6 +750,59 @@ public class RuntimeApiController extends Controller {
         return configured != null
                 && Objects.equals(configured.getPluginId(), provider.getPluginId())
                 && Objects.equals(configured.getCapabilityKey(), provider.getKey());
+    }
+
+    private boolean validNotificationProvider(PluginCapability provider, String channel) {
+        return provider != null
+                && Objects.equals("notification_channel", provider.getType())
+                && provider.getExposure() != null
+                && provider.getExposure().contains("notification")
+                && Objects.equals(channel, provider.getChannel());
+    }
+
+    private NotificationRequest notificationTestRequest(String channel) {
+        NotificationRequest request = new NotificationRequest();
+        request.setSourcePluginId("__system__");
+        request.setSourcePluginName("系统");
+        request.setSourceCapabilityKey("runtime.notification.test");
+        request.setEventType("runtime.notification.test");
+        request.setNotificationType("test");
+        request.setChannels(Collections.singletonList(channel));
+        request.setTitle("ZrLog 通知测试");
+        request.setContent("这是一条来自 ZrLog Plugin Runtime 的测试通知。");
+        request.setLevel("info");
+        request.setRequestId(UUID.randomUUID().toString());
+        request.setTraceId(UUID.randomUUID().toString());
+        Map<String, Object> payload = new HashMap<String, Object>();
+        payload.put("test", Boolean.TRUE);
+        request.setPayload(payload);
+        return request;
+    }
+
+    static Map<String, NotificationDelivery> latestNotificationDeliveryByProvider(List<NotificationDelivery> deliveries) {
+        Map<String, NotificationDelivery> latest = new HashMap<String, NotificationDelivery>();
+        if (deliveries == null) {
+            return latest;
+        }
+        for (NotificationDelivery delivery : deliveries) {
+            if (delivery == null) {
+                continue;
+            }
+            String key = notificationProviderKey(delivery.getChannel(), delivery.getProviderPluginId(), delivery.getCapabilityKey());
+            NotificationDelivery existing = latest.get(key);
+            if (existing == null || deliveryTime(delivery) >= deliveryTime(existing)) {
+                latest.put(key, delivery);
+            }
+        }
+        return latest;
+    }
+
+    private static String notificationProviderKey(String channel, String pluginId, String capabilityKey) {
+        return Objects.toString(channel, "") + "\n" + Objects.toString(pluginId, "") + "\n" + Objects.toString(capabilityKey, "");
+    }
+
+    private static long deliveryTime(NotificationDelivery delivery) {
+        return delivery.getCreatedAt() == null ? 0 : delivery.getCreatedAt();
     }
 
     private boolean isConfiguredServiceProvider(ServiceSetting setting, String serviceName, PluginCapability provider) {

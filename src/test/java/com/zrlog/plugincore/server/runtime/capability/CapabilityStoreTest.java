@@ -14,6 +14,7 @@ import java.util.Optional;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class CapabilityStoreTest {
 
@@ -76,6 +77,38 @@ public class CapabilityStoreTest {
         assertTrue(generated.get().getLegacy());
         assertTrue(generated.get().getGenerated());
         assertFalse(skipped.isPresent());
+    }
+
+    @Test
+    public void shouldNormalizeCapabilityRiskPolicy() {
+        CapabilityStore store = new CapabilityStore(new InMemoryRuntimeKvStore());
+        PluginCapability capability = capability("plugin-a", "critical.task", "service", "internal");
+        capability.setRiskLevel("HIGH");
+        capability.setExposure(Arrays.asList("internal", "mcp"));
+
+        store.register(capability);
+
+        PluginCapability stored = store.find("plugin-a", "critical.task").get();
+        assertEquals("high", stored.getRiskLevel());
+        assertFalse(stored.getExposure().contains("mcp"));
+        assertEquals(Boolean.FALSE, stored.getReadOnly());
+        assertEquals(Boolean.FALSE, stored.getRequiresConfirmation());
+        assertEquals(Integer.valueOf(30), stored.getTimeoutSeconds());
+        assertEquals(Integer.valueOf(1), stored.getConcurrency());
+    }
+
+    @Test
+    public void shouldRejectUnsupportedRiskLevel() {
+        CapabilityStore store = new CapabilityStore(new InMemoryRuntimeKvStore());
+        PluginCapability capability = capability("plugin-a", "invalid.task", "service", "internal");
+        capability.setRiskLevel("dangerous");
+
+        try {
+            store.register(capability);
+            fail("unsupported riskLevel should fail registration");
+        } catch (IllegalArgumentException e) {
+            assertEquals("Unsupported capability riskLevel: dangerous", e.getMessage());
+        }
     }
 
     @Test

@@ -111,7 +111,7 @@ public class CapabilityRegistrationServiceTest {
     }
 
     @Test
-    public void shouldInferUploadServiceNameForOldCapabilityPayload() {
+    public void shouldKeepServiceNameFromCapabilityPayload() {
         CapabilityStore store = new CapabilityStore(new InMemoryRuntimeKvStore());
         CapabilityRegistrationService service = new CapabilityRegistrationService(store);
         Plugin plugin = plugin();
@@ -120,31 +120,13 @@ public class CapabilityRegistrationServiceTest {
         service.registerCapabilitiesFromInitPayload(plugin, "{"
                 + "\"capabilities\":[{"
                 + "\"key\":\"qiniu.upload\","
+                + "\"serviceName\":\"uploadService\","
                 + "\"type\":\"service\","
                 + "\"exposure\":[\"internal\"]"
                 + "}]"
                 + "}");
 
         assertEquals("uploadService", store.listAll().get(0).getServiceName());
-    }
-
-    @Test
-    public void shouldInferPrivateUploadServiceNameForOldCapabilityPayload() {
-        CapabilityStore store = new CapabilityStore(new InMemoryRuntimeKvStore());
-        CapabilityRegistrationService service = new CapabilityRegistrationService(store);
-        Plugin plugin = plugin();
-        plugin.getServices().add("uploadService");
-        plugin.getServices().add("uploadToPrivateService");
-
-        service.registerCapabilitiesFromInitPayload(plugin, "{"
-                + "\"capabilities\":[{"
-                + "\"key\":\"cos.uploadPrivate\","
-                + "\"type\":\"service\","
-                + "\"exposure\":[\"internal\"]"
-                + "}]"
-                + "}");
-
-        assertEquals("uploadToPrivateService", store.listAll().get(0).getServiceName());
     }
 
     private Plugin plugin() {

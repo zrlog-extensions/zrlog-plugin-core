@@ -208,13 +208,33 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
     ];
 
     const invocationStatusTag = (value: string) => value === "success" ? <Tag color="success">成功</Tag> : <Tag color="error">失败</Tag>;
+    const invocationRiskTag = (value?: string) => {
+        if (!value) {
+            return null;
+        }
+        const labels: Record<string, string> = {
+            low: "低风险",
+            medium: "中风险",
+            high: "高风险",
+            critical: "关键风险"
+        };
+        const colors: Record<string, string> = {
+            low: "default",
+            medium: "warning",
+            high: "orange",
+            critical: "error"
+        };
+        return <Tag color={colors[value] || "default"}>{labels[value] || value}</Tag>;
+    };
     const invocationSourceLabel = (value?: string) => {
         const labels: Record<string, string> = {
             scheduler: "定时调度",
             tick: "手动/外部",
             notification: "通知",
             runtime_event: "运行时事件",
-            internal: "内部调用"
+            internal: "内部调用",
+            admin_ui: "后台页面",
+            mcp: "MCP"
         };
         return value ? (labels[value] || value) : "-";
     };
@@ -226,6 +246,8 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
                     <Space size={[4, 4]} wrap>
                         {invocationStatusTag(record.status)}
                         {record.source && <Tag>{invocationSourceLabel(record.source)}</Tag>}
+                        {invocationRiskTag(record.riskLevel)}
+                        {record.auditRequired && <Tag color="processing">审计</Tag>}
                         {record.durationMs != null && <Tag>{record.durationMs} ms</Tag>}
                     </Space>
                     <Text type="secondary" style={{fontSize: 12}}>{formatEpoch(record.startedAt)}</Text>
@@ -248,6 +270,18 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
             width: 100,
             responsive: ["md"],
             render: invocationStatusTag
+        },
+        {
+            title: "风险",
+            dataIndex: "riskLevel",
+            width: 140,
+            responsive: ["md"],
+            render: (value?: string, record?: InvocationLog) => (
+                <Space size={[4, 4]} wrap>
+                    {invocationRiskTag(value)}
+                    {record?.auditRequired && <Tag color="processing">审计</Tag>}
+                </Space>
+            )
         },
         {title: "耗时", dataIndex: "durationMs", width: 100, render: (value?: number) => value == null ? "-" : `${value} ms`, responsive: ["md"]},
         {title: "开始时间", dataIndex: "startedAt", width: 240, render: formatEpoch, responsive: ["md"]},
@@ -273,7 +307,7 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
                 dataSource={invocationLogs}
                 pagination={{...invocationLogPagination, showSizeChanger: !isMobile}}
                 onChange={pagination => loadData(pagination.current || 1, pagination.pageSize || 10)}
-                scroll={isMobile ? undefined : {x: 960}}
+                scroll={isMobile ? undefined : {x: 1100}}
             />
         </Space>
     );

@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from "react";
 import {Button, Grid, Space, Table, Tag, Tooltip, Typography, message} from "antd";
-import {CheckOutlined, ReloadOutlined} from "@ant-design/icons";
+import {CheckOutlined, ReloadOutlined, SendOutlined} from "@ant-design/icons";
 import type {ColumnsType} from "antd/es/table";
 import axios from "axios";
 import {apiPath, Capability, formatEpoch, formatTime, NotificationDelivery, NotificationProviderRow, paginationFromResponse, RuntimePagination, useCapabilityView} from "./common";
@@ -75,6 +75,21 @@ const NotificationRuntimeTab: React.FC = () => {
         await loadData(deliveryPagination.current, deliveryPagination.pageSize);
     };
 
+    const testProvider = async (row: NotificationProviderRow) => {
+        const params = new URLSearchParams();
+        params.set("channel", row.channel);
+        params.set("pluginId", row.providerPluginId);
+        params.set("capabilityKey", row.capabilityKey);
+        const {data: resp} = await axios.post(apiPath("/runtime-notification/test"), params.toString());
+        if (resp.code > 0 || !resp.success) {
+            messageApi.error(resp.message || resp.delivery?.errorMessage || "测试通知失败");
+            await loadData(deliveryPagination.current, deliveryPagination.pageSize);
+            return;
+        }
+        messageApi.success("测试通知已发送");
+        await loadData(1, deliveryPagination.pageSize);
+    };
+
     const statusTags = (selected: boolean, reviewRequired: boolean, confirmed: boolean) => (
         <Space size={[4, 4]} wrap>
             {selected && <Tag color="success">默认</Tag>}
@@ -82,6 +97,28 @@ const NotificationRuntimeTab: React.FC = () => {
             {confirmed && <Tag color="blue">已确认</Tag>}
         </Space>
     );
+
+    const deliveryStatusTag = (value?: string) => value === "success" ? <Tag color="success">成功</Tag> : <Tag color="error">失败</Tag>;
+
+    const providerDeliveryCell = (record: NotificationProviderRow) => {
+        if (!record.lastDeliveryStatus) {
+            return <Text type="secondary">暂无</Text>;
+        }
+        return (
+            <Space direction="vertical" size={4} style={{width: "100%", minWidth: 0}}>
+                <Space size={[4, 4]} wrap>
+                    {deliveryStatusTag(record.lastDeliveryStatus)}
+                    {record.lastDeliveryAt && <Text type="secondary" style={{fontSize: 12}}>{formatEpoch(record.lastDeliveryAt)}</Text>}
+                </Space>
+                {record.lastDeliveryError && (
+                    <Text type="danger" ellipsis style={{fontSize: 12, maxWidth: "100%"}}>
+                        {record.lastDeliveryError}
+                    </Text>
+                )}
+            </Space>
+        );
+    };
+
     const providerCell = (record: NotificationProviderRow) => (
         <Space direction="vertical" size={8} style={{width: "100%", minWidth: 0}}>
             {renderCapability(record.providerPluginId, record.capabilityKey, record.capabilityLabel, record.providerPluginPreviewImageBase64, record.providerPluginName)}
@@ -89,6 +126,7 @@ const NotificationRuntimeTab: React.FC = () => {
                 <Space direction="vertical" size={4}>
                     <Text type="secondary" style={{fontSize: 12}}>通道 {record.channel}</Text>
                     {statusTags(record.selected, record.reviewRequired, record.confirmed)}
+                    {providerDeliveryCell(record)}
                 </Space>
             )}
         </Space>
@@ -109,11 +147,23 @@ const NotificationRuntimeTab: React.FC = () => {
             render: (_, record) => statusTags(record.selected, record.reviewRequired, record.confirmed)
         },
         {
+            title: "最近状态",
+            key: "lastDelivery",
+            width: 220,
+            responsive: ["md"],
+            render: (_, record) => providerDeliveryCell(record)
+        },
+        {
             title: "操作",
             key: "action",
-            width: isMobile ? 96 : 190,
+            width: isMobile ? 128 : 270,
             render: (_, record) => (
                 <Space size={isMobile ? 2 : "small"}>
+                    <Tooltip title="发送测试通知">
+                        <Button type={isMobile ? "text" : "link"} size="small" icon={<SendOutlined />} aria-label="发送测试通知" onClick={() => testProvider(record)}>
+                            {!isMobile && "测试"}
+                        </Button>
+                    </Tooltip>
                     <Tooltip title="设为默认">
                         <Button type={isMobile ? "text" : "link"} size="small" icon={<CheckOutlined />} aria-label="设为默认" disabled={record.confirmed} onClick={() => setDefaultProvider(record)}>
                             {!isMobile && "设为默认"}
@@ -129,7 +179,6 @@ const NotificationRuntimeTab: React.FC = () => {
         }
     ];
 
-    const deliveryStatusTag = (value: string) => value === "success" ? <Tag color="success">成功</Tag> : <Tag color="error">失败</Tag>;
     const deliveryCell = (record: NotificationDelivery) => (
         <Space direction="vertical" size={8} style={{width: "100%", minWidth: 0}}>
             {renderCapability(record.providerPluginId, record.capabilityKey, undefined, record.providerPluginPreviewImageBase64, record.providerPluginName)}
