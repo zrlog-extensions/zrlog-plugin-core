@@ -139,6 +139,7 @@ final class NativeRuntimeWarmup {
     private static void warmupActionTypes() {
         ActionType.valueOf(ActionType.CAPABILITY_INVOKE.name());
         ActionType.valueOf(ActionType.NOTIFICATION_PUBLISH.name());
+        ActionType.valueOf(ActionType.NOTIFICATION_CHANNEL_QUERY.name());
         ActionType.valueOf(ActionType.SCHEDULER_QUERY.name());
         ActionType.valueOf(ActionType.SCHEDULER_UPDATE.name());
     }
@@ -164,6 +165,7 @@ final class NativeRuntimeWarmup {
         MsgPacketDispose dispose = new MsgPacketDispose();
         dispose.handler(null, packet(new CapabilityInvokeRequest(), ActionType.CAPABILITY_INVOKE), actionHandler);
         dispose.handler(null, packet(new NotificationRequest(), ActionType.NOTIFICATION_PUBLISH), actionHandler);
+        dispose.handler(null, packet(new HashMap<String, Object>(), ActionType.NOTIFICATION_CHANNEL_QUERY), actionHandler);
         dispose.handler(null, packet(new SchedulerQueryRequest(), ActionType.SCHEDULER_QUERY), actionHandler);
         dispose.handler(null, packet(new SchedulerUpdateRequest(), ActionType.SCHEDULER_UPDATE), actionHandler);
         return actionHandler.getCount();
@@ -285,6 +287,12 @@ final class NativeRuntimeWarmup {
         @Override
         public void notificationPublish(IOSession session, MsgPacket msgPacket) {
             gson.toJson(msgPacket.convertToClass(NotificationRequest.class));
+            count++;
+        }
+
+        @Override
+        public void notificationChannelQuery(IOSession session, MsgPacket msgPacket) {
+            gson.toJson(new HashMap<String, Object>());
             count++;
         }
 

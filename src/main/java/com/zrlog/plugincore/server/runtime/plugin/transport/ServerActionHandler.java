@@ -43,8 +43,10 @@ import com.zrlog.plugincore.server.runtime.capability.InvokeContext;
 import com.zrlog.plugincore.server.runtime.capability.RuntimeCapabilityInvokerFactory;
 import com.zrlog.plugincore.server.runtime.notification.NotificationDeliveryStore;
 import com.zrlog.plugincore.server.runtime.notification.NotificationProviderResolver;
+import com.zrlog.plugincore.server.runtime.notification.NotificationProviderSetting;
 import com.zrlog.plugincore.server.runtime.notification.NotificationPublishResult;
 import com.zrlog.plugincore.server.runtime.notification.NotificationRuntime;
+import com.zrlog.plugincore.server.runtime.notification.NotificationSetting;
 import com.zrlog.plugincore.server.runtime.scheduler.AutomationStore;
 import com.zrlog.plugincore.server.runtime.scheduler.RuntimeAutomationService;
 import com.zrlog.plugincore.server.runtime.scheduler.SchedulerQueryService;
@@ -56,6 +58,7 @@ import com.zrlog.plugin.common.KvRepository;
 import com.zrlog.plugincore.server.runtime.store.WebsiteRuntimeKvStore;
 import com.zrlog.plugincore.server.util.HttpUtils;
 import com.zrlog.plugincore.server.util.PublicInfoLoader;
+import com.zrlog.plugincore.server.vo.PluginVO;
 import org.jsoup.Jsoup;
 
 import java.nio.charset.StandardCharsets;
@@ -207,6 +210,109 @@ public class ServerActionHandler implements IActionHandler {
         NotificationPublishResult result = notificationRuntime.publish(request);
         session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(),
                 result.getFailedCount() == 0 ? MsgPacketStatus.RESPONSE_SUCCESS : MsgPacketStatus.RESPONSE_ERROR);
+    }
+
+    @Override
+    public void notificationChannelQuery(IOSession session, MsgPacket msgPacket) {
+        try {
+            session.sendJsonMsg(notificationChannelQueryResult(), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "query notification channels error", e);
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", false);
+            result.put("code", 1);
+            result.put("message", e.getMessage() == null ? "query notification channels failed" : e.getMessage());
+            session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+        }
+    }
+
+    private Map<String, Object> notificationChannelQueryResult() {
+        WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        List<PluginCapability> providers = new CapabilityStore(kvStore).listByType("notification_channel");
+        List<PluginCapability> notificationProviders = new ArrayList<>();
+        Set<String> channels = new TreeSet<>();
+        for (PluginCapability provider : providers) {
+            if (provider == null || provider.getExposure() == null
+                    || !provider.getExposure().contains("notification")
+                    || provider.getChannel() == null || provider.getChannel().trim().isEmpty()) {
+                continue;
+            }
+            notificationProviders.add(provider);
+            channels.add(provider.getChannel());
+        }
+        NotificationProviderResolver resolver = new NotificationProviderResolver();
+        NotificationSetting setting = pluginCore.getSetting().getNotification();
+        Map<String, Plugin> pluginsById = pluginsById(pluginCore);
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (String channel : channels) {
+            PluginCapability selected = resolver.resolve(channel, notificationProviders, setting).orElse(null);
+            boolean reviewRequired = resolver.reviewRequired(channel, notificationProviders, setting);
+            for (PluginCapability provider : notificationProviders) {
+                if (!Objects.equals(channel, provider.getChannel())) {
+                    continue;
+                }
+                Map<String, Object> item = new HashMap<>();
+                item.put("channel", channel);
+                item.put("providerPluginId", provider.getPluginId());
+                Plugin plugin = pluginsById.get(provider.getPluginId());
+                item.put("providerPluginName", pluginDisplayName(plugin));
+                item.put("providerPluginPreviewImageBase64", pluginPreviewImageBase64(plugin));
+                item.put("capabilityKey", provider.getKey());
+                item.put("capabilityLabel", provider.getLabel());
+                item.put("providerStatus", "available");
+                item.put("selected", selected != null
+                        && Objects.equals(selected.getPluginId(), provider.getPluginId())
+                        && Objects.equals(selected.getKey(), provider.getKey()));
+                item.put("confirmed", configuredNotificationProvider(setting, channel, provider));
+                item.put("reviewRequired", reviewRequired);
+                items.add(item);
+            }
+        }
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("code", 0);
+        result.put("message", "成功");
+        result.put("items", items);
+        return result;
+    }
+
+    private Map<String, Plugin> pluginsById(PluginCore pluginCore) {
+        Map<String, Plugin> pluginsById = new HashMap<>();
+        if (pluginCore == null || pluginCore.getPluginInfoMap() == null) {
+            return pluginsById;
+        }
+        for (PluginVO pluginVO : pluginCore.getPluginInfoMap().values()) {
+            if (pluginVO == null || pluginVO.getPlugin() == null || pluginVO.getPlugin().getId() == null) {
+                continue;
+            }
+            pluginsById.put(pluginVO.getPlugin().getId(), pluginVO.getPlugin());
+        }
+        return pluginsById;
+    }
+
+    private boolean configuredNotificationProvider(NotificationSetting setting, String channel, PluginCapability provider) {
+        if (setting == null || setting.getDefaultProviders() == null) {
+            return false;
+        }
+        NotificationProviderSetting configured = setting.getDefaultProviders().get(channel);
+        return configured != null
+                && Objects.equals(configured.getPluginId(), provider.getPluginId())
+                && Objects.equals(configured.getCapabilityKey(), provider.getKey());
+    }
+
+    private String pluginDisplayName(Plugin plugin) {
+        if (plugin == null || plugin.getName() == null || plugin.getName().trim().isEmpty()) {
+            return "未命名插件";
+        }
+        return plugin.getName();
+    }
+
+    private String pluginPreviewImageBase64(Plugin plugin) {
+        if (plugin == null || plugin.getPreviewImageBase64() == null || plugin.getPreviewImageBase64().trim().isEmpty()) {
+            return "";
+        }
+        return plugin.getPreviewImageBase64();
     }
 
     @Override
