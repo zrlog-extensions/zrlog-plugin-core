@@ -3,7 +3,7 @@ package com.zrlog.plugincore.server.runtime.plugin.artifact;
 import com.hibegin.common.util.EnvKit;
 import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugin.common.SecurityUtils;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
 import com.zrlog.plugincore.server.runtime.plugin.config.PluginConfig;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.util.HttpUtils;
@@ -98,7 +98,7 @@ public final class PluginFiles {
     }
 
     public static File getPluginFile(String pluginShortName) {
-        String nativeInfo = PluginRuntimeContext.current().hostConnection().getNativeInfo();
+        String nativeInfo = PluginRuntimeContexts.current().hostConnection().getNativeInfo();
         String filename = StringUtils.isEmpty(nativeInfo) ? pluginShortName + ".jar" :
                 pluginShortName + "-" + nativeInfo + (nativeInfo.contains("Window") ? ".exe" : ".bin");
         return new File(pluginConfig().getPluginBasePath() + "/" + filename);
@@ -186,6 +186,6 @@ public final class PluginFiles {
     }
 
     private static PluginConfig pluginConfig() {
-        return PluginRuntimeContext.current().pluginConfig();
+        return PluginRuntimeContexts.current().pluginConfig();
     }
 }

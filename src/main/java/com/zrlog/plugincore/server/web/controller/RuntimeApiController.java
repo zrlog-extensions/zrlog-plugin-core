@@ -18,7 +18,7 @@ import com.zrlog.plugincore.server.dao.WebSiteDAO;
 import com.zrlog.plugincore.server.runtime.PluginCoreRunMode;
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.RuntimeCapabilityInvokerFactory;
 import com.zrlog.plugincore.server.runtime.capability.RuntimeSources;
@@ -1009,7 +1009,7 @@ public class RuntimeApiController extends Controller {
     }
 
     private PluginBootstrapService pluginBootstrap() {
-        return PluginRuntimeContext.current().pluginBootstrap();
+        return PluginRuntimeContexts.current().pluginBootstrap();
     }
 
     private int activeInvocationCount(String pluginId) {

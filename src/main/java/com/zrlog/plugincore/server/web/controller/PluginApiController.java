@@ -29,7 +29,7 @@ import com.zrlog.plugincore.server.runtime.event.RuntimeEventRequest;
 import com.zrlog.plugincore.server.runtime.event.RuntimeEventRuntime;
 import com.zrlog.plugincore.server.runtime.invocation.CapabilityInvocationLog;
 import com.zrlog.plugincore.server.runtime.invocation.InvocationLogStore;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
 import com.zrlog.plugincore.server.runtime.state.DefaultPluginRuntimeStarter;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateStore;
@@ -261,6 +261,6 @@ public class PluginApiController extends Controller {
     }
 
     private PluginBootstrapService pluginBootstrap() {
-        return PluginRuntimeContext.current().pluginBootstrap();
+        return PluginRuntimeContexts.current().pluginBootstrap();
     }
 }

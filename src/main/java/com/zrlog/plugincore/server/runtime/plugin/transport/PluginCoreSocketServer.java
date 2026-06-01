@@ -9,7 +9,7 @@ import com.zrlog.plugin.data.codec.SocketDecode;
 import com.zrlog.plugin.data.codec.SocketEncode;
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.plugin.config.PluginConfig;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -39,13 +39,15 @@ public class PluginCoreSocketServer implements ISocketServer {
     private final Map<Socket, IOSession> decoderMap = new ConcurrentHashMap<>();
     private final Executor executor = Executors.newFixedThreadPool(8);
     private final PluginConfig pluginConfig;
+    private final PluginBootstrapService pluginBootstrap;
 
     public PluginCoreSocketServer() {
-        this(PluginRuntimeContext.current().pluginConfig());
+        this(PluginRuntimeContexts.current().pluginConfig(), PluginRuntimeContexts.current().pluginBootstrap());
     }
 
-    public PluginCoreSocketServer(PluginConfig pluginConfig) {
+    public PluginCoreSocketServer(PluginConfig pluginConfig, PluginBootstrapService pluginBootstrap) {
         this.pluginConfig = pluginConfig;
+        this.pluginBootstrap = pluginBootstrap;
     }
 
     @Override
@@ -166,6 +168,6 @@ public class PluginCoreSocketServer implements ISocketServer {
     }
 
     private PluginBootstrapService pluginBootstrap() {
-        return PluginRuntimeContext.current().pluginBootstrap();
+        return pluginBootstrap;
     }
 }

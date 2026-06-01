@@ -34,9 +34,10 @@ import com.zrlog.plugincore.server.dao.CommentDAO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.dao.TypeDAO;
 import com.zrlog.plugincore.server.dao.WebSiteDAO;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityRegistrationService;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.InvokeContext;
@@ -260,7 +261,7 @@ public class ServerActionHandler implements IActionHandler {
     }
 
     private PluginBootstrapService pluginBootstrap() {
-        return PluginRuntimeContext.current().pluginBootstrap();
+        return PluginRuntimeContexts.current().pluginBootstrap();
     }
 
     private String toWebSiteName(IOSession session, String key) {
@@ -434,7 +435,7 @@ public class ServerActionHandler implements IActionHandler {
     }
 
     private PluginRuntimeContext pluginRuntimeContext() {
-        return PluginRuntimeContext.current();
+        return PluginRuntimeContexts.current();
     }
 
     public String getPlainSearchTxt(String content) {

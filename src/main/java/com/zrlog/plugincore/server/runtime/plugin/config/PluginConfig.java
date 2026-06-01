@@ -8,19 +8,25 @@ import java.io.File;
 
 public class PluginConfig {
 
-    private File dbPropertiesFile;
-    private RunType runType;
-    private int masterPort;
-    private String pluginBasePath;
-    private BlogRunTime blogRunTime;
+    private final File dbPropertiesFile;
+    private final RunType runType;
+    private final int masterPort;
+    private final String pluginBasePath;
+    private final BlogRunTime blogRunTime;
 
-    public void configure(RunType _runType, File _dbPropertiesFile, int masterPort, String pluginBasePath, BlogRunTime blogRunTime) {
+    public PluginConfig(RunType _runType, File _dbPropertiesFile, int masterPort, String pluginBasePath, BlogRunTime blogRunTime) {
         this.runType = _runType;
         this.dbPropertiesFile = _dbPropertiesFile;
         this.masterPort = masterPort;
         this.blogRunTime = blogRunTime;
         this.pluginBasePath = resolvePluginBasePath(masterPort, pluginBasePath);
-        new File(this.pluginBasePath).mkdirs();
+        if (this.pluginBasePath != null && !this.pluginBasePath.isEmpty()) {
+            new File(this.pluginBasePath).mkdirs();
+        }
+    }
+
+    public static PluginConfig unconfigured() {
+        return new PluginConfig(null, null, 0, "", new BlogRunTime());
     }
 
 

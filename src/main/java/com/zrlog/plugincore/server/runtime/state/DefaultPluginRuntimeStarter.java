@@ -6,7 +6,7 @@ import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.plugin.artifact.PluginFiles;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
 
 import java.io.File;
 import java.util.Objects;
@@ -27,7 +27,7 @@ public class DefaultPluginRuntimeStarter implements PluginRuntimeStarter {
     }
 
     DefaultPluginRuntimeStarter(Supplier<PluginCore> pluginCoreSupplier) {
-        this(pluginCoreSupplier, PluginRuntimeContext.current().pluginBootstrap());
+        this(pluginCoreSupplier, PluginRuntimeContexts.current().pluginBootstrap());
     }
 
     DefaultPluginRuntimeStarter(Supplier<PluginCore> pluginCoreSupplier, PluginBootstrapService pluginBootstrapService) {

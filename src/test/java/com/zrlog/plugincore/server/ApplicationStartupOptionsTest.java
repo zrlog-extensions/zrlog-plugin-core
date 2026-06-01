@@ -1,7 +1,7 @@
 package com.zrlog.plugincore.server;
 
-import org.junit.Test;
 import com.zrlog.plugincore.server.runtime.plugin.config.PluginHostConnection;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

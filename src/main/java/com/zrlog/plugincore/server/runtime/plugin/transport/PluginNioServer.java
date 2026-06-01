@@ -1,6 +1,7 @@
 package com.zrlog.plugincore.server.runtime.plugin.transport;
 
 import com.hibegin.http.server.api.ISocketServer;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 
 public class PluginNioServer {
 
@@ -8,6 +9,10 @@ public class PluginNioServer {
 
     public PluginNioServer() {
         this(new PluginCoreSocketServer());
+    }
+
+    public PluginNioServer(PluginRuntimeContext context) {
+        this(new PluginCoreSocketServer(context.pluginConfig(), context.pluginBootstrap()));
     }
 
     public PluginNioServer(ISocketServer socketServer) {

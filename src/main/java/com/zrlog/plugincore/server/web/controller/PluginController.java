@@ -6,7 +6,6 @@ import com.hibegin.http.server.web.Controller;
 import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.common.KvRepository;
 import com.zrlog.plugin.common.LoggerUtil;
-import com.zrlog.plugin.data.codec.HttpRequestInfo;
 import com.zrlog.plugin.data.codec.MsgPacket;
 import com.zrlog.plugin.data.codec.MsgPacketStatus;
 import com.zrlog.plugin.message.PluginCapability;
@@ -15,13 +14,12 @@ import com.zrlog.plugincore.server.runtime.plugin.transport.ServiceMsgPacketHand
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.plugin.artifact.PluginFiles;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.invocation.ServiceInvocationLogs;
 import com.zrlog.plugincore.server.runtime.service.ServiceProviderResolver;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStates;
 import com.zrlog.plugincore.server.runtime.store.WebsiteRuntimeKvStore;
-import com.zrlog.plugincore.server.util.HttpMsgUtil;
 import com.zrlog.plugincore.server.util.StringUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -72,7 +70,7 @@ public class PluginController extends Controller {
         String fileName = downloadUrl.substring(downloadUrl.lastIndexOf("/") + 1);
         String pluginShortName = PluginFiles.getPluginShortName(new File(fileName));
         try {
-            File path = new File(PluginRuntimeContext.current().pluginConfig().getPluginBasePath());
+            File path = new File(PluginRuntimeContexts.current().pluginConfig().getPluginBasePath());
             File file = new File(path + "/" + fileName);
             if (file.exists()) {
                 if (!pluginBootstrap().startPluginFileForMetadata(file)) {
@@ -151,7 +149,7 @@ public class PluginController extends Controller {
     }
 
     private PluginBootstrapService pluginBootstrap() {
-        return PluginRuntimeContext.current().pluginBootstrap();
+        return PluginRuntimeContexts.current().pluginBootstrap();
     }
 
     public void upload() {

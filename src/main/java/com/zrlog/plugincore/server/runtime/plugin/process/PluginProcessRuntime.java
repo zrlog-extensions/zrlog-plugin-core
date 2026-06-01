@@ -3,6 +3,7 @@ package com.zrlog.plugincore.server.runtime.plugin.process;
 import com.hibegin.common.util.EnvKit;
 import com.zrlog.plugin.common.ConfigKit;
 import com.zrlog.plugin.common.LoggerUtil;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
 import com.zrlog.plugincore.server.runtime.plugin.config.PluginConfig;
 import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.vo.PluginVO;
@@ -48,11 +49,11 @@ public class PluginProcessRuntime {
     private final PluginConfig pluginConfig;
 
     public PluginProcessRuntime() {
-        this(new PluginSessionRegistry(), PluginConfig.getInstance());
+        this(new PluginSessionRegistry(), PluginRuntimeContexts.current().pluginConfig());
     }
 
     public PluginProcessRuntime(PluginSessionRegistry sessionRegistry) {
-        this(sessionRegistry, PluginConfig.getInstance());
+        this(sessionRegistry, PluginRuntimeContexts.current().pluginConfig());
     }
 
     public PluginProcessRuntime(PluginSessionRegistry sessionRegistry, PluginConfig pluginConfig) {

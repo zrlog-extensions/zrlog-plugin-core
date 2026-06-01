@@ -7,16 +7,19 @@ import com.hibegin.http.server.config.ServerConfig;
 import com.hibegin.http.server.web.MethodInterceptor;
 import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.type.RunType;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
+import com.zrlog.plugincore.server.runtime.scheduler.SchedulerExternalEndpoint;
 import com.zrlog.plugincore.server.web.controller.PluginApiController;
 import com.zrlog.plugincore.server.web.controller.PluginController;
 import com.zrlog.plugincore.server.web.controller.RuntimeApiController;
 import com.zrlog.plugincore.server.web.controller.SettingController;
 import com.zrlog.plugincore.server.web.controller.open.SchedulerController;
 import com.zrlog.plugincore.server.web.handler.PluginHandle;
-import com.zrlog.plugincore.server.runtime.scheduler.SchedulerExternalEndpoint;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.Executors;
 
 public class PluginHttpServerConfig extends AbstractServerConfig {
@@ -26,7 +29,12 @@ public class PluginHttpServerConfig extends AbstractServerConfig {
     private final ServerConfig serverConfig;
 
     public PluginHttpServerConfig(Integer port) {
+        this(port, PluginRuntimeContexts.current());
+    }
+
+    public PluginHttpServerConfig(Integer port, PluginRuntimeContext runtimeContext) {
         this.port = port;
+        PluginRuntimeContexts.install(Objects.requireNonNull(runtimeContext));
         this.serverConfig = initServerConfig();
     }
 

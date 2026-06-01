@@ -5,7 +5,7 @@ import com.zrlog.plugin.common.BasicCronParser;
 import com.zrlog.plugin.common.CronParseException;
 import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityInvoker;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.InvokeContext;
@@ -62,7 +62,7 @@ public class SchedulerRuntime {
                             PluginCore pluginCore) {
         this(automationStore, automationRunStore, capabilityStore, capabilityInvoker, cronParser,
                 SchedulerRuntime::distributedTaskLock, runtimeSettingSupplier(pluginCore), () -> pluginCore,
-                PluginRuntimeContext.current().pluginBootstrap());
+                PluginRuntimeContexts.current().pluginBootstrap());
     }
 
     SchedulerRuntime(AutomationStore automationStore,
@@ -83,7 +83,7 @@ public class SchedulerRuntime {
                      SchedulerTaskLockFactory taskLockFactory,
                      Supplier<PluginRuntimeSetting> runtimeSettingSupplier) {
         this(automationStore, automationRunStore, capabilityStore, capabilityInvoker, cronParser, taskLockFactory,
-                runtimeSettingSupplier, PluginCore::new, PluginRuntimeContext.current().pluginBootstrap());
+                runtimeSettingSupplier, PluginCore::new, PluginRuntimeContexts.current().pluginBootstrap());
     }
 
     SchedulerRuntime(AutomationStore automationStore,

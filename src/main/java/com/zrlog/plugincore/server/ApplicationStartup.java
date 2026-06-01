@@ -4,7 +4,9 @@ import com.hibegin.common.util.ParseArgsUtil;
 import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.common.ConfigKit;
 import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
+import com.zrlog.plugincore.server.runtime.plugin.config.PluginConfig;
 import com.zrlog.plugincore.server.runtime.plugin.config.PluginDataSourceInitializer;
+import com.zrlog.plugincore.server.runtime.plugin.config.PluginHostConnection;
 import com.zrlog.plugincore.server.util.ListenWebServerThread;
 
 import java.io.IOException;
@@ -33,13 +35,14 @@ class ApplicationStartup {
 
         ApplicationStartupOptions options = ApplicationStartupOptions.parse(args);
         ApplicationEnvironment.configureBlogRunModeIfNeeded(options.hasExternalDbProperties());
-        PluginRuntimeContext context = PluginRuntimeContext.current();
-        context.hostConnection().configure(options.getBlogApiHomeUrl(), options.getBlogPluginToken(), options.getNativeInfo());
-        startBlogListener(options.getListenBlogPort());
-        context.pluginConfig().configure(RunConstants.runType, options.getDbProperties(), options.getMasterPort(),
+        PluginConfig pluginConfig = new PluginConfig(RunConstants.runType, options.getDbProperties(), options.getMasterPort(),
                 options.getPluginPath(), options.getBlogRunTime());
-        new PluginDataSourceInitializer().initialize(options.getDbProperties());
-        servers.start(options.getHttpPort());
+        PluginHostConnection hostConnection = new PluginHostConnection(options.getBlogApiHomeUrl(),
+                options.getBlogPluginToken(), options.getNativeInfo());
+        PluginRuntimeContext context = PluginRuntimeContext.create(pluginConfig, hostConnection);
+        startBlogListener(options.getListenBlogPort());
+        new PluginDataSourceInitializer().initialize(pluginConfig.getDbPropertiesFile());
+        servers.start(options.getHttpPort(), context);
     }
 
     private boolean shouldShowTips(String[] args) {

@@ -6,7 +6,7 @@ import com.zrlog.plugincore.server.vo.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
 import com.zrlog.plugincore.server.runtime.store.WebsiteRuntimeKvStore;
 
 import java.util.logging.Level;
@@ -20,7 +20,7 @@ public class PluginIdleStopRunner {
     private final PluginBootstrapService pluginBootstrapService;
 
     public PluginIdleStopRunner() {
-        this(PluginRuntimeContext.current().pluginBootstrap());
+        this(PluginRuntimeContexts.current().pluginBootstrap());
     }
 
     public PluginIdleStopRunner(PluginBootstrapService pluginBootstrapService) {

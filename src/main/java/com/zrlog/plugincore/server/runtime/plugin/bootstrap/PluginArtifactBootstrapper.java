@@ -33,12 +33,12 @@ public class PluginArtifactBootstrapper {
     private final PluginConfig pluginConfig;
 
     public PluginArtifactBootstrapper(Map<String, String> requiredPlugins, PluginMetadataBootstrapper metadataBootstrapper) {
-        this(requiredPlugins, metadataBootstrapper, metadataBootstrapper.sessionRegistry(), new PluginConfig());
+        this(requiredPlugins, metadataBootstrapper, metadataBootstrapper.sessionRegistry(), PluginConfig.unconfigured());
     }
 
     public PluginArtifactBootstrapper(Map<String, String> requiredPlugins, PluginMetadataBootstrapper metadataBootstrapper,
                                       PluginSessionRegistry sessionRegistry) {
-        this(requiredPlugins, metadataBootstrapper, sessionRegistry, new PluginConfig());
+        this(requiredPlugins, metadataBootstrapper, sessionRegistry, PluginConfig.unconfigured());
     }
 
     public PluginArtifactBootstrapper(Map<String, String> requiredPlugins, PluginMetadataBootstrapper metadataBootstrapper,
@@ -98,7 +98,7 @@ public class PluginArtifactBootstrapper {
 
     private Map<String, String> getInstalledPluginArtifactIds(PluginCore currentPluginCore) {
         Map<String, String> runnablePlugins = new LinkedHashMap<>();
-        for (File file : PluginFiles.pluginFilesIn(new File(pluginConfig.getPluginBasePath()))) {
+        for (File file : PluginFiles.pluginFilesIn(new File(pluginConfig().getPluginBasePath()))) {
             String pluginShortName = PluginFiles.getPluginShortName(file);
             if (StringUtils.isEmpty(pluginShortName)) {
                 continue;
@@ -147,7 +147,7 @@ public class PluginArtifactBootstrapper {
 
     private void bootstrapInstalledPluginArtifacts(PluginCore currentPluginCore) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
-        List<File> pluginFiles = PluginFiles.pluginFilesIn(new File(pluginConfig.getPluginBasePath()));
+        List<File> pluginFiles = PluginFiles.pluginFilesIn(new File(pluginConfig().getPluginBasePath()));
         ExecutorService executorService = Executors.newFixedThreadPool(pluginStartThreads(pluginFiles.size()));
         for (File file : pluginFiles) {
             String pluginShortName = PluginFiles.getPluginShortName(file);
@@ -202,5 +202,9 @@ public class PluginArtifactBootstrapper {
             }
         }
         return null;
+    }
+
+    private PluginConfig pluginConfig() {
+        return pluginConfig;
     }
 }

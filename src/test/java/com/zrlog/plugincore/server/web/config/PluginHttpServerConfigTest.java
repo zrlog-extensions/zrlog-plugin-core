@@ -4,6 +4,8 @@ import com.hibegin.http.HttpMethod;
 import com.hibegin.http.server.web.Router;
 import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.type.RunType;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
 import com.zrlog.plugincore.server.runtime.scheduler.SchedulerExternalEndpoint;
 import org.junit.After;
 import org.junit.Before;
@@ -11,19 +13,23 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 
 public class PluginHttpServerConfigTest {
 
     private RunType originalRunType;
+    private PluginRuntimeContext originalRuntimeContext;
 
     @Before
     public void setUp() {
         originalRunType = RunConstants.runType;
+        originalRuntimeContext = PluginRuntimeContexts.current();
     }
 
     @After
     public void tearDown() {
         RunConstants.runType = originalRunType;
+        PluginRuntimeContexts.install(originalRuntimeContext);
     }
 
     @Test
@@ -58,6 +64,15 @@ public class PluginHttpServerConfigTest {
 
         assertRoute(router, SchedulerExternalEndpoint.EXTERNAL_TICK_EXPOSE_PATH, HttpMethod.POST);
         assertMissing(router, "/admin/plugins" + SchedulerExternalEndpoint.EXTERNAL_TICK_EXPOSE_PATH, HttpMethod.POST);
+    }
+
+    @Test
+    public void shouldBindRuntimeContextForWebServer() {
+        PluginRuntimeContext context = PluginRuntimeContext.unconfigured();
+
+        new PluginHttpServerConfig(0, context);
+
+        assertSame(context, PluginRuntimeContexts.current());
     }
 
     private void assertRuntimePages(Router router, String prefix) {

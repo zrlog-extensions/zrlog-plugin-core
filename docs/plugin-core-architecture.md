@@ -9,7 +9,7 @@
 
 ```mermaid
 flowchart TD
-    Application["Application<br/>thin main + compatibility facade"]
+    Application["Application<br/>thin JVM main"]
     Startup["ApplicationStartup<br/>startup sequence"]
     StartupOptions["ApplicationStartupOptions<br/>args -> immutable startup values"]
     Environment["ApplicationEnvironment<br/>logging + FaaS + run mode"]
@@ -32,7 +32,8 @@ flowchart TD
 
         subgraph RuntimePlugin["runtime.plugin"]
             Transport["transport<br/>socket server + action handler"]
-            PluginConfig["config<br/>plugin runtime paths + datasource bootstrap"]
+            PluginConfig["config<br/>plugin runtime paths + host connection values"]
+            DataSource["PluginDataSourceInitializer<br/>DAO datasource bootstrap"]
             Bootstrap["bootstrap<br/>startup + metadata + artifact reconcile"]
             Lifecycle["lifecycle<br/>register / unregister / stop / delete"]
             Process["process<br/>local OS process"]
@@ -50,10 +51,14 @@ flowchart TD
     Application --> Startup
     Startup --> Environment
     Startup --> StartupOptions
+    Startup --> DataSource
+    Startup --> RuntimeContext
     Startup --> Servers
+    Servers --> RuntimeContext
     Servers --> RuntimeServer
     Servers --> HttpServer
     HttpServer --> WebConfig
+    WebConfig --> RuntimeContext
     Browser --> WebController
     Browser --> WebHandler
     WebController --> RuntimeFeature
@@ -108,10 +113,13 @@ flowchart TD
 7. `runtime.plugin.bootstrap` may depend on artifact, process, and session because it coordinates startup.
 8. `runtime.plugin.lifecycle` owns cross-cutting stop/register/delete coordination between process and session.
 9. HTTP server configuration belongs to `web.config`.
-10. Plugin runtime configuration belongs to `runtime.plugin.config`.
-11. `Application` stays as the JVM entry and compatibility facade. Argument parsing, environment setup, and server orchestration are separate startup classes.
-12. `ApplicationServers` starts only the runtime-side plugin server and the web-side HTTP server.
-13. Plugin lifecycle state is tied to host connection and routing viability. Capability, scheduler, and default automation failures should stay in their own runtime result or log path.
+10. Plugin runtime configuration values belong to `runtime.plugin.config` and are installed into `PluginRuntimeContext` by startup.
+11. Data source initialization is explicit startup work and stays in `PluginDataSourceInitializer`; `PluginConfig` is a value object, not an initializer.
+12. `Application` stays as the JVM entry. Argument parsing, environment setup, and server orchestration are separate startup classes.
+13. `ApplicationServers` starts only the runtime-side plugin server and the web-side HTTP server.
+14. Plugin lifecycle state is tied to host connection and routing viability. Capability, scheduler, and default automation failures should stay in their own runtime result or log path.
+15. `ApplicationServers` owns service wiring: it decomposes `PluginRuntimeContext` into narrow runtime dependencies for `PluginRuntimeServer`, and passes the same context into `PluginHttpServerConfig` for the web bridge.
+16. `PluginRuntimeServer` must not hold the complete runtime context; it owns only the dependencies needed to start/stop runtime service work.
 
 ## Main Packages
 
@@ -119,7 +127,7 @@ flowchart TD
 : Standard MVC controller layer for admin pages and HTTP APIs.
 
 `com.zrlog.plugincore.server.web.config`
-: HTTP server routes, static resource mapping, and HTTP interceptors.
+: HTTP server routes, static resource mapping, HTTP interceptors, and the runtime-context bridge used by web controllers.
 
 `com.zrlog.plugincore.server.web.PluginHttpServer`
 : HTTP server lifecycle wrapper around `PluginHttpServerConfig` and `WebServerBuilder`.
@@ -130,11 +138,11 @@ flowchart TD
 `com.zrlog.plugincore.server.web.util`
 : Web-only helpers such as in-memory runtime-list pagination into commonDAO `PageData`.
 
-`com.zrlog.plugincore.server.runtime.plugin.PluginRuntimeServer`
-: Runtime-side server lifecycle. It starts the plugin NIO transport and, outside native-agent mode, starts runtime workers.
+`com.zrlog.plugincore.server.runtime.PluginRuntimeServer`
+: Runtime-side server lifecycle. It starts the plugin NIO transport and, outside native-agent mode, starts runtime workers. It receives NIO, bootstrap, and scheduler dependencies directly instead of holding the full runtime context.
 
 `com.zrlog.plugincore.server.runtime.plugin.config`
-: Plugin runtime configuration, including plugin paths, FaaS runtime roots, master port, blog runtime, and datasource bootstrap.
+: Plugin runtime value objects, including plugin paths, FaaS runtime roots, master port, blog runtime, host connection, and explicit data source initialization.
 
 `com.zrlog.plugincore.server.runtime.plugin.transport`
 : TCP/socket adapter used by plugin processes to connect back to plugin-core.
