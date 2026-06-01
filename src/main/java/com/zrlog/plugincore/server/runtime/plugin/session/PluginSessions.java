@@ -2,7 +2,7 @@ package com.zrlog.plugincore.server.runtime.plugin.session;
 
 import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.message.Plugin;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
 
 import java.util.List;
 
@@ -84,6 +84,6 @@ public final class PluginSessions {
     }
 
     private static PluginSessionRegistry registry() {
-        return PluginRuntimeContexts.current().pluginSessions();
+        return PluginRuntimeBridge.pluginSessions();
     }
 }

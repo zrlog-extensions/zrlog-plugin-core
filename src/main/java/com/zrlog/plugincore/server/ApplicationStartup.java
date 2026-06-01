@@ -3,7 +3,7 @@ package com.zrlog.plugincore.server;
 import com.hibegin.common.util.ParseArgsUtil;
 import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.common.ConfigKit;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeServices;
 import com.zrlog.plugincore.server.runtime.plugin.config.PluginConfig;
 import com.zrlog.plugincore.server.runtime.plugin.config.PluginDataSourceInitializer;
 import com.zrlog.plugincore.server.runtime.plugin.config.PluginHostConnection;
@@ -39,10 +39,10 @@ class ApplicationStartup {
                 options.getPluginPath(), options.getBlogRunTime());
         PluginHostConnection hostConnection = new PluginHostConnection(options.getBlogApiHomeUrl(),
                 options.getBlogPluginToken(), options.getNativeInfo());
-        PluginRuntimeContext context = PluginRuntimeContext.create(pluginConfig, hostConnection);
+        PluginRuntimeServices services = PluginRuntimeServices.create(pluginConfig, hostConnection);
         startBlogListener(options.getListenBlogPort());
         new PluginDataSourceInitializer().initialize(pluginConfig.getDbPropertiesFile());
-        servers.start(options.getHttpPort(), context);
+        servers.start(options.getHttpPort(), services);
     }
 
     private boolean shouldShowTips(String[] args) {

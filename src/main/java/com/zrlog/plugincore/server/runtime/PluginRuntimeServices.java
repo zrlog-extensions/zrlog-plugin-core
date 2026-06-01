@@ -13,14 +13,14 @@ import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginStartupCoordin
 import java.util.HashMap;
 import java.util.Map;
 
-public final class PluginRuntimeContext {
+public final class PluginRuntimeServices {
 
     private final PluginBootstrapService pluginBootstrap;
     private final PluginSessionRegistry pluginSessions;
     private final PluginConfig pluginConfig;
     private final PluginHostConnection hostConnection;
 
-    private PluginRuntimeContext(PluginBootstrapService pluginBootstrap,
+    private PluginRuntimeServices(PluginBootstrapService pluginBootstrap,
                                  PluginSessionRegistry pluginSessions,
                                  PluginConfig pluginConfig,
                                  PluginHostConnection hostConnection) {
@@ -30,12 +30,12 @@ public final class PluginRuntimeContext {
         this.hostConnection = hostConnection;
     }
 
-    public static PluginRuntimeContext unconfigured() {
-        return buildContext(PluginConfig.unconfigured(), PluginHostConnection.defaults());
+    public static PluginRuntimeServices unconfigured() {
+        return buildServices(PluginConfig.unconfigured(), PluginHostConnection.defaults());
     }
 
-    public static PluginRuntimeContext create(PluginConfig pluginConfig, PluginHostConnection hostConnection) {
-        return buildContext(pluginConfig, hostConnection);
+    public static PluginRuntimeServices create(PluginConfig pluginConfig, PluginHostConnection hostConnection) {
+        return buildServices(pluginConfig, hostConnection);
     }
 
     public PluginBootstrapService pluginBootstrap() {
@@ -54,7 +54,7 @@ public final class PluginRuntimeContext {
         return hostConnection;
     }
 
-    private static PluginRuntimeContext buildContext(PluginConfig pluginConfig, PluginHostConnection hostConnection) {
+    private static PluginRuntimeServices buildServices(PluginConfig pluginConfig, PluginHostConnection hostConnection) {
         Map<String, String> requiredPlugins = requiredPlugins();
         PluginSessionRegistry sessionRegistry = new PluginSessionRegistry();
         PluginProcessRuntime processRuntime = new PluginProcessRuntime(sessionRegistry, pluginConfig);
@@ -65,7 +65,7 @@ public final class PluginRuntimeContext {
                 new PluginArtifactBootstrapper(requiredPlugins, metadataBootstrapper, sessionRegistry, pluginConfig);
         PluginStartupCoordinator startupCoordinator =
                 new PluginStartupCoordinator(processRuntime, artifactBootstrapper);
-        return new PluginRuntimeContext(new PluginBootstrapService(
+        return new PluginRuntimeServices(new PluginBootstrapService(
                 requiredPlugins, startupCoordinator, metadataBootstrapper, lifecycleService),
                 sessionRegistry, pluginConfig, hostConnection);
     }

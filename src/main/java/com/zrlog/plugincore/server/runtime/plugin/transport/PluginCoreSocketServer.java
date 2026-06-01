@@ -9,7 +9,7 @@ import com.zrlog.plugin.data.codec.SocketDecode;
 import com.zrlog.plugin.data.codec.SocketEncode;
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.plugin.config.PluginConfig;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -42,7 +42,7 @@ public class PluginCoreSocketServer implements ISocketServer {
     private final PluginBootstrapService pluginBootstrap;
 
     public PluginCoreSocketServer() {
-        this(PluginRuntimeContexts.current().pluginConfig(), PluginRuntimeContexts.current().pluginBootstrap());
+        this(PluginRuntimeBridge.pluginConfig(), PluginRuntimeBridge.pluginBootstrap());
     }
 
     public PluginCoreSocketServer(PluginConfig pluginConfig, PluginBootstrapService pluginBootstrap) {

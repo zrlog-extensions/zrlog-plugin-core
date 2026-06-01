@@ -28,7 +28,8 @@ flowchart TD
     subgraph Runtime["runtime: plugin runtime service"]
         RuntimeServer["PluginRuntimeServer<br/>NIO + runtime workers"]
         RuntimeFeature["runtime capability / scheduler / notification / event / service / state"]
-        RuntimeContext["PluginRuntimeContext<br/>composition root"]
+        RuntimeServices["PluginRuntimeServices<br/>startup wiring result"]
+        RuntimeBridge["PluginRuntimeBridge<br/>framework bridge"]
 
         subgraph RuntimePlugin["runtime.plugin"]
             Transport["transport<br/>socket server + action handler"]
@@ -52,17 +53,18 @@ flowchart TD
     Startup --> Environment
     Startup --> StartupOptions
     Startup --> DataSource
-    Startup --> RuntimeContext
+    Startup --> RuntimeServices
     Startup --> Servers
-    Servers --> RuntimeContext
+    Servers --> RuntimeServices
     Servers --> RuntimeServer
     Servers --> HttpServer
     HttpServer --> WebConfig
-    WebConfig --> RuntimeContext
+    WebConfig --> RuntimeBridge
+    RuntimeBridge --> RuntimeServices
     Browser --> WebController
     Browser --> WebHandler
     WebController --> RuntimeFeature
-    WebController --> RuntimeContext
+    WebController --> RuntimeBridge
     WebController --> WebUtil
     WebHandler --> Session
     WebHandler --> RuntimeFeature
@@ -70,16 +72,16 @@ flowchart TD
     RuntimeServer --> Transport
     RuntimeServer --> Bootstrap
     RuntimeServer --> RuntimeFeature
-    RuntimeFeature --> RuntimeContext
+    RuntimeFeature --> RuntimeBridge
     RuntimeFeature --> Session
     RuntimeFeature --> Bootstrap
 
-    RuntimeContext --> Bootstrap
-    RuntimeContext --> Lifecycle
-    RuntimeContext --> Process
-    RuntimeContext --> Session
-    RuntimeContext --> Artifact
-    RuntimeContext --> PluginConfig
+    RuntimeServices --> Bootstrap
+    RuntimeServices --> Lifecycle
+    RuntimeServices --> Process
+    RuntimeServices --> Session
+    RuntimeServices --> Artifact
+    RuntimeServices --> PluginConfig
 
     Bootstrap --> Artifact
     Bootstrap --> PluginConfig
@@ -113,13 +115,14 @@ flowchart TD
 7. `runtime.plugin.bootstrap` may depend on artifact, process, and session because it coordinates startup.
 8. `runtime.plugin.lifecycle` owns cross-cutting stop/register/delete coordination between process and session.
 9. HTTP server configuration belongs to `web.config`.
-10. Plugin runtime configuration values belong to `runtime.plugin.config` and are installed into `PluginRuntimeContext` by startup.
+10. Plugin runtime configuration values belong to `runtime.plugin.config` and are assembled into `PluginRuntimeServices` by startup.
 11. Data source initialization is explicit startup work and stays in `PluginDataSourceInitializer`; `PluginConfig` is a value object, not an initializer.
 12. `Application` stays as the JVM entry. Argument parsing, environment setup, and server orchestration are separate startup classes.
 13. `ApplicationServers` starts only the runtime-side plugin server and the web-side HTTP server.
 14. Plugin lifecycle state is tied to host connection and routing viability. Capability, scheduler, and default automation failures should stay in their own runtime result or log path.
-15. `ApplicationServers` owns service wiring: it decomposes `PluginRuntimeContext` into narrow runtime dependencies for `PluginRuntimeServer`, and passes the same context into `PluginHttpServerConfig` for the web bridge.
-16. `PluginRuntimeServer` must not hold the complete runtime context; it owns only the dependencies needed to start/stop runtime service work.
+15. `ApplicationServers` owns service wiring: it decomposes `PluginRuntimeServices` into narrow runtime dependencies for `PluginRuntimeServer`, and passes the same services into `PluginHttpServerConfig` for the web bridge.
+16. `PluginRuntimeServer` must not hold the complete runtime services object; it owns only the dependencies needed to start/stop runtime service work.
+17. `PluginRuntimeServices` is a startup wiring result, not a general application context or web control API. New code should prefer explicit constructor arguments or `PluginRuntimeBridge`'s narrow methods.
 
 ## Main Packages
 
@@ -127,7 +130,7 @@ flowchart TD
 : Standard MVC controller layer for admin pages and HTTP APIs.
 
 `com.zrlog.plugincore.server.web.config`
-: HTTP server routes, static resource mapping, HTTP interceptors, and the runtime-context bridge used by web controllers.
+: HTTP server routes, static resource mapping, HTTP interceptors, and installation of the runtime bridge used by web controllers.
 
 `com.zrlog.plugincore.server.web.PluginHttpServer`
 : HTTP server lifecycle wrapper around `PluginHttpServerConfig` and `WebServerBuilder`.
@@ -138,8 +141,14 @@ flowchart TD
 `com.zrlog.plugincore.server.web.util`
 : Web-only helpers such as in-memory runtime-list pagination into commonDAO `PageData`.
 
-`com.zrlog.plugincore.server.runtime.PluginRuntimeServer`
-: Runtime-side server lifecycle. It starts the plugin NIO transport and, outside native-agent mode, starts runtime workers. It receives NIO, bootstrap, and scheduler dependencies directly instead of holding the full runtime context.
+`com.zrlog.plugincore.server.runtime.PluginRuntimeServices`
+: Startup wiring result containing plugin runtime services and immutable startup values. This replaces the previous context object and should not be treated as a broad business API.
+
+`com.zrlog.plugincore.server.runtime.PluginRuntimeBridge`
+: Narrow framework bridge for code that cannot receive dependencies through constructors. Prefer direct bridge methods such as `pluginBootstrap()` over passing the whole services object.
+
+`com.zrlog.plugincore.server.runtime.plugin.PluginRuntimeServer`
+: Runtime-side server lifecycle. It starts the plugin NIO transport and, outside native-agent mode, starts runtime workers. It receives NIO, bootstrap, and scheduler dependencies directly instead of holding the full runtime services object.
 
 `com.zrlog.plugincore.server.runtime.plugin.config`
 : Plugin runtime value objects, including plugin paths, FaaS runtime roots, master port, blog runtime, host connection, and explicit data source initialization.

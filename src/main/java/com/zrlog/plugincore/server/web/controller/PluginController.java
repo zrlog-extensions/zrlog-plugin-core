@@ -14,7 +14,7 @@ import com.zrlog.plugincore.server.runtime.plugin.transport.ServiceMsgPacketHand
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.plugin.artifact.PluginFiles;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.invocation.ServiceInvocationLogs;
 import com.zrlog.plugincore.server.runtime.service.ServiceProviderResolver;
@@ -70,7 +70,7 @@ public class PluginController extends Controller {
         String fileName = downloadUrl.substring(downloadUrl.lastIndexOf("/") + 1);
         String pluginShortName = PluginFiles.getPluginShortName(new File(fileName));
         try {
-            File path = new File(PluginRuntimeContexts.current().pluginConfig().getPluginBasePath());
+            File path = new File(PluginRuntimeBridge.pluginConfig().getPluginBasePath());
             File file = new File(path + "/" + fileName);
             if (file.exists()) {
                 if (!pluginBootstrap().startPluginFileForMetadata(file)) {
@@ -149,7 +149,7 @@ public class PluginController extends Controller {
     }
 
     private PluginBootstrapService pluginBootstrap() {
-        return PluginRuntimeContexts.current().pluginBootstrap();
+        return PluginRuntimeBridge.pluginBootstrap();
     }
 
     public void upload() {

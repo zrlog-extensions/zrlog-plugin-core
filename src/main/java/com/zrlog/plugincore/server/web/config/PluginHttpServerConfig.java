@@ -7,8 +7,8 @@ import com.hibegin.http.server.config.ServerConfig;
 import com.hibegin.http.server.web.MethodInterceptor;
 import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.type.RunType;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeServices;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
 import com.zrlog.plugincore.server.runtime.scheduler.SchedulerExternalEndpoint;
 import com.zrlog.plugincore.server.web.controller.PluginApiController;
 import com.zrlog.plugincore.server.web.controller.PluginController;
@@ -29,12 +29,13 @@ public class PluginHttpServerConfig extends AbstractServerConfig {
     private final ServerConfig serverConfig;
 
     public PluginHttpServerConfig(Integer port) {
-        this(port, PluginRuntimeContexts.current());
+        this.port = port;
+        this.serverConfig = initServerConfig();
     }
 
-    public PluginHttpServerConfig(Integer port, PluginRuntimeContext runtimeContext) {
+    public PluginHttpServerConfig(Integer port, PluginRuntimeServices runtimeServices) {
         this.port = port;
-        PluginRuntimeContexts.install(Objects.requireNonNull(runtimeContext));
+        PluginRuntimeBridge.install(Objects.requireNonNull(runtimeServices));
         this.serverConfig = initServerConfig();
     }
 

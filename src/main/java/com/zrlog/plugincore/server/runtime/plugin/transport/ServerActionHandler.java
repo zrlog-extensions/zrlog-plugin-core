@@ -34,8 +34,7 @@ import com.zrlog.plugincore.server.dao.CommentDAO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.dao.TypeDAO;
 import com.zrlog.plugincore.server.dao.WebSiteDAO;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityRegistrationService;
@@ -83,8 +82,8 @@ public class ServerActionHandler implements IActionHandler {
         }
         try {
             Map<String, String> requestHeaders = new HashMap<>();
-            requestHeaders.put("X-Plugin-Token", pluginRuntimeContext().hostConnection().getBlogPluginToken());
-            byte[] bytes = HttpUtils.sendGetRequest(pluginRuntimeContext().hostConnection().getBlogApiHomeUrl()
+            requestHeaders.put("X-Plugin-Token", PluginRuntimeBridge.hostConnection().getBlogPluginToken());
+            byte[] bytes = HttpUtils.sendGetRequest(PluginRuntimeBridge.hostConnection().getBlogApiHomeUrl()
                     + "/api/admin/refreshCache", requestHeaders);
             if (EnvKit.isDevMode()) {
                 LOGGER.info("refresh cache success " + new String(bytes));
@@ -261,7 +260,7 @@ public class ServerActionHandler implements IActionHandler {
     }
 
     private PluginBootstrapService pluginBootstrap() {
-        return PluginRuntimeContexts.current().pluginBootstrap();
+        return PluginRuntimeBridge.pluginBootstrap();
     }
 
     private String toWebSiteName(IOSession session, String key) {
@@ -431,11 +430,7 @@ public class ServerActionHandler implements IActionHandler {
     }
 
     private PluginConfig pluginConfig() {
-        return pluginRuntimeContext().pluginConfig();
-    }
-
-    private PluginRuntimeContext pluginRuntimeContext() {
-        return PluginRuntimeContexts.current();
+        return PluginRuntimeBridge.pluginConfig();
     }
 
     public String getPlainSearchTxt(String content) {

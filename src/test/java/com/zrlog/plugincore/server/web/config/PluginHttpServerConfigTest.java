@@ -4,8 +4,8 @@ import com.hibegin.http.HttpMethod;
 import com.hibegin.http.server.web.Router;
 import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.type.RunType;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeServices;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
 import com.zrlog.plugincore.server.runtime.scheduler.SchedulerExternalEndpoint;
 import org.junit.After;
 import org.junit.Before;
@@ -18,18 +18,16 @@ import static org.junit.Assert.assertSame;
 public class PluginHttpServerConfigTest {
 
     private RunType originalRunType;
-    private PluginRuntimeContext originalRuntimeContext;
 
     @Before
     public void setUp() {
         originalRunType = RunConstants.runType;
-        originalRuntimeContext = PluginRuntimeContexts.current();
     }
 
     @After
     public void tearDown() {
         RunConstants.runType = originalRunType;
-        PluginRuntimeContexts.install(originalRuntimeContext);
+        PluginRuntimeBridge.install(PluginRuntimeServices.unconfigured());
     }
 
     @Test
@@ -67,12 +65,13 @@ public class PluginHttpServerConfigTest {
     }
 
     @Test
-    public void shouldBindRuntimeContextForWebServer() {
-        PluginRuntimeContext context = PluginRuntimeContext.unconfigured();
+    public void shouldBindRuntimeServicesForWebServer() {
+        PluginRuntimeServices services = PluginRuntimeServices.unconfigured();
 
-        new PluginHttpServerConfig(0, context);
+        new PluginHttpServerConfig(0, services);
 
-        assertSame(context, PluginRuntimeContexts.current());
+        assertSame(services.pluginBootstrap(), PluginRuntimeBridge.pluginBootstrap());
+        assertSame(services.pluginConfig(), PluginRuntimeBridge.pluginConfig());
     }
 
     private void assertRuntimePages(Router router, String prefix) {

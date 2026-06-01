@@ -4,7 +4,7 @@ import com.hibegin.common.dao.ResultValueConvertUtils;
 import com.zrlog.plugin.common.model.PublicInfo;
 import com.zrlog.plugin.data.codec.BaseHttpRequestInfo;
 import com.zrlog.plugincore.server.dao.WebSiteDAO;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContexts;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
 
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -23,7 +23,7 @@ public class PublicInfoLoader {
         Map<String, Object> response = new WebSiteDAO().getWebSiteByNameIn(Arrays.asList(PUBLIC_INFO_KEYS));
         PublicInfo publicInfo = new PublicInfo();
         publicInfo.setHomeUrl("http://" + response.get("host"));
-        publicInfo.setApiHomeUrl(PluginRuntimeContexts.current().hostConnection().getBlogApiHomeUrl());
+        publicInfo.setApiHomeUrl(PluginRuntimeBridge.hostConnection().getBlogApiHomeUrl());
         publicInfo.setTitle((String) response.get("title"));
         publicInfo.setSecondTitle((String) response.get("second_title"));
         publicInfo.setAdminColorPrimary(Objects.requireNonNullElse((String) response.get("admin_color_primary"), DEFAULT_ADMIN_COLOR_PRIMARY));
