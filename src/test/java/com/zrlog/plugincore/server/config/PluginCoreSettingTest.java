@@ -1,5 +1,6 @@
 package com.zrlog.plugincore.server.config;
 
+import com.zrlog.plugincore.server.vo.PluginCoreSetting;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;

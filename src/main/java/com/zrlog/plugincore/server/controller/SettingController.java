@@ -3,7 +3,7 @@ package com.zrlog.plugincore.server.controller;
 
 import com.hibegin.http.annotation.ResponseBody;
 import com.hibegin.http.server.web.Controller;
-import com.zrlog.plugincore.server.config.PluginCoreSetting;
+import com.zrlog.plugincore.server.vo.PluginCoreSetting;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 
 import java.sql.SQLException;

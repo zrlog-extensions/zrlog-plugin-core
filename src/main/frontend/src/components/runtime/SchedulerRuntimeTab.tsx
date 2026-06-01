@@ -311,7 +311,7 @@ const SchedulerRuntimeTab: React.FC<Props> = () => {
         stripOwnerFromTargetLabel(run.targetLabel, automationOwnerLabel(run.pluginId, run.pluginName)) ||
         capabilityLabel(run.pluginId, run.capabilityKey);
     const automationLastRunDescription = (automation: Automation) =>
-        `最近执行 ${formatEpoch(automation.lastRunAt)}`;
+        `上次执行 ${formatEpoch(automation.lastRunAt)}`;
     const automationStatusTag = (automation: Automation) => isSystemAutomation(automation)
         ? <Tag color="processing">系统</Tag>
         : automation.enabled === false ? <Tag>停用</Tag> : <Tag color="success">启用</Tag>;
@@ -543,7 +543,7 @@ crons = ["*/5 * * * *"]`;
                 scroll={isMobile ? undefined : {x: 1040}}
             />
 
-            <Text strong>最近执行</Text>
+            <Text strong>定时任务执行记录</Text>
             <Table<AutomationRun>
                 loading={loading}
                 rowKey="id"

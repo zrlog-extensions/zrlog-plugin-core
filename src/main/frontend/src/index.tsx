@@ -19,6 +19,8 @@ export interface PluginCoreInfoResponse {
     pluginCenter: string
     dark: boolean
     primaryColor: string
+    pluginMetadataReady?: boolean
+    pluginMetadataLoading?: boolean
     plugins: Plugin[];
     requiredPlugins: string[]
     setting?: PluginCoreSetting

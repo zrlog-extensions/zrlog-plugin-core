@@ -3,8 +3,8 @@ package com.zrlog.plugincore.server.dao;
 import com.google.gson.Gson;
 import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugin.message.Plugin;
-import com.zrlog.plugincore.server.config.PluginCore;
-import com.zrlog.plugincore.server.config.PluginVO;
+import com.zrlog.plugincore.server.model.PluginCore;
+import com.zrlog.plugincore.server.vo.PluginVO;
 
 import java.util.*;
 import java.sql.SQLException;

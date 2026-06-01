@@ -1,6 +1,6 @@
 package com.zrlog.plugincore.server.runtime.capability;
 
-import com.zrlog.plugincore.server.config.PluginCore;
+import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.runtime.invocation.InvocationLogStore;
 import com.zrlog.plugincore.server.runtime.state.DefaultPluginRuntimeStarter;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;

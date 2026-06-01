@@ -1,4 +1,4 @@
-package com.zrlog.plugincore.server.impl;
+package com.zrlog.plugincore.server.handle;
 
 import com.google.gson.Gson;
 import com.hibegin.common.dao.DAO;
@@ -29,15 +29,15 @@ import com.zrlog.plugin.type.ActionType;
 import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.Application;
 import com.zrlog.plugincore.server.config.PluginConfig;
-import com.zrlog.plugincore.server.config.PluginCore;
+import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.dao.ArticleDAO;
 import com.zrlog.plugincore.server.dao.CommentDAO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.dao.TypeDAO;
 import com.zrlog.plugincore.server.dao.WebSiteDAO;
-import com.zrlog.plugincore.server.handle.ServiceMsgPacketHandler;
-import com.zrlog.plugincore.server.plugin.PluginBootstrap;
+import com.zrlog.plugincore.server.plugin.PluginBootstrapService;
 import com.zrlog.plugincore.server.plugin.PluginSessions;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityRegistrationService;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.InvokeContext;
@@ -117,7 +117,7 @@ public class ServerActionHandler implements IActionHandler {
                                                              String pluginName,
                                                              WebsiteRuntimeKvStore kvStore,
                                                              CapabilityStore capabilityStore) {
-        PluginBootstrap.registerPlugin(session);
+        pluginBootstrap().registerPlugin(session);
         PluginRuntimeStateService stateService = runtimeStateService(kvStore, session);
         Long processId = PluginSessions.processId(session);
         stateService.markInitializing(plugin.getId(), pluginName, null, processId);
@@ -142,7 +142,7 @@ public class ServerActionHandler implements IActionHandler {
             return;
         }
         if (plugin.getShortName() != null && !plugin.getShortName().trim().isEmpty()) {
-            PluginBootstrap.stopPlugin(plugin.getShortName());
+            pluginBootstrap().stopPlugin(plugin.getShortName());
         }
         String pluginId = plugin.getId();
         if (pluginId != null && !pluginId.trim().isEmpty()) {
@@ -257,6 +257,10 @@ public class ServerActionHandler implements IActionHandler {
                 new DefaultPluginRuntimeStarter(),
                 PluginSessions.runtimeInstanceId(session)
         );
+    }
+
+    private PluginBootstrapService pluginBootstrap() {
+        return PluginRuntimeContext.current().pluginBootstrap();
     }
 
     private String toWebSiteName(IOSession session, String key) {

@@ -12,8 +12,8 @@ import com.zrlog.plugin.common.model.BlogRunTime;
 import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.config.PluginConfig;
 import com.zrlog.plugincore.server.config.PluginHttpServerConfig;
-import com.zrlog.plugincore.server.impl.NioServer;
-import com.zrlog.plugincore.server.plugin.PluginBootstrap;
+import com.zrlog.plugincore.server.plugin.PluginBootstrapService;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 import com.zrlog.plugincore.server.runtime.scheduler.InternalSchedulerRunner;
 import com.zrlog.plugincore.server.util.DevUtil;
 import com.zrlog.plugincore.server.util.LambdaEnv;
@@ -131,17 +131,18 @@ public class Application {
 
     private static void loadPluginServer(Integer httpPort) {
         boolean bootstrapRuntimeWorkers = shouldBootstrapRuntimeWorkers();
+        PluginBootstrapService pluginBootstrap = PluginRuntimeContext.current().pluginBootstrap();
         if (bootstrapRuntimeWorkers) {
-            PluginBootstrap.verifyPluginCoreReadable();
+            pluginBootstrap.verifyPluginCoreReadable();
         }
-        ISocketServer socketServer = new NioServer();
+        ISocketServer socketServer = new PluginCoreSocketServer();
         if (!socketServer.create()) {
             return;
         }
         new Thread(socketServer::listen, "zrlog-plugin-socket").start();
         try {
             if (bootstrapRuntimeWorkers) {
-                PluginBootstrap.loadPluginsAsync();
+                pluginBootstrap.loadPluginsAsync();
                 InternalSchedulerRunner.start();
             }
             loadHttpServer(httpPort);

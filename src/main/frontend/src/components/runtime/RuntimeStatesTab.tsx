@@ -299,7 +299,7 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
                 pagination={false}
                 scroll={isMobile ? undefined : {x: 1300}}
             />
-            <Text strong>调用日志</Text>
+            <Text strong>能力调用日志</Text>
             <Table<InvocationLog>
                 loading={loading}
                 rowKey="id"

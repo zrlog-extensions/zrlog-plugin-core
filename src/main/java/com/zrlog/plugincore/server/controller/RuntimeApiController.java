@@ -11,12 +11,13 @@ import com.zrlog.plugin.message.NotificationRequest;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.message.PluginCapability;
 import com.zrlog.plugincore.server.Application;
-import com.zrlog.plugincore.server.config.PluginCore;
-import com.zrlog.plugincore.server.config.PluginVO;
+import com.zrlog.plugincore.server.model.PluginCore;
+import com.zrlog.plugincore.server.vo.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.dao.WebSiteDAO;
-import com.zrlog.plugincore.server.plugin.PluginBootstrap;
+import com.zrlog.plugincore.server.plugin.PluginBootstrapService;
 import com.zrlog.plugincore.server.plugin.PluginSessions;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.RuntimeCapabilityInvokerFactory;
 import com.zrlog.plugincore.server.runtime.capability.RuntimeSources;
@@ -175,7 +176,7 @@ public class RuntimeApiController extends Controller {
         String pluginName = pluginDisplayName(pluginVO.getPlugin());
         try {
             runtimeStateService(pluginCore).markStopping(pluginId, pluginName);
-            PluginBootstrap.stopPlugin(pluginVO.getPlugin().getShortName());
+            pluginBootstrap().stopPlugin(pluginVO.getPlugin().getShortName());
             runtimeStateService(pluginCore).markStopped(pluginId, pluginName);
             return success();
         } catch (RuntimeException e) {
@@ -201,7 +202,7 @@ public class RuntimeApiController extends Controller {
                     runtime.setIdleTimeoutSeconds(idleTimeoutSeconds);
                     runtime.setIdleScanIntervalSeconds(idleScanIntervalSeconds);
                 }).getSetting().getRuntime();
-                PluginBootstrap.loadPluginsAsync();
+                pluginBootstrap().loadPluginsAsync();
             } catch (IllegalArgumentException e) {
                 return error(e.getMessage());
             }
@@ -1004,6 +1005,10 @@ public class RuntimeApiController extends Controller {
     private PluginRuntimeStateService runtimeStateService(PluginCore pluginCore) {
         KvRepository kvStore = kvStore();
         return new PluginRuntimeStateService(new PluginRuntimeStateStore(kvStore), new DefaultPluginRuntimeStarter(pluginCore));
+    }
+
+    private PluginBootstrapService pluginBootstrap() {
+        return PluginRuntimeContext.current().pluginBootstrap();
     }
 
     private int activeInvocationCount(String pluginId) {

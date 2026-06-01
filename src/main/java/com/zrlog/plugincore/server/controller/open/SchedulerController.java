@@ -2,8 +2,8 @@ package com.zrlog.plugincore.server.controller.open;
 
 import com.hibegin.http.server.web.Controller;
 import com.zrlog.plugin.common.BasicCronParser;
-import com.zrlog.plugincore.server.config.PluginCore;
-import com.zrlog.plugincore.server.config.PluginCoreSetting;
+import com.zrlog.plugincore.server.model.PluginCore;
+import com.zrlog.plugincore.server.vo.PluginCoreSetting;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.RuntimeCapabilityInvokerFactory;

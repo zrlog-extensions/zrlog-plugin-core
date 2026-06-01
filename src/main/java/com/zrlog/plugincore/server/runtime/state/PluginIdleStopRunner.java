@@ -1,11 +1,12 @@
 package com.zrlog.plugincore.server.runtime.state;
 
 import com.zrlog.plugin.common.LoggerUtil;
-import com.zrlog.plugincore.server.config.PluginCore;
-import com.zrlog.plugincore.server.config.PluginVO;
+import com.zrlog.plugincore.server.model.PluginCore;
+import com.zrlog.plugincore.server.vo.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
-import com.zrlog.plugincore.server.plugin.PluginBootstrap;
+import com.zrlog.plugincore.server.plugin.PluginBootstrapService;
 import com.zrlog.plugincore.server.plugin.PluginSessions;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 import com.zrlog.plugincore.server.runtime.store.WebsiteRuntimeKvStore;
 
 import java.util.logging.Level;
@@ -16,6 +17,15 @@ public class PluginIdleStopRunner {
     private static final Logger LOGGER = LoggerUtil.getLogger(PluginIdleStopRunner.class);
 
     private final PluginIdleStopPolicy idleStopPolicy = new PluginIdleStopPolicy();
+    private final PluginBootstrapService pluginBootstrapService;
+
+    public PluginIdleStopRunner() {
+        this(PluginRuntimeContext.current().pluginBootstrap());
+    }
+
+    public PluginIdleStopRunner(PluginBootstrapService pluginBootstrapService) {
+        this.pluginBootstrapService = pluginBootstrapService;
+    }
 
     void stopIdlePlugins(long nowMs) {
         PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
@@ -32,7 +42,8 @@ public class PluginIdleStopRunner {
         }
         long idleTimeoutMs = Math.max(1L, runtimeSetting.getIdleTimeoutSeconds()) * 1000L;
         PluginRuntimeStateStore stateStore = new PluginRuntimeStateStore(new WebsiteRuntimeKvStore());
-        PluginRuntimeStateService stateService = new PluginRuntimeStateService(stateStore, new DefaultPluginRuntimeStarter(pluginCore));
+        PluginRuntimeStateService stateService = new PluginRuntimeStateService(stateStore,
+                new DefaultPluginRuntimeStarter(() -> pluginCore, pluginBootstrapService));
         for (PluginRuntimeState state : stateStore.list()) {
             if (!idleStopPolicy.shouldStop(state, nowMs, idleTimeoutMs)) {
                 continue;
@@ -44,7 +55,7 @@ public class PluginIdleStopRunner {
             String pluginName = PluginSessions.nameOrShortName(pluginVO.getPlugin());
             stateService.markStopping(state.getPluginId(), pluginName);
             try {
-                PluginBootstrap.stopPlugin(pluginVO.getPlugin().getShortName());
+                pluginBootstrapService.stopPlugin(pluginVO.getPlugin().getShortName());
             } catch (RuntimeException e) {
                 stateService.markFailed(state.getPluginId(), pluginName, e.getMessage());
                 LOGGER.log(Level.WARNING, "stop idle plugin " + pluginVO.getPlugin().getShortName() + " error", e);

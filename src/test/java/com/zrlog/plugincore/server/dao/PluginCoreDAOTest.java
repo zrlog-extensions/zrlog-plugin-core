@@ -1,7 +1,7 @@
 package com.zrlog.plugincore.server.dao;
 
 import com.google.gson.Gson;
-import com.zrlog.plugincore.server.config.PluginCore;
+import com.zrlog.plugincore.server.model.PluginCore;
 import org.junit.Test;
 
 import java.sql.SQLException;

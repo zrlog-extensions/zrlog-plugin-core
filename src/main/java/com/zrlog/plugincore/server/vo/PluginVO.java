@@ -1,4 +1,4 @@
-package com.zrlog.plugincore.server.config;
+package com.zrlog.plugincore.server.vo;
 
 import com.zrlog.plugin.message.Plugin;
 

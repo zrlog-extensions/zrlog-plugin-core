@@ -1,11 +1,12 @@
 package com.zrlog.plugincore.server.runtime.state;
 
-import com.zrlog.plugincore.server.config.PluginCore;
-import com.zrlog.plugincore.server.config.PluginVO;
+import com.zrlog.plugincore.server.model.PluginCore;
+import com.zrlog.plugincore.server.vo.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
-import com.zrlog.plugincore.server.plugin.PluginBootstrap;
+import com.zrlog.plugincore.server.plugin.PluginBootstrapService;
 import com.zrlog.plugincore.server.plugin.PluginFiles;
 import com.zrlog.plugincore.server.plugin.PluginSessions;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 
 import java.io.File;
 import java.util.Objects;
@@ -15,6 +16,7 @@ import java.util.function.Supplier;
 public class DefaultPluginRuntimeStarter implements PluginRuntimeStarter {
 
     private final Supplier<PluginCore> pluginCoreSupplier;
+    private final PluginBootstrapService pluginBootstrapService;
 
     public DefaultPluginRuntimeStarter() {
         this(() -> PluginCoreDAO.getInstance().loadSnapshot());
@@ -25,7 +27,12 @@ public class DefaultPluginRuntimeStarter implements PluginRuntimeStarter {
     }
 
     DefaultPluginRuntimeStarter(Supplier<PluginCore> pluginCoreSupplier) {
+        this(pluginCoreSupplier, PluginRuntimeContext.current().pluginBootstrap());
+    }
+
+    DefaultPluginRuntimeStarter(Supplier<PluginCore> pluginCoreSupplier, PluginBootstrapService pluginBootstrapService) {
         this.pluginCoreSupplier = pluginCoreSupplier;
+        this.pluginBootstrapService = pluginBootstrapService;
     }
 
     @Override
@@ -55,7 +62,7 @@ public class DefaultPluginRuntimeStarter implements PluginRuntimeStarter {
         if (pluginFile == null || !pluginFile.exists() || pluginFile.length() == 0) {
             throw new RuntimeException(PluginFiles.missingPluginFileMessage(identity.getPluginShortName(), autoDownloadDisabled));
         }
-        PluginBootstrap.loadPlugin(pluginFile, identity.getPluginId());
+        pluginBootstrapService.loadPlugin(pluginFile, identity.getPluginId());
     }
 
     private PluginCore pluginCore() {
@@ -79,6 +86,6 @@ public class DefaultPluginRuntimeStarter implements PluginRuntimeStarter {
 
     @Override
     public void cleanupStartFailure(PluginIdentity identity) {
-        PluginBootstrap.stopPlugin(identity.getPluginShortName());
+        pluginBootstrapService.stopPlugin(identity.getPluginShortName());
     }
 }

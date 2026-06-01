@@ -3,7 +3,9 @@ package com.zrlog.plugincore.server.runtime.scheduler;
 import com.zrlog.plugin.message.CapabilityInvokeResult;
 import com.zrlog.plugin.common.BasicCronParser;
 import com.zrlog.plugin.common.CronParseException;
-import com.zrlog.plugincore.server.config.PluginCore;
+import com.zrlog.plugincore.server.model.PluginCore;
+import com.zrlog.plugincore.server.plugin.PluginBootstrapService;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityInvoker;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.InvokeContext;
@@ -42,6 +44,7 @@ public class SchedulerRuntime {
     private final SchedulerTaskLockFactory taskLockFactory;
     private final Supplier<PluginRuntimeSetting> runtimeSettingSupplier;
     private final Supplier<PluginCore> pluginCoreSupplier;
+    private final PluginBootstrapService pluginBootstrapService;
 
     public SchedulerRuntime(AutomationStore automationStore,
                             AutomationRunStore automationRunStore,
@@ -58,7 +61,8 @@ public class SchedulerRuntime {
                             BasicCronParser cronParser,
                             PluginCore pluginCore) {
         this(automationStore, automationRunStore, capabilityStore, capabilityInvoker, cronParser,
-                SchedulerRuntime::distributedTaskLock, runtimeSettingSupplier(pluginCore), () -> pluginCore);
+                SchedulerRuntime::distributedTaskLock, runtimeSettingSupplier(pluginCore), () -> pluginCore,
+                PluginRuntimeContext.current().pluginBootstrap());
     }
 
     SchedulerRuntime(AutomationStore automationStore,
@@ -79,7 +83,7 @@ public class SchedulerRuntime {
                      SchedulerTaskLockFactory taskLockFactory,
                      Supplier<PluginRuntimeSetting> runtimeSettingSupplier) {
         this(automationStore, automationRunStore, capabilityStore, capabilityInvoker, cronParser, taskLockFactory,
-                runtimeSettingSupplier, PluginCore::new);
+                runtimeSettingSupplier, PluginCore::new, PluginRuntimeContext.current().pluginBootstrap());
     }
 
     SchedulerRuntime(AutomationStore automationStore,
@@ -89,7 +93,8 @@ public class SchedulerRuntime {
                      BasicCronParser cronParser,
                      SchedulerTaskLockFactory taskLockFactory,
                      Supplier<PluginRuntimeSetting> runtimeSettingSupplier,
-                     Supplier<PluginCore> pluginCoreSupplier) {
+                     Supplier<PluginCore> pluginCoreSupplier,
+                     PluginBootstrapService pluginBootstrapService) {
         this.automationStore = automationStore;
         this.automationRunStore = automationRunStore;
         this.capabilityInvoker = capabilityInvoker;
@@ -97,6 +102,7 @@ public class SchedulerRuntime {
         this.taskLockFactory = taskLockFactory;
         this.runtimeSettingSupplier = runtimeSettingSupplier;
         this.pluginCoreSupplier = pluginCoreSupplier;
+        this.pluginBootstrapService = pluginBootstrapService;
     }
 
     public SchedulerTickResult tick(ZonedDateTime now) {
@@ -392,11 +398,11 @@ public class SchedulerRuntime {
     }
 
     private PluginAutomationRun executeAutomation(PluginAutomation automation, ZonedDateTime now, String source) {
-        PluginAutomationRun run = newRun(automation, now);
+        PluginAutomationRun run = newRun(automation);
         if (RuntimeSystemAutomations.isRuntimeMaintenance(automation)) {
             executeRuntimeMaintenance(automation, now);
             run.setStatus("success");
-            return finish(run, now);
+            return finish(run);
         }
         InvokeContext context = new InvokeContext();
         context.setSource(invocationSource(source));
@@ -409,7 +415,7 @@ public class SchedulerRuntime {
             run.setStatus("error");
             run.setErrorMessage(invokeResult.getErrorMessage());
         }
-        return finish(run, now);
+        return finish(run);
     }
 
     private void executeRuntimeMaintenance(PluginAutomation automation, ZonedDateTime now) {
@@ -417,10 +423,10 @@ public class SchedulerRuntime {
         PluginRuntimeStates.cleanupDirtyRuntimeStates(pluginCore);
         PluginRuntimeSetting runtimeSetting = RuntimeSystemAutomations.runtimeSettingFromPayload(automation.getPayload());
         if (!runtimeSetting.getOnDemandEnabled()) {
-            com.zrlog.plugincore.server.plugin.PluginBootstrap.loadPluginsAsync();
+            pluginBootstrapService.loadPluginsAsync();
         }
         if (runtimeSetting.getIdleStopEnabled()) {
-            new PluginIdleStopRunner().stopIdlePlugins(now.toInstant().toEpochMilli(), runtimeSetting, pluginCore);
+            new PluginIdleStopRunner(pluginBootstrapService).stopIdlePlugins(now.toInstant().toEpochMilli(), runtimeSetting, pluginCore);
         }
     }
 
@@ -433,18 +439,18 @@ public class SchedulerRuntime {
         return () -> pluginCore == null ? new PluginRuntimeSetting() : pluginCore.getSetting().getRuntime();
     }
 
-    private PluginAutomationRun newRun(PluginAutomation automation, ZonedDateTime now) {
+    private PluginAutomationRun newRun(PluginAutomation automation) {
         PluginAutomationRun run = new PluginAutomationRun();
         run.setId(UUID.randomUUID().toString());
         run.setAutomationId(automation.getId());
         run.setPluginId(automation.getPluginId());
         run.setCapabilityKey(automation.getCapabilityKey());
-        run.setStartedAt(SchedulerTimes.millis(now));
+        run.setStartedAt(System.currentTimeMillis());
         return run;
     }
 
-    private PluginAutomationRun finish(PluginAutomationRun run, ZonedDateTime now) {
-        long finishedAt = SchedulerTimes.millis(now);
+    private PluginAutomationRun finish(PluginAutomationRun run) {
+        long finishedAt = System.currentTimeMillis();
         run.setFinishedAt(finishedAt);
         run.setDurationMs(Math.max(0L, finishedAt - run.getStartedAt()));
         return run;

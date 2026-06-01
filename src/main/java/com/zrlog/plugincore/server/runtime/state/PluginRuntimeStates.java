@@ -2,11 +2,11 @@ package com.zrlog.plugincore.server.runtime.state;
 
 import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.message.Plugin;
-import com.zrlog.plugincore.server.config.PluginCore;
-import com.zrlog.plugincore.server.config.PluginVO;
+import com.zrlog.plugincore.server.model.PluginCore;
+import com.zrlog.plugincore.server.vo.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.plugin.PluginFiles;
-import com.zrlog.plugincore.server.plugin.PluginScanRunnable;
+import com.zrlog.plugincore.server.plugin.PluginProcessRuntime;
 import com.zrlog.plugincore.server.plugin.PluginSessions;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.scheduler.AutomationStore;
@@ -248,7 +248,7 @@ public final class PluginRuntimeStates {
         String status = PluginStatus.lifecycleRuntimeStatus(instance.getStatus());
         view.setStatus(status);
         view.setRuntimeMode(StringUtils.isEmpty(instance.getRuntimeMode())
-                ? PluginScanRunnable.runtimeMode(PluginFiles.getPluginFile(plugin.getShortName()))
+                ? PluginProcessRuntime.runtimeMode(PluginFiles.getPluginFile(plugin.getShortName()))
                 : instance.getRuntimeMode());
         view.setProcessId(instance.getProcessId());
         view.setLocal(isLocalRuntimeInstance(instance));

@@ -1,4 +1,4 @@
-package com.zrlog.plugincore.server.impl;
+package com.zrlog.plugincore.server;
 
 import com.hibegin.common.util.EnvKit;
 import com.hibegin.http.server.api.ISocketServer;
@@ -8,7 +8,9 @@ import com.zrlog.plugin.data.codec.SocketCodec;
 import com.zrlog.plugin.data.codec.SocketDecode;
 import com.zrlog.plugin.data.codec.SocketEncode;
 import com.zrlog.plugincore.server.config.PluginConfig;
-import com.zrlog.plugincore.server.plugin.PluginBootstrap;
+import com.zrlog.plugincore.server.handle.ServerActionHandler;
+import com.zrlog.plugincore.server.plugin.PluginBootstrapService;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -27,10 +29,10 @@ import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class NioServer implements ISocketServer {
+public class PluginCoreSocketServer implements ISocketServer {
 
 
-    private static final Logger LOGGER = LoggerUtil.getLogger(NioServer.class);
+    private static final Logger LOGGER = LoggerUtil.getLogger(PluginCoreSocketServer.class);
 
     private Selector selector;
     private ServerSocketChannel serverChannel;
@@ -38,7 +40,7 @@ public class NioServer implements ISocketServer {
     private final Map<Socket, IOSession> decoderMap = new ConcurrentHashMap<>();
     private final Executor executor = Executors.newFixedThreadPool(8);
 
-    public NioServer() {
+    public PluginCoreSocketServer() {
     }
 
     @Override
@@ -149,12 +151,16 @@ public class NioServer implements ISocketServer {
             } catch (IOException ex) {
                 LOGGER.log(Level.SEVERE, "close channel error " + e.getMessage());
             }
-            PluginBootstrap.unregisterPluginSession(session);
+            pluginBootstrap().unregisterPluginSession(session);
             LOGGER.log(Level.SEVERE, "dispose error " + e.getMessage());
         } finally {
             if (EnvKit.isDevMode()) {
                 LOGGER.info("doDecode used time " + (System.currentTimeMillis() - start) + " ms");
             }
         }
+    }
+
+    private PluginBootstrapService pluginBootstrap() {
+        return PluginRuntimeContext.current().pluginBootstrap();
     }
 }

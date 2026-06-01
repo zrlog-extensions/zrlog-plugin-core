@@ -132,6 +132,23 @@ public class SchedulerRuntimeTest {
     }
 
     @Test
+    public void shouldRecordAutomationRunDurationFromExecutionClock() {
+        InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
+        AutomationStore automationStore = new AutomationStore(kvStore);
+        AutomationRunStore runStore = new AutomationRunStore(kvStore);
+        CapabilityStore capabilityStore = new CapabilityStore(kvStore);
+        capabilityStore.register(capability("plugin-a", "reminder.scanDueTasks", "scheduler"));
+        PluginAutomation automation = automation("a1", true);
+        automation.setNextRunAt(SchedulerTimes.millis(now()));
+        automationStore.saveAll(Collections.singletonList(automation));
+
+        SchedulerTickResult result = runtime(kvStore, automationStore, runStore, capabilityStore, sleepingInvoker(25)).tick(now());
+
+        assertEquals(1, result.getExecutedCount());
+        assertTrue(runStore.list().get(0).getDurationMs() > 0);
+    }
+
+    @Test
     public void shouldLogTickSourceWhenManualTickExecutesDueAutomation() {
         InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
         AutomationStore automationStore = new AutomationStore(kvStore);
@@ -323,6 +340,22 @@ public class SchedulerRuntimeTest {
                 started.countDown();
                 try {
                     release.await(3, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                CapabilityInvokeResult result = new CapabilityInvokeResult();
+                result.setSuccess(true);
+                return result;
+            }
+        };
+    }
+
+    private CapabilityInvoker sleepingInvoker(final long sleepMillis) {
+        return new CapabilityInvoker() {
+            @Override
+            public CapabilityInvokeResult invoke(String pluginId, String capabilityKey, Map<String, Object> payload, InvokeContext context) {
+                try {
+                    Thread.sleep(sleepMillis);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }

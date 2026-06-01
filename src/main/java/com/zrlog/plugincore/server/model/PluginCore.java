@@ -1,11 +1,14 @@
-package com.zrlog.plugincore.server.config;
+package com.zrlog.plugincore.server.model;
 
-import java.util.HashMap;
+import com.zrlog.plugincore.server.vo.PluginCoreSetting;
+import com.zrlog.plugincore.server.vo.PluginVO;
+
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class PluginCore {
 
-    private Map<String, PluginVO> pluginInfoMap = new HashMap<>();
+    private Map<String, PluginVO> pluginInfoMap = new LinkedHashMap<>();
     private PluginCoreSetting setting = new PluginCoreSetting();
 
     public Map<String, PluginVO> getPluginInfoMap() {

@@ -13,9 +13,10 @@ import com.zrlog.plugin.message.PluginCapability;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
 import com.zrlog.plugincore.server.config.PluginConfig;
 import com.zrlog.plugincore.server.handle.ServiceMsgPacketHandler;
-import com.zrlog.plugincore.server.plugin.PluginBootstrap;
+import com.zrlog.plugincore.server.plugin.PluginBootstrapService;
 import com.zrlog.plugincore.server.plugin.PluginFiles;
 import com.zrlog.plugincore.server.plugin.PluginSessions;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.invocation.ServiceInvocationLogs;
 import com.zrlog.plugincore.server.runtime.service.ServiceProviderResolver;
@@ -75,14 +76,14 @@ public class PluginController extends Controller {
             File path = new File(PluginConfig.getInstance().getPluginBasePath());
             File file = new File(path + "/" + fileName);
             if (file.exists()) {
-                if (!PluginBootstrap.startPluginFileForMetadata(file)) {
+                if (!pluginBootstrap().startPluginFileForMetadata(file)) {
                     throw new RuntimeException("插件已经存在，但启动插件获取元数据超时");
                 }
                 response.redirect("/admin/plugins/downloadResult?message=插件已经存在，已启动插件" +
                         "&pluginName=" + pluginShortName);
                 return;
             }
-            PluginBootstrap.downloadAndStartPlugin(PluginFiles.getPluginFile(pluginShortName).getName());
+            pluginBootstrap().downloadAndStartPlugin(PluginFiles.getPluginFile(pluginShortName).getName());
             response.redirect("/admin/plugins/downloadResult?message=下载插件成功" +
                     "&pluginName=" + pluginShortName);
         } catch (Exception e) {
@@ -148,6 +149,10 @@ public class PluginController extends Controller {
 
     private KvRepository kvStore() {
         return new WebsiteRuntimeKvStore();
+    }
+
+    private PluginBootstrapService pluginBootstrap() {
+        return PluginRuntimeContext.current().pluginBootstrap();
     }
 
     public void upload() {

@@ -15,12 +15,11 @@ import com.zrlog.plugin.data.codec.MsgPacketStatus;
 import com.zrlog.plugin.type.ActionType;
 import com.zrlog.plugin.common.KvRepository;
 import com.zrlog.plugincore.server.Application;
-import com.zrlog.plugincore.server.config.PluginConfig;
-import com.zrlog.plugincore.server.config.PluginCore;
-import com.zrlog.plugincore.server.config.PluginCoreSetting;
+import com.zrlog.plugincore.server.model.PluginCore;
+import com.zrlog.plugincore.server.vo.PluginCoreSetting;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
-import com.zrlog.plugincore.server.config.PluginVO;
-import com.zrlog.plugincore.server.plugin.PluginBootstrap;
+import com.zrlog.plugincore.server.vo.PluginVO;
+import com.zrlog.plugincore.server.plugin.PluginBootstrapService;
 import com.zrlog.plugincore.server.plugin.PluginSessions;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.RuntimeCapabilityInvokerFactory;
@@ -30,6 +29,7 @@ import com.zrlog.plugincore.server.runtime.event.RuntimeEventRequest;
 import com.zrlog.plugincore.server.runtime.event.RuntimeEventRuntime;
 import com.zrlog.plugincore.server.runtime.invocation.CapabilityInvocationLog;
 import com.zrlog.plugincore.server.runtime.invocation.InvocationLogStore;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 import com.zrlog.plugincore.server.runtime.state.DefaultPluginRuntimeStarter;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateStore;
@@ -63,16 +63,20 @@ public class PluginApiController extends Controller {
     @ResponseBody
     public Map<String, Object> plugins() {
         AdminTheme adminTheme = AdminTheme.fromRequest(getRequest());
+        boolean pluginMetadataReady = Application.isNativeAgent()
+                || pluginBootstrap().awaitCurrentBootstrap();
         PluginCore pluginCore = Application.isNativeAgent() ? null : PluginCoreDAO.getInstance().loadSnapshot();
         Map<String, Object> map = new HashMap<>();
         map.put("plugins", pluginsForCurrentMode(pluginCore));
         map.put("setting", pluginCore == null ? new PluginCoreSetting() : pluginCore.getSetting());
+        map.put("pluginMetadataReady", pluginMetadataReady);
+        map.put("pluginMetadataLoading", pluginBootstrap().isBootstrapRunning());
         map.put("dark", adminTheme.isDarkMode());
         map.put("primaryColor", adminTheme.getAdminColorPrimary());
         map.put("pluginVersion", ConfigKit.get("version", ""));
         map.put("pluginBuildId", ConfigKit.get("buildId", ""));
         map.put("pluginBuildNumber", ConfigKit.get("buildNumber", ""));
-        map.put("requiredPlugins", PluginBootstrap.getRequiredPlugins().keySet());
+        map.put("requiredPlugins", pluginBootstrap().getRequiredPlugins().keySet());
         map.put("pluginCenter", "https://store.zrlog.com/plugin/index.html?upgrade-v3=true&from=#locationHref");
         return map;
     }
@@ -106,7 +110,7 @@ public class PluginApiController extends Controller {
         Map<String, Object> map = new HashMap<>();
         if (getSession() != null) {
             String pluginShortName = getSession().getPlugin().getShortName();
-            PluginBootstrap.stopPlugin(pluginShortName);
+            pluginBootstrap().stopPlugin(pluginShortName);
             map.put("code", 0);
             map.put("message", "停止成功");
         } else {
@@ -143,18 +147,18 @@ public class PluginApiController extends Controller {
 
     @ResponseBody
     public Map<String, Object> uninstall() {
-        IOSession session = getSession();
         String pluginShortName = getRequest().getParaToStr("name");
-        if (PluginBootstrap.getRequiredPlugins().containsKey(pluginShortName)) {
+        if (pluginBootstrap().getRequiredPlugins().containsKey(pluginShortName)) {
             Map<String, Object> map = new HashMap<>();
             map.put("code", 1);
             map.put("message", "必要插件，无法移除");
             return map;
         }
+        IOSession session = getSession();
         if (session != null) {
             session.sendMsg(new MsgPacket(genInfo(), ContentType.JSON, MsgPacketStatus.SEND_REQUEST, IdUtil.getInt(), ActionType.PLUGIN_UNINSTALL.name()));
         }
-        PluginBootstrap.deletePlugin(pluginShortName);
+        pluginBootstrap().deletePlugin(pluginShortName);
         Map<String, Object> map = new HashMap<>();
         map.put("code", 0);
         map.put("message", "移除成功");
@@ -242,7 +246,7 @@ public class PluginApiController extends Controller {
         List<String> plugins = PluginSessions.getAllLocalSessions().stream().map(e -> e.getPlugin().getShortName()).collect(Collectors.toList());
         PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
         boolean onDemandEnabled = Boolean.TRUE.equals(pluginCore.getSetting().getRuntime().getOnDemandEnabled());
-        boolean allRunning = !onDemandEnabled && PluginBootstrap.allRunning();
+        boolean allRunning = !onDemandEnabled && pluginBootstrap().allRunning();
         return statusResponse(onDemandEnabled, allRunning, plugins);
     }
 
@@ -254,5 +258,9 @@ public class PluginApiController extends Controller {
     private PluginRuntimeStateService runtimeStateService(PluginCore pluginCore) {
         return new PluginRuntimeStateService(new PluginRuntimeStateStore(new WebsiteRuntimeKvStore()),
                 new DefaultPluginRuntimeStarter(pluginCore));
+    }
+
+    private PluginBootstrapService pluginBootstrap() {
+        return PluginRuntimeContext.current().pluginBootstrap();
     }
 }

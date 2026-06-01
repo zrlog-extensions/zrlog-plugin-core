@@ -1,4 +1,4 @@
-package com.zrlog.plugincore.server.config;
+package com.zrlog.plugincore.server.vo;
 
 import com.zrlog.plugincore.server.runtime.notification.NotificationSetting;
 import com.zrlog.plugincore.server.runtime.scheduler.SchedulerSetting;
