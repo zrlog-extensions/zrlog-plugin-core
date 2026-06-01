@@ -1,101 +1,97 @@
-# Plugin Core Architecture
+# 插件核心架构
 
-本文记录当前 `zrlog-plugin-core` 的包边界。目标是先按两个服务面向整理：
+本文记录当前 `zrlog-plugin-core` 的包边界和主要调用方向。整体按两个服务面整理：
 
-1. `web` 负责 HTTP/UI/MVC。
-2. `runtime` 负责插件交互和运行态能力。
+1. `web` 负责 HTTP、UI 和标准 MVC。
+2. `runtime` 负责插件交互、插件进程、Socket 通讯和运行态能力。
 
-## Package Boundaries
+## 系统边界
 
 ```mermaid
-flowchart TD
-    Application["Application<br/>thin JVM main"]
-    Startup["ApplicationStartup<br/>startup sequence"]
-    StartupOptions["ApplicationStartupOptions<br/>args -> immutable startup values"]
-    Environment["ApplicationEnvironment<br/>logging + FaaS + run mode"]
-    Servers["ApplicationServers<br/>runtime server + HTTP server"]
-    Browser[Browser / Admin UI]
-    PluginProcess[Plugin Process]
+flowchart LR
+    Browser[浏览器 / 管理后台]
+    Application["Application<br/>JVM 入口"]
 
-    subgraph Web["web: HTTP / MVC"]
-        HttpServer["PluginHttpServer<br/>HTTP server lifecycle"]
-        WebConfig["web.config<br/>HTTP server routes + interceptors"]
-        WebController["web.controller<br/>页面和 REST Controller"]
-        WebHandler["web.handler<br/>插件页面 HTTP proxy"]
-        WebUtil["web.util<br/>HTTP response helpers"]
+    subgraph PluginImpl["插件实现端"]
+        PluginProcess["插件进程"]
+        PluginCommon["zrlog-plugin-common<br/>NioClient / IOSession / 通讯模型"]
+        PluginCode["插件代码<br/>@Service / @Capability / @ScheduledCapability"]
+        PluginHandlers["插件处理器<br/>service / capability / event / notification"]
     end
 
-    subgraph Runtime["runtime: plugin runtime service"]
-        RuntimeServer["PluginRuntimeServer<br/>NIO + runtime workers"]
-        RuntimeFeature["runtime capability / scheduler / notification / event / service / state"]
-        RuntimeServices["PluginRuntimeServices<br/>startup wiring result"]
-        RuntimeBridge["PluginRuntimeBridge<br/>framework bridge"]
+    subgraph Startup["启动层"]
+        ApplicationStartup["ApplicationStartup<br/>参数与环境"]
+        ApplicationServers["ApplicationServers<br/>服务装配"]
+    end
 
-        subgraph RuntimePlugin["runtime.plugin"]
-            Transport["transport<br/>socket server + action handler"]
-            PluginConfig["config<br/>plugin runtime paths + host connection values"]
-            DataSource["PluginDataSourceInitializer<br/>DAO datasource bootstrap"]
-            Bootstrap["bootstrap<br/>startup + metadata + artifact reconcile"]
-            Lifecycle["lifecycle<br/>register / unregister / stop / delete"]
-            Process["process<br/>local OS process"]
-            Session["session<br/>IOSession registry"]
-            Artifact["artifact<br/>plugin file lookup / download"]
+    subgraph Web["web：HTTP / MVC"]
+        HttpServer["PluginHttpServer<br/>HTTP 生命周期"]
+        WebConfig["web.config<br/>路由与拦截器"]
+        WebController["web.controller<br/>页面与 REST"]
+        WebHandler["web.handler<br/>插件页面代理"]
+    end
+
+    subgraph Runtime["runtime：运行态"]
+        RuntimeFeature["运行态能力<br/>capability / scheduler / notification / state"]
+        RuntimeServices["PluginRuntimeServices<br/>启动装配结果"]
+        RuntimeBridge["PluginRuntimeBridge<br/>框架桥接"]
+
+        subgraph RuntimePlugin["runtime.plugin：插件交互"]
+            RuntimeServer["PluginRuntimeServer<br/>NIO 与运行态 worker"]
+            Transport["transport<br/>Socket 服务与消息处理"]
+            Bootstrap["bootstrap<br/>元数据与插件文件对齐"]
+            Lifecycle["lifecycle<br/>注册 / 停止 / 删除"]
+            Process["process<br/>本地插件进程"]
+            Session["session<br/>IOSession 注册表"]
+            Config["config<br/>运行态配置值"]
+            Artifact["artifact<br/>插件文件"]
         end
     end
 
-    subgraph Infra["shared infrastructure"]
+    subgraph Infra["共享基础设施"]
         DAO["dao"]
         Store["runtime.store"]
         Model["model / vo"]
     end
 
-    Application --> Startup
-    Startup --> Environment
-    Startup --> StartupOptions
-    Startup --> DataSource
-    Startup --> RuntimeServices
-    Startup --> Servers
-    Servers --> RuntimeServices
-    Servers --> RuntimeServer
-    Servers --> HttpServer
-    HttpServer --> WebConfig
-    WebConfig --> RuntimeBridge
-    RuntimeBridge --> RuntimeServices
+    Application --> ApplicationStartup
+    ApplicationStartup --> ApplicationServers
+    ApplicationServers --> RuntimeServices
+    ApplicationServers --> RuntimeServer
+    ApplicationServers --> HttpServer
+    Process --> PluginProcess
+    PluginProcess --> PluginCommon
+    PluginCommon --> PluginCode
+    PluginCode --> PluginHandlers
+
     Browser --> WebController
     Browser --> WebHandler
+    HttpServer --> WebConfig
+    WebConfig --> RuntimeBridge
     WebController --> RuntimeFeature
     WebController --> RuntimeBridge
-    WebController --> WebUtil
     WebHandler --> Session
-    WebHandler --> RuntimeFeature
 
+    RuntimeBridge --> RuntimeServices
     RuntimeServer --> Transport
-    RuntimeServer --> Bootstrap
-    RuntimeServer --> RuntimeFeature
-    RuntimeFeature --> RuntimeBridge
-    RuntimeFeature --> Session
-    RuntimeFeature --> Bootstrap
-
-    RuntimeServices --> Bootstrap
-    RuntimeServices --> Lifecycle
-    RuntimeServices --> Process
-    RuntimeServices --> Session
-    RuntimeServices --> Artifact
-    RuntimeServices --> PluginConfig
-
-    Bootstrap --> Artifact
-    Bootstrap --> PluginConfig
-    Bootstrap --> Process
-    Bootstrap --> Session
-    Transport --> PluginConfig
-    Lifecycle --> Process
-    Lifecycle --> Session
-    Process --> PluginConfig
-    Process --> Artifact
-    Process --> Session
+    Transport <--> PluginCommon
     Transport --> Lifecycle
     Transport --> RuntimeFeature
-    Transport <--> PluginProcess
+    RuntimeFeature --> Bootstrap
+    RuntimeFeature --> RuntimeBridge
+
+    RuntimeServices --> Bootstrap
+    RuntimeServices --> Process
+    RuntimeServices --> Session
+    RuntimeServices --> Config
+    Bootstrap --> Artifact
+    Bootstrap --> Config
+    Bootstrap --> Process
+    Bootstrap --> Session
+    Lifecycle --> Process
+    Lifecycle --> Session
+    Process --> Config
+    Process --> Artifact
 
     WebController --> DAO
     RuntimeFeature --> Store
@@ -104,69 +100,203 @@ flowchart TD
     DAO --> Model
 ```
 
-## Dependency Rules
+边界图只表达包方向和主要交接点。启动装配、HTTP 控制、插件 Socket 通讯拆成独立图，避免把它们看成一条混在一起的运行态依赖链。
 
-1. `web` may depend on `runtime`, `dao`, `model`, `vo`, and `util`.
-2. `runtime` must not depend on `web`.
-3. Plugin socket traffic enters through `runtime.plugin.transport`; it must not enter `web`.
-4. Plugin process/session/bootstrap/lifecycle code stays under `runtime.plugin`.
-5. Runtime feature packages call plugin code through public runtime-plugin entry points such as `PluginBootstrapService`, `PluginSessions`, and `PluginFiles`.
-6. `runtime.plugin.artifact` is file-only; it must not depend on bootstrap or lifecycle.
-7. `runtime.plugin.bootstrap` may depend on artifact, process, and session because it coordinates startup.
-8. `runtime.plugin.lifecycle` owns cross-cutting stop/register/delete coordination between process and session.
-9. HTTP server configuration belongs to `web.config`.
-10. Plugin runtime configuration values belong to `runtime.plugin.config` and are assembled into `PluginRuntimeServices` by startup.
-11. Data source initialization is explicit startup work and stays in `PluginDataSourceInitializer`; `PluginConfig` is a value object, not an initializer.
-12. `Application` stays as the JVM entry. Argument parsing, environment setup, and server orchestration are separate startup classes.
-13. `ApplicationServers` starts only the runtime-side plugin server and the web-side HTTP server.
-14. Plugin lifecycle state is tied to host connection and routing viability. Capability, scheduler, and default automation failures should stay in their own runtime result or log path.
-15. `ApplicationServers` owns service wiring: it decomposes `PluginRuntimeServices` into narrow runtime dependencies for `PluginRuntimeServer`, and passes the same services into `PluginHttpServerConfig` for the web bridge.
-16. `PluginRuntimeServer` must not hold the complete runtime services object; it owns only the dependencies needed to start/stop runtime service work.
-17. `PluginRuntimeServices` is a startup wiring result, not a general application context or web control API. New code should prefer explicit constructor arguments or `PluginRuntimeBridge`'s narrow methods.
+## 启动装配
 
-## Main Packages
+```mermaid
+flowchart TD
+    Application["Application.main<br/>JVM 入口"]
+    Startup["ApplicationStartup<br/>启动流程"]
+    Options["ApplicationStartupOptions<br/>启动参数"]
+    Environment["ApplicationEnvironment<br/>环境和运行模式"]
+    PluginConfig["PluginConfig<br/>插件运行配置"]
+    HostConnection["PluginHostConnection<br/>宿主连接信息"]
+    RuntimeServices["PluginRuntimeServices<br/>运行态服务集合"]
+    DataSource["PluginDataSourceInitializer<br/>DAO 数据源初始化"]
+    Servers["ApplicationServers<br/>服务编排"]
+    RuntimeBridge["PluginRuntimeBridge.install<br/>安装框架桥"]
+    NioServer["PluginNioServer<br/>插件 Socket 服务"]
+    RuntimeServer["PluginRuntimeServer<br/>运行态服务入口"]
+    HttpServer["PluginHttpServer<br/>HTTP 服务入口"]
+    HttpConfig["PluginHttpServerConfig<br/>HTTP 路由配置"]
+
+    Application --> Startup
+    Startup --> Environment
+    Startup --> Options
+    Startup --> PluginConfig
+    Startup --> HostConnection
+    Startup --> RuntimeServices
+    Startup --> DataSource
+    Startup --> Servers
+
+    Servers --> RuntimeBridge
+    Servers --> NioServer
+    Servers --> RuntimeServer
+    Servers --> HttpServer
+    HttpServer --> HttpConfig
+    HttpConfig --> RuntimeBridge
+
+    RuntimeServices --> PluginConfig
+    RuntimeServices --> HostConnection
+    NioServer --> PluginConfig
+```
+
+`PluginRuntimeServices` 在启动阶段创建，随后被立即拆成更窄的依赖传入各个服务。运行态服务端代码只接收自己需要的依赖，例如 `PluginConfig` 和 `PluginBootstrapService`。
+
+## HTTP 控制流
+
+```mermaid
+flowchart LR
+    Browser[浏览器 / 管理后台]
+    Controller["web.controller<br/>页面与 REST"]
+    RuntimeFeature["运行态能力服务"]
+    Bridge["PluginRuntimeBridge<br/>框架桥"]
+    Bootstrap["PluginBootstrapService<br/>插件启动 / 停止"]
+    Session["PluginSessionRegistry<br/>会话注册表"]
+    Values["PluginConfig / PluginHostConnection<br/>配置与宿主连接"]
+    DAO["dao<br/>持久化访问"]
+
+    Browser --> Controller
+    Controller --> RuntimeFeature
+    Controller --> Bridge
+    Controller --> DAO
+    Bridge --> Bootstrap
+    Bridge --> Session
+    Bridge --> Values
+```
+
+`PluginRuntimeBridge` 只服务于不能通过构造器接收依赖的框架创建对象。新的运行态代码应优先使用显式构造器依赖。
+
+## 插件 Socket 流
+
+```mermaid
+flowchart LR
+    subgraph PluginImpl["插件实现进程"]
+        PluginMain["插件 main"]
+        NioClient["zrlog-plugin-common<br/>NioClient / IOSession"]
+        AnnotationScan["注解扫描<br/>@Service / @Capability / @ScheduledCapability"]
+        ClientActionHandler["ClientActionHandler<br/>插件侧消息分发"]
+        PluginService["IPluginService<br/>业务处理器"]
+    end
+
+    subgraph CoreRuntime["plugin-core runtime.plugin<br/>宿主侧插件运行时"]
+        SocketServer["PluginCoreSocketServer<br/>Socket 接入"]
+        ActionHandler["ServerActionHandler<br/>宿主侧消息处理"]
+        Session["PluginSessionRegistry<br/>会话注册表"]
+        Bootstrap["PluginBootstrapService<br/>插件注册与启动"]
+        Lifecycle["PluginLifecycleService<br/>生命周期协调"]
+        State["PluginRuntimeStateService<br/>运行态状态"]
+        FeatureSetup["能力注册<br/>默认自动化初始化"]
+        RuntimeFeature["运行态能力服务"]
+    end
+
+    PluginMain --> NioClient
+    NioClient --> AnnotationScan
+    AnnotationScan --> NioClient
+    NioClient -- "初始化连接 INIT_CONNECT + Plugin.capabilities" --> SocketServer
+    SocketServer --> ActionHandler
+
+    ActionHandler --> Bootstrap
+    ActionHandler --> Session
+    ActionHandler --> Lifecycle
+    ActionHandler --> State
+    ActionHandler --> FeatureSetup
+    ActionHandler --> RuntimeFeature
+
+    RuntimeFeature -- "能力调用 CAPABILITY_INVOKE" --> ActionHandler
+    ActionHandler -- "消息包 MsgPacket" --> NioClient
+    NioClient --> ClientActionHandler
+    ClientActionHandler --> PluginService
+    PluginService -- "能力调用结果 CapabilityInvokeResult" --> NioClient
+    NioClient --> SocketServer
+
+    PluginService -- "通知发布 / 调度查询" --> NioClient
+```
+
+生命周期状态只描述插件连接、会话注册和路由可用性。能力、调度或默认自动化失败应保留在各自的运行态结果或日志路径里。
+
+## 插件实现端边界
+
+插件实现端不属于 `plugin-core`。它运行在插件进程内，依赖 `zrlog-plugin-common` 提供 Socket 协议、DTO、注解和客户端消息分发。
+
+核心规则：
+
+1. `plugin-core` 不扫描插件 classpath。
+2. `zrlog-plugin-common` 在插件侧扫描 `@Service`、`@Capability` 和 `@ScheduledCapability`。
+3. 插件能力元数据在 `INIT_CONNECT` 阶段通过 `Plugin.capabilities` 发送给 core。
+4. `plugin-core` 注册这些元数据，并通过 `CAPABILITY_INVOKE` 等 Socket 消息调用插件工作。
+5. 插件业务代码实现 `IPluginService` 等处理器；它不直接修改 plugin-core 的调度状态。
+6. 插件发起的运行态调用，例如 `NOTIFICATION_PUBLISH` 和 `SCHEDULER_QUERY`，通过 `ServerActionHandler` 进入 plugin-core。
+
+## 依赖规则
+
+1. `web` 可以依赖 `runtime`、`dao`、`model`、`vo` 和 `util`。
+2. `runtime` 不能依赖 `web`。
+3. 插件 Socket 流量从 `runtime.plugin.transport` 进入，不能从 `web` 进入。
+4. 插件进程、会话、启动和生命周期代码放在 `runtime.plugin` 下。
+5. 运行态能力包通过 `PluginBootstrapService`、`PluginSessions` 和 `PluginFiles` 等公开入口调用插件侧能力。
+6. `runtime.plugin.artifact` 只处理文件，不依赖 bootstrap 或 lifecycle。
+7. `runtime.plugin.bootstrap` 可以依赖 artifact、process 和 session，因为它负责协调启动。
+8. `runtime.plugin.lifecycle` 负责 process 与 session 之间的注册、停止、删除等横向协调。
+9. HTTP 服务配置属于 `web.config`。
+10. 插件运行态配置值属于 `runtime.plugin.config`，由启动层装配进 `PluginRuntimeServices`。
+11. 数据源初始化是明确的启动工作，保留在 `PluginDataSourceInitializer`；`PluginConfig` 是值对象，不负责初始化。
+12. `Application` 保持为 JVM 入口。参数解析、环境准备和服务编排分别交给启动层类。
+13. `ApplicationServers` 只启动两类服务：运行态插件服务和 web 侧 HTTP 服务。
+14. 插件生命周期状态绑定到宿主连接和路由可用性。能力、调度、默认自动化失败应保留在各自的运行态结果或日志路径。
+15. `ApplicationServers` 负责服务装配：它把 `PluginRuntimeServices` 拆成 `PluginRuntimeServer` 所需的窄依赖，同时把同一组服务传给 `PluginHttpServerConfig` 用于 web 桥接。
+16. `PluginRuntimeServer` 不能持有完整的运行态服务集合；它只持有启动和停止运行态服务所需的依赖。
+17. `PluginRuntimeServices` 是启动装配结果，不是通用 application context，也不是 web 控制运行态的 API。新代码应优先使用显式构造器参数或 `PluginRuntimeBridge` 的窄方法。
+18. 插件实现代码在 `plugin-core` 之外；core 不能扫描插件 classpath。
+19. 插件侧元数据由 `zrlog-plugin-common` 收集，并通过 `Plugin.capabilities` 等 Socket 通讯模型发送给 core。
+
+## 主要包
 
 `com.zrlog.plugincore.server.web.controller`
-: Standard MVC controller layer for admin pages and HTTP APIs.
+: 标准 MVC controller 层，负责管理后台页面和 HTTP API。
 
 `com.zrlog.plugincore.server.web.config`
-: HTTP server routes, static resource mapping, HTTP interceptors, and installation of the runtime bridge used by web controllers.
+: HTTP 服务路由、静态资源映射、HTTP 拦截器，以及 web controller 使用的运行态桥接安装。
 
 `com.zrlog.plugincore.server.web.PluginHttpServer`
-: HTTP server lifecycle wrapper around `PluginHttpServerConfig` and `WebServerBuilder`.
+: HTTP 服务生命周期包装，负责组合 `PluginHttpServerConfig` 和 `WebServerBuilder`。
 
 `com.zrlog.plugincore.server.web.handler`
-: Web adapter for plugin-rendered pages. It resolves the target plugin session and proxies HTTP packets, but it does not own plugin startup internals.
+: 插件渲染页面的 web 适配层。它解析目标插件会话并代理 HTTP 数据包，但不拥有插件启动内部逻辑。
 
 `com.zrlog.plugincore.server.web.util`
-: Web-only helpers such as in-memory runtime-list pagination into commonDAO `PageData`.
+: web 专用工具，例如把内存中的运行态列表分页成 commonDAO `PageData`。
 
 `com.zrlog.plugincore.server.runtime.PluginRuntimeServices`
-: Startup wiring result containing plugin runtime services and immutable startup values. This replaces the previous context object and should not be treated as a broad business API.
+: 启动装配结果，包含插件运行态服务和启动后不可变的值。它替代之前的 context 对象，但不能作为宽泛业务 API 使用。
 
 `com.zrlog.plugincore.server.runtime.PluginRuntimeBridge`
-: Narrow framework bridge for code that cannot receive dependencies through constructors. Prefer direct bridge methods such as `pluginBootstrap()` over passing the whole services object.
+: 窄框架桥，用于不能通过构造器注入依赖的代码。优先使用 `pluginBootstrap()` 等明确方法，不传递完整 services 对象。
 
 `com.zrlog.plugincore.server.runtime.plugin.PluginRuntimeServer`
-: Runtime-side server lifecycle. It starts the plugin NIO transport and, outside native-agent mode, starts runtime workers. It receives NIO, bootstrap, and scheduler dependencies directly instead of holding the full runtime services object.
+: 运行态服务生命周期。它启动插件 NIO transport，并在非 native-agent 模式下启动运行态 worker。它直接接收 NIO、bootstrap 和 scheduler 依赖，不持有完整运行态服务集合。
 
 `com.zrlog.plugincore.server.runtime.plugin.config`
-: Plugin runtime value objects, including plugin paths, FaaS runtime roots, master port, blog runtime, host connection, and explicit data source initialization.
+: 插件运行态值对象，包括插件路径、FaaS 运行根目录、master 端口、blog 运行模式、宿主连接，以及明确的数据源初始化。
 
 `com.zrlog.plugincore.server.runtime.plugin.transport`
-: TCP/socket adapter used by plugin processes to connect back to plugin-core.
+: 插件进程连接回 plugin-core 的 TCP/Socket 适配层。
 
 `com.zrlog.plugincore.server.runtime.plugin.session`
-: In-memory session registry and compatibility facade for existing lookup calls.
+: 内存会话注册表，以及兼容现有查询调用的门面。
 
 `com.zrlog.plugincore.server.runtime.plugin.process`
-: Local process launcher, process output, exit watch, process id and runtime instance ids.
+: 本地插件进程启动器、进程输出、退出监听、进程 ID 和运行态实例 ID。
 
 `com.zrlog.plugincore.server.runtime.plugin.bootstrap`
-: Startup orchestration, metadata collection, installed artifact reconciliation, and async bootstrap.
+: 启动编排、元数据收集、已安装插件文件对齐，以及异步 bootstrap。
 
 `com.zrlog.plugincore.server.runtime.plugin.lifecycle`
-: Register/unregister/stop/delete coordination across session registry, process runtime, plugin metadata, and runtime references.
+: 跨会话注册表、进程运行态、插件元数据和运行态引用的注册、注销、停止、删除协调。
 
 `com.zrlog.plugincore.server.runtime.*`
-: Runtime features such as capability, scheduler, notification, event, service provider selection, invocation log, state, and KV store access.
+: 运行态能力，包括 capability、scheduler、notification、event、服务提供者选择、调用日志、状态和 KV 存储访问。
+
+插件实现端
+: 插件实现依赖 `zrlog-plugin-common`，通过插件侧注解声明 service/capability，使用 `NioClient` / `IOSession` 连接回 core，并处理 `CAPABILITY_INVOKE` 等 Socket action。
