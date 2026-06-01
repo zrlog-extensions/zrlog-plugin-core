@@ -1,12 +1,14 @@
 package com.zrlog.plugincore.server.runtime;
 
-import com.zrlog.plugincore.server.plugin.PluginArtifactBootstrapper;
-import com.zrlog.plugincore.server.plugin.PluginBootstrapService;
-import com.zrlog.plugincore.server.plugin.PluginLifecycleService;
-import com.zrlog.plugincore.server.plugin.PluginMetadataBootstrapper;
-import com.zrlog.plugincore.server.plugin.PluginProcessRuntime;
-import com.zrlog.plugincore.server.plugin.PluginSessionRegistry;
-import com.zrlog.plugincore.server.plugin.PluginStartupCoordinator;
+import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginArtifactBootstrapper;
+import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
+import com.zrlog.plugincore.server.runtime.plugin.config.PluginConfig;
+import com.zrlog.plugincore.server.runtime.plugin.config.PluginHostConnection;
+import com.zrlog.plugincore.server.runtime.plugin.lifecycle.PluginLifecycleService;
+import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginMetadataBootstrapper;
+import com.zrlog.plugincore.server.runtime.plugin.process.PluginProcessRuntime;
+import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessionRegistry;
+import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginStartupCoordinator;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,10 +20,17 @@ public final class PluginRuntimeContext {
 
     private final PluginBootstrapService pluginBootstrap;
     private final PluginSessionRegistry pluginSessions;
+    private final PluginConfig pluginConfig;
+    private final PluginHostConnection hostConnection;
 
-    private PluginRuntimeContext(PluginBootstrapService pluginBootstrap, PluginSessionRegistry pluginSessions) {
+    private PluginRuntimeContext(PluginBootstrapService pluginBootstrap,
+                                 PluginSessionRegistry pluginSessions,
+                                 PluginConfig pluginConfig,
+                                 PluginHostConnection hostConnection) {
         this.pluginBootstrap = pluginBootstrap;
         this.pluginSessions = pluginSessions;
+        this.pluginConfig = pluginConfig;
+        this.hostConnection = hostConnection;
     }
 
     public static PluginRuntimeContext current() {
@@ -36,19 +45,30 @@ public final class PluginRuntimeContext {
         return pluginSessions;
     }
 
+    public PluginConfig pluginConfig() {
+        return pluginConfig;
+    }
+
+    public PluginHostConnection hostConnection() {
+        return hostConnection;
+    }
+
     private static PluginRuntimeContext defaultContext() {
         Map<String, String> requiredPlugins = requiredPlugins();
+        PluginConfig pluginConfig = new PluginConfig();
+        PluginHostConnection hostConnection = new PluginHostConnection();
         PluginSessionRegistry sessionRegistry = new PluginSessionRegistry();
-        PluginProcessRuntime processRuntime = new PluginProcessRuntime(sessionRegistry);
+        PluginProcessRuntime processRuntime = new PluginProcessRuntime(sessionRegistry, pluginConfig);
         PluginLifecycleService lifecycleService = new PluginLifecycleService(processRuntime, sessionRegistry);
         PluginMetadataBootstrapper metadataBootstrapper =
                 new PluginMetadataBootstrapper(processRuntime, sessionRegistry, lifecycleService::stopPlugin);
         PluginArtifactBootstrapper artifactBootstrapper =
-                new PluginArtifactBootstrapper(requiredPlugins, metadataBootstrapper, sessionRegistry);
+                new PluginArtifactBootstrapper(requiredPlugins, metadataBootstrapper, sessionRegistry, pluginConfig);
         PluginStartupCoordinator startupCoordinator =
                 new PluginStartupCoordinator(processRuntime, artifactBootstrapper);
         return new PluginRuntimeContext(new PluginBootstrapService(
-                requiredPlugins, startupCoordinator, metadataBootstrapper, lifecycleService), sessionRegistry);
+                requiredPlugins, startupCoordinator, metadataBootstrapper, lifecycleService),
+                sessionRegistry, pluginConfig, hostConnection);
     }
 
     private static Map<String, String> requiredPlugins() {

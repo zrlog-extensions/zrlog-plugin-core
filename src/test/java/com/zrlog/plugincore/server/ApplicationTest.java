@@ -2,6 +2,7 @@ package com.zrlog.plugincore.server;
 
 import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.type.RunType;
+import com.zrlog.plugincore.server.runtime.PluginCoreRunMode;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -26,7 +27,7 @@ public class ApplicationTest {
         };
         Map<String, String> previous = snapshot(keys);
         try {
-            Application.configureWritableRuntimeRoot(19080);
+            ApplicationEnvironment.configureWritableRuntimeRoot(19080);
 
             assertEquals("/tmp/19080/plugin-core", System.getProperty("sws.root.path"));
             assertEquals("/tmp/19080/plugin-core/log", System.getProperty("sws.log.path"));
@@ -45,10 +46,10 @@ public class ApplicationTest {
         RunType previous = RunConstants.runType;
         try {
             RunConstants.runType = RunType.AGENT;
-            assertFalse(Application.shouldBootstrapRuntimeWorkers());
+            assertFalse(PluginCoreRunMode.shouldBootstrapRuntimeWorkers());
 
             RunConstants.runType = RunType.BLOG;
-            assertTrue(Application.shouldBootstrapRuntimeWorkers());
+            assertTrue(PluginCoreRunMode.shouldBootstrapRuntimeWorkers());
         } finally {
             RunConstants.runType = previous;
         }

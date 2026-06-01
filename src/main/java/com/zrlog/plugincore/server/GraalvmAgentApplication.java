@@ -54,7 +54,7 @@ public class GraalvmAgentApplication {
         PluginNativeImageUtils.usedGsonObject();
         PluginNativeImageUtils.gsonNativeAgentByClazz(runtimeGsonClasses());
         NativeRuntimeWarmup.run();
-        Application.init();
+        ApplicationEnvironment.initLogging();
         Pid.get();
         String basePath = System.getProperty("user.dir").replace("\\target", "").replace("/target", "");
         PathUtil.setRootPath(basePath);

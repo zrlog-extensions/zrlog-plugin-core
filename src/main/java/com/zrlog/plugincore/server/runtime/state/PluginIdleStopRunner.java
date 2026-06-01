@@ -4,8 +4,8 @@ import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.vo.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
-import com.zrlog.plugincore.server.plugin.PluginBootstrapService;
-import com.zrlog.plugincore.server.plugin.PluginSessions;
+import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
+import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
 import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 import com.zrlog.plugincore.server.runtime.store.WebsiteRuntimeKvStore;
 

@@ -3,7 +3,7 @@ import {Button, Grid, Popconfirm, Space, Table, Tag, Typography, message} from "
 import {PoweroffOutlined} from "@ant-design/icons";
 import type {ColumnsType} from "antd/es/table";
 import axios from "axios";
-import {apiPath, Capability, formatEpoch, formatTime, InvocationLog, paginationFromResponse, RuntimeInstanceState, RuntimePagination, useCapabilityView} from "./common";
+import {apiPath, Capability, formatEpoch, formatTime, InvocationLog, paginationFromResponse, rowsFromResponse, RuntimeInstanceState, RuntimePagination, useCapabilityView} from "./common";
 
 const {Text} = Typography;
 
@@ -77,7 +77,7 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
             ]);
             setCapabilities(capabilitiesRes.data.items || []);
             setStates(statesRes.data.items || []);
-            setInvocationLogs(logsRes.data.items || []);
+            setInvocationLogs(rowsFromResponse<InvocationLog>(logsRes.data));
             setInvocationLogPagination(paginationFromResponse<InvocationLog>(logsRes.data, {
                 current: logPage,
                 pageSize: logPageSize,

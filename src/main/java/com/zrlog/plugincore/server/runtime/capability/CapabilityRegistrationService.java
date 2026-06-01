@@ -7,7 +7,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.message.PluginCapability;
-import com.zrlog.plugincore.server.plugin.PluginSessions;
+import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
 
 import java.util.ArrayList;
 import java.util.Arrays;

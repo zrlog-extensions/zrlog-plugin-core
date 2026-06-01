@@ -36,20 +36,25 @@ export type RuntimePagination = {
     total: number;
 }
 
-export type RuntimePageResponse<T> = {
+export type PageDataResponse<T> = {
     code?: number;
     message?: string;
+    rows?: T[];
     items?: T[];
     page?: number;
+    size?: number;
     pageSize?: number;
+    totalElements?: number;
     total?: number;
 }
 
-export const paginationFromResponse = <T,>(data: RuntimePageResponse<T>, fallback: RuntimePagination): RuntimePagination => ({
+export const paginationFromResponse = <T,>(data: PageDataResponse<T>, fallback: RuntimePagination): RuntimePagination => ({
     current: Number(data.page || fallback.current),
-    pageSize: Number(data.pageSize || fallback.pageSize),
-    total: Number(data.total || 0)
+    pageSize: Number(data.size || data.pageSize || fallback.pageSize),
+    total: Number(data.totalElements ?? data.total ?? 0)
 });
+
+export const rowsFromResponse = <T,>(data: PageDataResponse<T>): T[] => data.rows || data.items || [];
 
 export type Capability = {
     pluginId: string;

@@ -4,7 +4,7 @@ import com.zrlog.plugin.message.CapabilityInvokeResult;
 import com.zrlog.plugin.common.BasicCronParser;
 import com.zrlog.plugin.common.CronParseException;
 import com.zrlog.plugincore.server.model.PluginCore;
-import com.zrlog.plugincore.server.plugin.PluginBootstrapService;
+import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityInvoker;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;

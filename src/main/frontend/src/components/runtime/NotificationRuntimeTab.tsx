@@ -3,7 +3,7 @@ import {Button, Grid, Space, Table, Tag, Tooltip, Typography, message} from "ant
 import {CheckOutlined, ReloadOutlined, SendOutlined} from "@ant-design/icons";
 import type {ColumnsType} from "antd/es/table";
 import axios from "axios";
-import {apiPath, Capability, formatEpoch, formatTime, NotificationDelivery, NotificationProviderRow, paginationFromResponse, RuntimePagination, useCapabilityView} from "./common";
+import {apiPath, Capability, formatEpoch, formatTime, NotificationDelivery, NotificationProviderRow, paginationFromResponse, rowsFromResponse, RuntimePagination, useCapabilityView} from "./common";
 
 const {Text} = Typography;
 
@@ -32,7 +32,7 @@ const NotificationRuntimeTab: React.FC = () => {
             ]);
             setCapabilities(capabilitiesRes.data.items || []);
             setProviders(providersRes.data.items || []);
-            setDeliveries(deliveriesRes.data.items || []);
+            setDeliveries(rowsFromResponse<NotificationDelivery>(deliveriesRes.data));
             setDeliveryPagination(paginationFromResponse<NotificationDelivery>(deliveriesRes.data, {
                 current: deliveryPage,
                 pageSize: deliveryPageSize,

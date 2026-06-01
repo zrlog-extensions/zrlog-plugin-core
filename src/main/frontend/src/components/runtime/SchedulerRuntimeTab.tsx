@@ -12,6 +12,7 @@ import {
     formatTime,
     paginationFromResponse,
     RuntimePagination,
+    rowsFromResponse,
     SchedulerSettings,
     SchedulerTickResult,
     textOrEmpty,
@@ -119,7 +120,7 @@ const SchedulerRuntimeTab: React.FC<Props> = () => {
             ]);
             setCapabilities(capabilitiesRes.data.items || []);
             setAutomations(automationsRes.data.items || []);
-            setRuns(runsRes.data.items || []);
+            setRuns(rowsFromResponse<AutomationRun>(runsRes.data));
             setRunPagination(paginationFromResponse<AutomationRun>(runsRes.data, {
                 current: runPage,
                 pageSize: runPageSize,
