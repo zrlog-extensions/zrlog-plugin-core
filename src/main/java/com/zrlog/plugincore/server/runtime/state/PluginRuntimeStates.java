@@ -35,13 +35,14 @@ public final class PluginRuntimeStates {
 
     public static void reconcileRuntimeStates() {
         PluginRuntimeStateStore stateStore = new PluginRuntimeStateStore(new WebsiteRuntimeKvStore());
-        PluginRuntimeStateService stateService = new PluginRuntimeStateService(stateStore, new DefaultPluginRuntimeStarter());
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        PluginRuntimeStateService stateService = new PluginRuntimeStateService(stateStore, new DefaultPluginRuntimeStarter(pluginCore));
         long now = System.currentTimeMillis();
-        cleanupRuntimeInstances(stateStore, now);
-        Map<String, PluginVO> pluginVOById = currentPluginVOById();
+        PluginRuntimeStateDocument document = cleanupRuntimeInstances(stateStore, now);
+        Map<String, PluginVO> pluginVOById = pluginVOById(pluginCore);
         Set<String> knownPluginIds = pluginVOById.keySet();
         Set<String> sessionPluginIds = currentSessionPluginIds();
-        for (PluginRuntimeState state : stateStore.list()) {
+        for (PluginRuntimeState state : document.getItems()) {
             if (state.getPluginId() == null) {
                 stateStore.delete(state.getPluginId());
                 continue;
@@ -71,16 +72,16 @@ public final class PluginRuntimeStates {
 
     public static void cleanupDirtyRuntimeStates(PluginCore pluginCore) {
         PluginRuntimeStateStore stateStore = new PluginRuntimeStateStore(new WebsiteRuntimeKvStore());
-        cleanupRuntimeInstances(stateStore, System.currentTimeMillis());
         Set<String> knownPluginIds = pluginIds(pluginCore);
         Set<String> sessionPluginIds = currentSessionPluginIds();
-        for (PluginRuntimeState state : stateStore.list()) {
-            String pluginId = state.getPluginId();
-            if (StringUtils.isEmpty(pluginId)
-                    || (!knownPluginIds.contains(pluginId) && !sessionPluginIds.contains(pluginId))) {
-                stateStore.delete(pluginId);
-            }
-        }
+        stateStore.cleanupInstancesAndRemoveStates(System.currentTimeMillis(),
+                PluginRuntimeLeases.LEGACY_INSTANCE_TTL_MS,
+                STALE_TRANSIENT_INSTANCE_TTL_MS,
+                state -> {
+                    String pluginId = state.getPluginId();
+                    return StringUtils.isEmpty(pluginId)
+                            || (!knownPluginIds.contains(pluginId) && !sessionPluginIds.contains(pluginId));
+                });
     }
 
     private static Set<String> pluginIds(PluginCore pluginCore) {
@@ -97,9 +98,9 @@ public final class PluginRuntimeStates {
         return pluginIds;
     }
 
-    private static Map<String, PluginVO> currentPluginVOById() {
+    private static Map<String, PluginVO> pluginVOById(PluginCore pluginCore) {
         Map<String, PluginVO> pluginVOById = new HashMap<>();
-        for (PluginVO pluginVO : PluginCoreDAO.getInstance().getPluginVOs()) {
+        for (PluginVO pluginVO : pluginVOs(pluginCore)) {
             if (pluginVO.getPlugin() != null && !StringUtils.isEmpty(pluginVO.getPlugin().getId())) {
                 pluginVOById.put(pluginVO.getPlugin().getId(), pluginVO);
             }
@@ -196,14 +197,15 @@ public final class PluginRuntimeStates {
     public static List<PluginRuntimeInstanceView> runtimeInstancesForDisplay() {
         Map<String, PluginRuntimeState> persistedStates = new HashMap<>();
         PluginRuntimeStateStore stateStore = new PluginRuntimeStateStore(new WebsiteRuntimeKvStore());
-        cleanupRuntimeInstances(stateStore, System.currentTimeMillis());
-        for (PluginRuntimeState state : stateStore.list()) {
+        PluginRuntimeStateDocument document = stateStore.loadDocument();
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        for (PluginRuntimeState state : document.getItems()) {
             if (!StringUtils.isEmpty(state.getPluginId())) {
                 persistedStates.put(state.getPluginId(), state);
             }
         }
         List<PluginRuntimeInstanceView> instances = new ArrayList<>();
-        for (PluginVO pluginVO : PluginCoreDAO.getInstance().getPluginVOs()) {
+        for (PluginVO pluginVO : pluginVOs(pluginCore)) {
             if (pluginVO.getPlugin() == null || StringUtils.isEmpty(pluginVO.getPlugin().getId())) {
                 continue;
             }
@@ -228,9 +230,10 @@ public final class PluginRuntimeStates {
                 PluginRuntimeStates::isLocalRuntimeInstance);
     }
 
-    private static void cleanupRuntimeInstances(PluginRuntimeStateStore stateStore, long now) {
-        stateStore.pruneExpiredLeases(now, PluginRuntimeLeases.LEGACY_INSTANCE_TTL_MS);
-        stateStore.pruneStaleTransientInstances(now, STALE_TRANSIENT_INSTANCE_TTL_MS);
+    private static PluginRuntimeStateDocument cleanupRuntimeInstances(PluginRuntimeStateStore stateStore, long now) {
+        return stateStore.cleanupInstancesAndLoad(now,
+                PluginRuntimeLeases.LEGACY_INSTANCE_TTL_MS,
+                STALE_TRANSIENT_INSTANCE_TTL_MS);
     }
 
     private static PluginRuntimeInstanceView instanceView(Plugin plugin, String pluginName, PluginRuntimeInstanceState instance) {
@@ -331,5 +334,12 @@ public final class PluginRuntimeStates {
 
     private static boolean hasRuntimeInstances(PluginRuntimeState state) {
         return state.getInstances() != null && !state.getInstances().isEmpty();
+    }
+
+    private static List<PluginVO> pluginVOs(PluginCore pluginCore) {
+        if (pluginCore == null || pluginCore.getPluginInfoMap() == null) {
+            return Collections.emptyList();
+        }
+        return new ArrayList<>(pluginCore.getPluginInfoMap().values());
     }
 }

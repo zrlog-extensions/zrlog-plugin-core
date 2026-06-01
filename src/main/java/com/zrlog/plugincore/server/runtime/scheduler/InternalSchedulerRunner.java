@@ -2,6 +2,7 @@ package com.zrlog.plugincore.server.runtime.scheduler;
 
 import com.hibegin.common.util.LoggerUtil;
 import com.zrlog.plugin.common.BasicCronParser;
+import com.zrlog.plugincore.server.config.PluginCore;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.RuntimeCapabilityInvokerFactory;
@@ -63,14 +64,16 @@ public class InternalSchedulerRunner {
 
     static SchedulerTickResult tickOnce() {
         WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
         SchedulerRuntime schedulerRuntime = new SchedulerRuntime(
                 new AutomationStore(kvStore),
                 new AutomationRunStore(kvStore),
                 new CapabilityStore(kvStore),
-                RuntimeCapabilityInvokerFactory.socket(kvStore),
-                new BasicCronParser()
+                RuntimeCapabilityInvokerFactory.socket(kvStore, pluginCore),
+                new BasicCronParser(),
+                pluginCore
         );
-        return new SchedulerTickService(PluginCoreDAO.getInstance().loadSnapshot().getSetting().getScheduler(), schedulerRuntime)
+        return new SchedulerTickService(pluginCore.getSetting().getScheduler(), schedulerRuntime)
                 .tick(ZonedDateTime.now());
     }
 }

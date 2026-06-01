@@ -4,22 +4,21 @@ import com.zrlog.plugin.common.KvRepository;
 import com.zrlog.plugincore.server.dao.WebSiteDAO;
 
 import java.sql.SQLException;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
 public class WebsiteRuntimeKvStore implements ConditionalKvRepository {
 
+    private final Map<String, WebSiteDAO.WebSiteValueSnapshot> snapshots = new HashMap<>();
+
     @Override
     public Optional<String> get(String key) {
         try {
-            Map<String, Object> values = new WebSiteDAO().getWebSiteByNameIn(Collections.singletonList(key));
-            Object value = values.get(key);
-            if (Objects.isNull(value)) {
-                return Optional.empty();
-            }
-            return Optional.of(value.toString());
+            WebSiteDAO.WebSiteValueSnapshot snapshot = new WebSiteDAO().queryValueSnapshotByName(key);
+            snapshots.put(key, snapshot);
+            return snapshot.getValue();
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -28,7 +27,7 @@ public class WebsiteRuntimeKvStore implements ConditionalKvRepository {
     @Override
     public void put(String key, String value) {
         try {
-            new WebSiteDAO().saveOrUpdate(key, value);
+            new WebSiteDAO().saveOrUpdateVersioned(key, value);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -37,7 +36,12 @@ public class WebsiteRuntimeKvStore implements ConditionalKvRepository {
     @Override
     public boolean compareAndSet(String key, Optional<String> expectedValue, String value) {
         try {
-            return new WebSiteDAO().compareAndSet(key, expectedValue.orElse(null), value);
+            WebSiteDAO.WebSiteValueSnapshot snapshot = snapshots.get(key);
+            String expected = expectedValue.orElse(null);
+            if (snapshot != null && Objects.equals(snapshot.getValue().orElse(null), expected)) {
+                return new WebSiteDAO().compareAndSet(key, expected, snapshot.getRemark(), value);
+            }
+            return new WebSiteDAO().compareAndSet(key, expected, value);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }

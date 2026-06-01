@@ -29,6 +29,7 @@ import com.zrlog.plugin.type.ActionType;
 import com.zrlog.plugin.type.RunType;
 import com.zrlog.plugincore.server.Application;
 import com.zrlog.plugincore.server.config.PluginConfig;
+import com.zrlog.plugincore.server.config.PluginCore;
 import com.zrlog.plugincore.server.dao.ArticleDAO;
 import com.zrlog.plugincore.server.dao.CommentDAO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
@@ -188,6 +189,7 @@ public class ServerActionHandler implements IActionHandler {
     @Override
     public void notificationPublish(IOSession session, MsgPacket msgPacket) {
         WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
         NotificationRequest request = new Gson().fromJson(msgPacket.getDataStr(), NotificationRequest.class);
         if (Objects.isNull(request.getSourcePluginId())) {
             request.setSourcePluginId(session.getPlugin().getId());
@@ -199,8 +201,8 @@ public class ServerActionHandler implements IActionHandler {
                 new CapabilityStore(kvStore),
                 new NotificationDeliveryStore(kvStore),
                 new NotificationProviderResolver(),
-                PluginCoreDAO.getInstance().loadSnapshot().getSetting().getNotification(),
-                RuntimeCapabilityInvokerFactory.socket(kvStore)
+                pluginCore.getSetting().getNotification(),
+                RuntimeCapabilityInvokerFactory.socket(kvStore, pluginCore)
         );
         NotificationPublishResult result = notificationRuntime.publish(request);
         session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(),
@@ -285,11 +287,12 @@ public class ServerActionHandler implements IActionHandler {
 
         Map<String, Object> resultMap = new HashMap<>();
         try {
+            WebSiteDAO webSiteDAO = new WebSiteDAO();
             Map<String, Object> values = new LinkedHashMap<>();
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 values.put(toWebSiteName(session, entry.getKey()), entry.getValue());
             }
-            Map<String, Boolean> results = new WebSiteDAO().saveOrUpdate(values);
+            Map<String, Boolean> results = webSiteDAO.saveOrUpdateChanged(values);
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 Map<String, Object> result = new HashMap<>();
                 result.put("result", Boolean.TRUE.equals(results.get(toWebSiteName(session, entry.getKey()))));
@@ -307,14 +310,14 @@ public class ServerActionHandler implements IActionHandler {
                 }
                 if (accessHost != null) {
                     try {
-                        new WebSiteDAO().saveOrUpdate("staticResourceHost", accessHost);
+                        new WebSiteDAO().saveOrUpdateChanged("staticResourceHost", accessHost);
                     } catch (SQLException e) {
                         LOGGER.log(Level.SEVERE, "", e);
                     }
                 }
             } else {
                 try {
-                    new WebSiteDAO().saveOrUpdate("staticResourceHost", "");
+                    new WebSiteDAO().saveOrUpdateChanged("staticResourceHost", "");
                 } catch (SQLException e) {
                     LOGGER.log(Level.SEVERE, "", e);
                 }

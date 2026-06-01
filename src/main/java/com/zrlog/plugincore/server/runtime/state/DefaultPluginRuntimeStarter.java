@@ -1,5 +1,6 @@
 package com.zrlog.plugincore.server.runtime.state;
 
+import com.zrlog.plugincore.server.config.PluginCore;
 import com.zrlog.plugincore.server.config.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.plugin.PluginBootstrap;
@@ -9,8 +10,23 @@ import com.zrlog.plugincore.server.plugin.PluginSessions;
 import java.io.File;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 public class DefaultPluginRuntimeStarter implements PluginRuntimeStarter {
+
+    private final Supplier<PluginCore> pluginCoreSupplier;
+
+    public DefaultPluginRuntimeStarter() {
+        this(() -> PluginCoreDAO.getInstance().loadSnapshot());
+    }
+
+    public DefaultPluginRuntimeStarter(PluginCore pluginCore) {
+        this(() -> pluginCore);
+    }
+
+    DefaultPluginRuntimeStarter(Supplier<PluginCore> pluginCoreSupplier) {
+        this.pluginCoreSupplier = pluginCoreSupplier;
+    }
 
     @Override
     public boolean isStarted(String pluginId) {
@@ -19,7 +35,7 @@ public class DefaultPluginRuntimeStarter implements PluginRuntimeStarter {
 
     @Override
     public Optional<PluginIdentity> findPlugin(String pluginId) {
-        for (PluginVO pluginVO : PluginCoreDAO.getInstance().loadSnapshot().getPluginInfoMap().values()) {
+        for (PluginVO pluginVO : PluginCoreDAO.getInstance().getPluginVOs(pluginCore())) {
             if (pluginVO.getPlugin() == null) {
                 continue;
             }
@@ -34,11 +50,17 @@ public class DefaultPluginRuntimeStarter implements PluginRuntimeStarter {
 
     @Override
     public void start(PluginIdentity identity) {
-        File pluginFile = PluginFiles.ensurePluginFile(identity.getPluginShortName());
+        boolean autoDownloadDisabled = pluginCore().getSetting().isDisableAutoDownloadLostFile();
+        File pluginFile = PluginFiles.ensurePluginFile(identity.getPluginShortName(), autoDownloadDisabled);
         if (pluginFile == null || !pluginFile.exists() || pluginFile.length() == 0) {
-            throw new RuntimeException(PluginFiles.missingPluginFileMessage(identity.getPluginShortName()));
+            throw new RuntimeException(PluginFiles.missingPluginFileMessage(identity.getPluginShortName(), autoDownloadDisabled));
         }
         PluginBootstrap.loadPlugin(pluginFile, identity.getPluginId());
+    }
+
+    private PluginCore pluginCore() {
+        PluginCore pluginCore = pluginCoreSupplier.get();
+        return pluginCore == null ? new PluginCore() : pluginCore;
     }
 
     @Override

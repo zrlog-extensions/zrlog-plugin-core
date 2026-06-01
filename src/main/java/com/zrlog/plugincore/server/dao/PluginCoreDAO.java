@@ -5,7 +5,6 @@ import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugincore.server.config.PluginCore;
 import com.zrlog.plugincore.server.config.PluginVO;
-import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStates;
 
 import java.util.*;
 import java.sql.SQLException;
@@ -42,11 +41,10 @@ public class PluginCoreDAO {
         }
     }
 
-    private Optional<String> getPluginCoreRawByDb() {
+    protected WebSiteDAO.WebSiteValueSnapshot getPluginCoreRawByDb() {
         try {
             DaoTrace.info(LOGGER, "pluginCore.queryRaw", "key=" + PLUGIN_DB_KEY);
-            String text = (String) new WebSiteDAO().queryValueByName(PLUGIN_DB_KEY);
-            return text == null ? Optional.empty() : Optional.of(text);
+            return new WebSiteDAO().queryValueSnapshotByName(PLUGIN_DB_KEY);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -61,21 +59,23 @@ public class PluginCoreDAO {
 
     public synchronized PluginCore loadSnapshot() {
         DaoTrace.info(LOGGER, "pluginCore.loadSnapshot", null);
-        PluginCore pluginCore = parsePluginCore(getPluginCoreRawByDb());
-        PluginRuntimeStates.cleanupDirtyRuntimeStates(pluginCore);
-        return pluginCore;
+        return parsePluginCore(getPluginCoreRawByDb().getValue());
     }
 
     public synchronized PluginCore update(Consumer<PluginCore> consumer) {
         DaoTrace.info(LOGGER, "pluginCore.update", "maxRetries=" + UPDATE_RETRIES);
         for (int i = 0; i < UPDATE_RETRIES; i++) {
             DaoTrace.info(LOGGER, "pluginCore.updateAttempt", "attempt=" + (i + 1));
-            Optional<String> raw = getPluginCoreRawByDb();
+            WebSiteDAO.WebSiteValueSnapshot snapshot = getPluginCoreRawByDb();
+            Optional<String> raw = snapshot.getValue();
             PluginCore nextPluginCore = parsePluginCore(raw);
             consumer.accept(nextPluginCore);
             String json = gson.toJson(nextPluginCore);
+            if (Objects.equals(raw.orElse(null), json)) {
+                return nextPluginCore;
+            }
             try {
-                if (new WebSiteDAO().compareAndSet(PLUGIN_DB_KEY, raw.orElse(null), json)) {
+                if (compareAndSetPluginCore(raw.orElse(null), snapshot.getRemark(), json)) {
                     return nextPluginCore;
                 }
             } catch (SQLException e) {
@@ -83,6 +83,10 @@ public class PluginCoreDAO {
             }
         }
         throw new IllegalStateException("Failed to update plugin core due to concurrent modification");
+    }
+
+    protected boolean compareAndSetPluginCore(String expectedValue, String expectedRemark, String value) throws SQLException {
+        return new WebSiteDAO().compareAndSet(PLUGIN_DB_KEY, expectedValue, expectedRemark, value);
     }
 
     public List<Plugin> getPlugins() {
@@ -97,8 +101,11 @@ public class PluginCoreDAO {
 
     public Collection<PluginVO> getPluginVOs() {
         DaoTrace.info(LOGGER, "pluginCore.getPluginVOs", null);
-        PluginCore pluginCore = loadSnapshot();
-        if (pluginCore.getPluginInfoMap() == null) {
+        return getPluginVOs(loadSnapshot());
+    }
+
+    public Collection<PluginVO> getPluginVOs(PluginCore pluginCore) {
+        if (pluginCore == null || pluginCore.getPluginInfoMap() == null) {
             return Collections.emptyList();
         }
         return pluginCore.getPluginInfoMap().values();
@@ -106,10 +113,16 @@ public class PluginCoreDAO {
 
     public PluginVO getPluginVOByShortName(String pluginShortName) {
         DaoTrace.info(LOGGER, "pluginCore.getPluginVOByShortName", "pluginShortName=" + pluginShortName);
+        return getPluginVOByShortName(loadSnapshot(), pluginShortName);
+    }
+
+    public PluginVO getPluginVOByShortName(PluginCore pluginCore, String pluginShortName) {
         if (isBlank(pluginShortName)) {
             return null;
         }
-        PluginCore pluginCore = loadSnapshot();
+        if (pluginCore == null || pluginCore.getPluginInfoMap() == null) {
+            return null;
+        }
         PluginVO pluginVO = pluginCore.getPluginInfoMap().get(pluginShortName);
         if (pluginVO != null) {
             return pluginVO;
@@ -125,7 +138,14 @@ public class PluginCoreDAO {
 
     public PluginVO getPluginVOById(String pluginId) {
         DaoTrace.info(LOGGER, "pluginCore.getPluginVOById", "pluginId=" + pluginId);
-        for (PluginVO pluginVO : getPluginVOs()) {
+        return getPluginVOById(loadSnapshot(), pluginId);
+    }
+
+    public PluginVO getPluginVOById(PluginCore pluginCore, String pluginId) {
+        if (isBlank(pluginId)) {
+            return null;
+        }
+        for (PluginVO pluginVO : getPluginVOs(pluginCore)) {
             if (pluginVO.getPlugin() != null && Objects.equals(pluginId, pluginVO.getPlugin().getId())) {
                 return pluginVO;
             }

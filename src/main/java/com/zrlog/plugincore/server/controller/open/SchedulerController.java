@@ -2,6 +2,7 @@ package com.zrlog.plugincore.server.controller.open;
 
 import com.hibegin.http.server.web.Controller;
 import com.zrlog.plugin.common.BasicCronParser;
+import com.zrlog.plugincore.server.config.PluginCore;
 import com.zrlog.plugincore.server.config.PluginCoreSetting;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
@@ -20,7 +21,8 @@ import java.time.ZonedDateTime;
 public class SchedulerController extends Controller {
 
     public void tick() {
-        PluginCoreSetting setting = PluginCoreDAO.getInstance().loadSnapshot().getSetting();
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        PluginCoreSetting setting = pluginCore.getSetting();
         setting.getScheduler().ensureDefaultProvider();
         if (!new BearerSchedulerAuth().verify(setting.getScheduler().getProviders(), request.getHeader("Authorization"))) {
             response.renderCode(403);
@@ -31,8 +33,9 @@ public class SchedulerController extends Controller {
                 new AutomationStore(kvStore),
                 new AutomationRunStore(kvStore),
                 new CapabilityStore(kvStore),
-                RuntimeCapabilityInvokerFactory.socket(kvStore),
-                new BasicCronParser()
+                RuntimeCapabilityInvokerFactory.socket(kvStore, pluginCore),
+                new BasicCronParser(),
+                pluginCore
         );
         SchedulerTickResult result = new SchedulerTickService(setting.getScheduler(), schedulerRuntime).tick(ZonedDateTime.now(), RuntimeSources.TICK);
         response.renderJson(result);

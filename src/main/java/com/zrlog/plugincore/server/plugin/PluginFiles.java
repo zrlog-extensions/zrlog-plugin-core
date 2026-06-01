@@ -116,11 +116,15 @@ public final class PluginFiles {
     }
 
     public static File ensurePluginFile(String pluginShortName) {
+        return ensurePluginFile(pluginShortName, isAutoDownloadLostFileDisabled());
+    }
+
+    public static File ensurePluginFile(String pluginShortName, boolean autoDownloadDisabled) {
         File file = getAvailablePluginFile(pluginShortName);
         if (file.exists() && file.length() > 0) {
             return file;
         }
-        if (isAutoDownloadLostFileDisabled()) {
+        if (autoDownloadDisabled) {
             LOGGER.warning(missingPluginFileMessage(pluginShortName, true));
             return file;
         }
@@ -140,7 +144,7 @@ public final class PluginFiles {
         return missingPluginFileMessage(pluginShortName, isAutoDownloadLostFileDisabled());
     }
 
-    static String missingPluginFileMessage(String pluginShortName, boolean autoDownloadDisabled) {
+    public static String missingPluginFileMessage(String pluginShortName, boolean autoDownloadDisabled) {
         if (autoDownloadDisabled) {
             return "Plugin file not found: " + pluginShortName
                     + ". Automatic plugin download is disabled by disableAutoDownloadLostFile.";

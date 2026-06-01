@@ -31,6 +31,34 @@ public class CapabilityStoreTest {
     }
 
     @Test
+    public void shouldSkipRegisterWriteWhenCapabilityIsUnchanged() {
+        InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
+        CapabilityStore store = new CapabilityStore(kvStore);
+        store.register(capability("plugin-a", "reminder.scanDueTasks", "scheduled", "scheduler"));
+        kvStore.resetCounts();
+
+        store.register(capability("plugin-a", "reminder.scanDueTasks", "scheduled", "scheduler"));
+
+        assertEquals(1, kvStore.getCount(CapabilityStore.KEY));
+        assertEquals(0, kvStore.putCount(CapabilityStore.KEY));
+    }
+
+    @Test
+    public void shouldSkipReplaceWriteWhenPluginCapabilitiesAreUnchanged() {
+        InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
+        CapabilityStore store = new CapabilityStore(kvStore);
+        store.replacePluginCapabilities("plugin-a",
+                Arrays.asList(capability("plugin-a", "reminder.scanDueTasks", "scheduled", "scheduler")));
+        kvStore.resetCounts();
+
+        store.replacePluginCapabilities("plugin-a",
+                Arrays.asList(capability("plugin-a", "reminder.scanDueTasks", "scheduled", "scheduler")));
+
+        assertEquals(1, kvStore.getCount(CapabilityStore.KEY));
+        assertEquals(0, kvStore.putCount(CapabilityStore.KEY));
+    }
+
+    @Test
     public void shouldMarkAmbiguousKeyAcrossPlugins() {
         CapabilityStore store = new CapabilityStore(new InMemoryRuntimeKvStore());
         store.register(capability("plugin-a", "same.key", "service", "internal"));

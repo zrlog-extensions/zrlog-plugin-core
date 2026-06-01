@@ -6,6 +6,7 @@ import com.zrlog.plugin.common.KvRepository;
 import com.zrlog.plugin.data.codec.MsgPacket;
 import com.zrlog.plugin.data.codec.MsgPacketStatus;
 import com.zrlog.plugin.message.PluginCapability;
+import com.zrlog.plugincore.server.config.PluginCore;
 import com.zrlog.plugincore.server.config.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.plugin.PluginSessions;
@@ -20,6 +21,7 @@ import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStates;
 import com.zrlog.plugincore.server.runtime.store.WebsiteRuntimeKvStore;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -33,7 +35,11 @@ public class ServiceMsgPacketHandler {
     }
 
     private static PluginVO findPluginByService(String service, String pluginId) {
-        for (PluginVO pluginVO : PluginCoreDAO.getInstance().loadSnapshot().getPluginInfoMap().values()) {
+        return findPluginByService(service, pluginId, PluginCoreDAO.getInstance().loadSnapshot());
+    }
+
+    private static PluginVO findPluginByService(String service, String pluginId, PluginCore pluginCore) {
+        for (PluginVO pluginVO : PluginCoreDAO.getInstance().getPluginVOs(pluginCore)) {
             if (pluginVO.getPlugin() != null
                     && (pluginId == null || Objects.equals(pluginId, pluginVO.getPlugin().getId()))
                     && pluginVO.getPlugin().getServices() != null
@@ -49,8 +55,15 @@ public class ServiceMsgPacketHandler {
     }
 
     private static IOSession getServiceSessionWithRetry(String serviceName, String pluginId, int retryCount) throws InterruptedException {
+        return getServiceSessionWithRetry(serviceName, pluginId, retryCount, PluginCoreDAO.getInstance().loadSnapshot());
+    }
+
+    private static IOSession getServiceSessionWithRetry(String serviceName,
+                                                        String pluginId,
+                                                        int retryCount,
+                                                        PluginCore pluginCore) throws InterruptedException {
         int loopCount = Math.max(retryCount, 1);
-        PluginVO pluginVO = findPluginByService(serviceName, pluginId);
+        PluginVO pluginVO = findPluginByService(serviceName, pluginId, pluginCore);
         if (pluginVO == null || pluginVO.getPlugin() == null) {
             return null;
         }
@@ -59,7 +72,7 @@ public class ServiceMsgPacketHandler {
         if (Objects.nonNull(serviceSession)) {
             return serviceSession;
         }
-        if (!ensureServiceStarted(pluginVO)) {
+        if (!ensureServiceStarted(pluginVO, pluginCore)) {
             return null;
         }
         for (int i = 0; i < loopCount; i++) {
@@ -74,8 +87,8 @@ public class ServiceMsgPacketHandler {
         return null;
     }
 
-    private static boolean ensureServiceStarted(PluginVO pluginVO) {
-        return runtimeStateService().ensureStarted(pluginVO.getPlugin().getId());
+    private static boolean ensureServiceStarted(PluginVO pluginVO, PluginCore pluginCore) {
+        return runtimeStateService(pluginCore).ensureStarted(pluginVO.getPlugin().getId());
     }
 
     public void doHandle(final MsgPacket msgPacket) {
@@ -91,17 +104,20 @@ public class ServiceMsgPacketHandler {
         String capabilityKey = null;
         String requestId = msgPacket == null ? UUID.randomUUID().toString() : String.valueOf(msgPacket.getMsgId());
         long startedAtMs = System.currentTimeMillis();
+        KvRepository runtimeKvStore = kvStore();
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        List<PluginCapability> serviceCapabilities = new CapabilityStore(runtimeKvStore).listByType("service");
         try {
-            PluginCapability provider = resolveServiceProvider(name);
+            PluginCapability provider = resolveServiceProvider(name, serviceCapabilities, pluginCore);
             IOSession serviceSession = provider == null
-                    ? getServiceSessionWithRetry(name, 60)
-                    : getServiceSessionWithRetry(name, provider.getPluginId(), 60);
+                    ? getServiceSessionWithRetry(name, null, 60, pluginCore)
+                    : getServiceSessionWithRetry(name, provider.getPluginId(), 60, pluginCore);
             if (Objects.isNull(serviceSession) || serviceSession.getPlugin() == null) {
                 throw new RuntimeException("Not found serviceSession " + name);
             }
             targetPluginId = serviceSession.getPlugin().getId();
             targetPluginName = PluginSessions.nameOrShortName(serviceSession.getPlugin());
-            capabilityKey = serviceCapabilityKey(name, targetPluginId, provider);
+            capabilityKey = serviceCapabilityKey(name, targetPluginId, provider, serviceCapabilities);
             PluginRuntimeStateService invocationStateService = PluginRuntimeStates.newStateService(serviceSession);
             stateService = invocationStateService;
             invocationStateService.markInvocationStart(targetPluginId, targetPluginName);
@@ -120,14 +136,14 @@ public class ServiceMsgPacketHandler {
                 } finally {
                     callbackStateService.markInvocationEnd(invocationPluginId, invocationPluginName,
                             callbackErrorMessage);
-                    ServiceInvocationLogs.append(kvStore(), invocationPluginId, invocationCapabilityKey, invocationRequestId, null,
+                    ServiceInvocationLogs.append(runtimeKvStore, invocationPluginId, invocationCapabilityKey, invocationRequestId, null,
                             invocationStartedAtMs, System.currentTimeMillis(), callbackErrorMessage);
                 }
             });
         } catch (Exception e) {
             if (targetPluginId != null && stateService != null) {
                 stateService.markInvocationEnd(targetPluginId, targetPluginName, e.getMessage());
-                ServiceInvocationLogs.append(kvStore(), targetPluginId, capabilityKey == null ? name : capabilityKey, requestId, null,
+                ServiceInvocationLogs.append(runtimeKvStore, targetPluginId, capabilityKey == null ? name : capabilityKey, requestId, null,
                         startedAtMs, System.currentTimeMillis(), e.getMessage());
             }
             // not found service response error
@@ -135,19 +151,24 @@ public class ServiceMsgPacketHandler {
         }
     }
 
-    private PluginCapability resolveServiceProvider(String serviceName) {
-        ServiceSetting setting = PluginCoreDAO.getInstance().loadSnapshot().getSetting().getService();
+    private PluginCapability resolveServiceProvider(String serviceName,
+                                                    List<PluginCapability> serviceCapabilities,
+                                                    PluginCore pluginCore) {
+        ServiceSetting setting = pluginCore.getSetting().getService();
         return new ServiceProviderResolver()
-                .resolve(serviceName, capabilityStore().listByType("service"), setting)
+                .resolve(serviceName, serviceCapabilities, setting)
                 .orElse(null);
     }
 
-    private String serviceCapabilityKey(String serviceName, String pluginId, PluginCapability resolvedProvider) {
+    private String serviceCapabilityKey(String serviceName,
+                                        String pluginId,
+                                        PluginCapability resolvedProvider,
+                                        List<PluginCapability> serviceCapabilities) {
         if (resolvedProvider != null && !isBlank(resolvedProvider.getKey())) {
             return resolvedProvider.getKey();
         }
         PluginCapability provider = new ServiceProviderResolver()
-                .providersFor(serviceName, capabilityStore().listByType("service"))
+                .providersFor(serviceName, serviceCapabilities)
                 .stream()
                 .filter(item -> Objects.equals(pluginId, item.getPluginId()))
                 .findFirst()
@@ -162,12 +183,9 @@ public class ServiceMsgPacketHandler {
         return response;
     }
 
-    private static PluginRuntimeStateService runtimeStateService() {
-        return new PluginRuntimeStateService(new PluginRuntimeStateStore(new WebsiteRuntimeKvStore()), new DefaultPluginRuntimeStarter());
-    }
-
-    private CapabilityStore capabilityStore() {
-        return new CapabilityStore(kvStore());
+    private static PluginRuntimeStateService runtimeStateService(PluginCore pluginCore) {
+        return new PluginRuntimeStateService(new PluginRuntimeStateStore(new WebsiteRuntimeKvStore()),
+                new DefaultPluginRuntimeStarter(pluginCore));
     }
 
     private KvRepository kvStore() {

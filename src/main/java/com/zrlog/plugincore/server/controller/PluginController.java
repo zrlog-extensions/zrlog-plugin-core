@@ -31,6 +31,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -107,7 +108,9 @@ public class PluginController extends Controller {
         PluginRuntimeStateService stateService = PluginRuntimeStates.newStateService(session);
         String pluginId = session.getPlugin().getId();
         String pluginName = PluginSessions.nameOrShortName(session.getPlugin());
-        String capabilityKey = serviceCapabilityKey(name, pluginId);
+        KvRepository runtimeKvStore = kvStore();
+        String capabilityKey = serviceCapabilityKey(name, pluginId,
+                new CapabilityStore(runtimeKvStore).listByType("service"));
         String requestId = UUID.randomUUID().toString();
         String errorMessage = null;
         long startedAtMs = System.currentTimeMillis();
@@ -128,14 +131,14 @@ public class PluginController extends Controller {
             getResponse().write(bin);
         } finally {
             stateService.markInvocationEnd(pluginId, pluginName, errorMessage);
-            ServiceInvocationLogs.append(kvStore(), pluginId, capabilityKey, requestId, null,
+            ServiceInvocationLogs.append(runtimeKvStore, pluginId, capabilityKey, requestId, null,
                     startedAtMs, System.currentTimeMillis(), errorMessage);
         }
     }
 
-    private String serviceCapabilityKey(String serviceName, String pluginId) {
+    private String serviceCapabilityKey(String serviceName, String pluginId, List<PluginCapability> serviceCapabilities) {
         PluginCapability provider = new ServiceProviderResolver()
-                .providersFor(serviceName, new CapabilityStore(kvStore()).listByType("service"))
+                .providersFor(serviceName, serviceCapabilities)
                 .stream()
                 .filter(item -> Objects.equals(pluginId, item.getPluginId()))
                 .findFirst()

@@ -43,13 +43,13 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
         }
         long startedAtMs = System.currentTimeMillis();
         CapabilityInvokeResult result;
-        String validationError = validationError(pluginId, capabilityKey, context);
+        Optional<PluginCapability> capability = capability(pluginId, capabilityKey);
+        String validationError = validationError(pluginId, capabilityKey, context, capability);
         if (validationError != null) {
             result = error(validationError);
             appendLog(pluginId, capabilityKey, context, result, startedAtMs);
             return result;
         }
-        Optional<PluginCapability> capability = capability(pluginId, capabilityKey);
         String pluginName = capability.map(PluginCapability::getPluginName).orElse(null);
         if (!stateService.ensureStarted(pluginId)) {
             result = error("Plugin start failed");
@@ -67,7 +67,10 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
         return result;
     }
 
-    private String validationError(String pluginId, String capabilityKey, InvokeContext context) {
+    private String validationError(String pluginId,
+                                   String capabilityKey,
+                                   InvokeContext context,
+                                   Optional<PluginCapability> capability) {
         if (capabilityStore == null) {
             return null;
         }
@@ -80,7 +83,6 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
         if (context == null || isBlank(context.getSource())) {
             return "Capability invoke source is empty";
         }
-        Optional<PluginCapability> capability = capability(pluginId, capabilityKey);
         if (!capability.isPresent()) {
             return "Capability not found";
         }

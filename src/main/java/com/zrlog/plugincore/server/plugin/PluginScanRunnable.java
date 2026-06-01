@@ -352,8 +352,9 @@ public class PluginScanRunnable implements Runnable {
 
     @Override
     public void run() {
-        reconcilePluginArtifacts();
-        Set<Map.Entry<String, String>> entries = getAllRunnablePlugin().entrySet();
+        PluginCore currentPluginCore = currentPluginCore();
+        reconcilePluginArtifacts(currentPluginCore);
+        Set<Map.Entry<String, String>> entries = getAllRunnablePlugin(currentPluginCore).entrySet();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         ExecutorService executorService = Executors.newFixedThreadPool(pluginStartThreads(entries.size()));
         for (Map.Entry<String, String> pluginVO : entries) {
@@ -388,16 +389,15 @@ public class PluginScanRunnable implements Runnable {
     }
 
     public void prepare() {
-        reconcilePluginArtifacts();
+        reconcilePluginArtifacts(currentPluginCore());
     }
 
     public List<String> getAllRunnablePluginIds() {
-        return new ArrayList<>(getAllRunnablePlugin().values());
+        return new ArrayList<>(getAllRunnablePlugin(currentPluginCore()).values());
     }
 
-    private Map<String, String> getAllRunnablePlugin() {
+    private Map<String, String> getAllRunnablePlugin(PluginCore currentPluginCore) {
         Map<String, String> runnablePlugins = new HashMap<>();
-        PluginCore currentPluginCore = currentPluginCore();
         if (currentPluginCore != null && currentPluginCore.getPluginInfoMap() != null) {
             currentPluginCore.getPluginInfoMap().values().forEach(pluginVO -> {
                 if (pluginVO.getPlugin() == null || PluginSessions.isRunningByPluginShortName(pluginVO.getPlugin().getShortName())) {
@@ -406,7 +406,7 @@ public class PluginScanRunnable implements Runnable {
                 runnablePlugins.put(pluginVO.getPlugin().getShortName(), pluginVO.getPlugin().getId());
             });
         }
-        getBootstrapPluginIds().forEach((key, value) -> {
+        getBootstrapPluginIds(currentPluginCore).forEach((key, value) -> {
             if (runnablePlugins.containsKey(key)) {
                 return;
             }
@@ -415,21 +415,19 @@ public class PluginScanRunnable implements Runnable {
         return runnablePlugins;
     }
 
-    private Map<String, String> getBootstrapPluginIds() {
+    private Map<String, String> getBootstrapPluginIds(PluginCore currentPluginCore) {
         Map<String, String> runnablePlugins = new LinkedHashMap<>();
-        PluginCore currentPluginCore = currentPluginCore();
         PluginBootstrap.getRequiredPlugins().forEach((pluginShortName, fallbackPluginId) -> {
             if (!PluginSessions.isRunningByPluginShortName(pluginShortName)) {
                 runnablePlugins.put(pluginShortName, pluginIdForInstalledArtifact(currentPluginCore, pluginShortName, fallbackPluginId));
             }
         });
-        getInstalledPluginArtifactIds().forEach(runnablePlugins::putIfAbsent);
+        getInstalledPluginArtifactIds(currentPluginCore).forEach(runnablePlugins::putIfAbsent);
         return runnablePlugins;
     }
 
-    private Map<String, String> getInstalledPluginArtifactIds() {
+    private Map<String, String> getInstalledPluginArtifactIds(PluginCore currentPluginCore) {
         Map<String, String> runnablePlugins = new LinkedHashMap<>();
-        PluginCore currentPluginCore = currentPluginCore();
         for (File file : PluginFiles.pluginFilesIn(new File(PluginConfig.getInstance().getPluginBasePath()))) {
             String pluginShortName = PluginFiles.getPluginShortName(file);
             if (StringUtils.isEmpty(pluginShortName)) {
@@ -444,20 +442,22 @@ public class PluginScanRunnable implements Runnable {
     }
 
 
-    private void reconcilePluginArtifacts() {
-        bootstrapInstalledPluginArtifacts();
-        downloadMissingPluginFiles();
+    private void reconcilePluginArtifacts(PluginCore currentPluginCore) {
+        bootstrapInstalledPluginArtifacts(currentPluginCore);
+        downloadMissingPluginFiles(currentPluginCore);
     }
 
-    private void downloadMissingPluginFiles() {
-        boolean download = !currentPluginCore().getSetting().isDisableAutoDownloadLostFile();
+    private void downloadMissingPluginFiles(PluginCore currentPluginCore) {
+        boolean download = currentPluginCore == null
+                || currentPluginCore.getSetting() == null
+                || !currentPluginCore.getSetting().isDisableAutoDownloadLostFile();
         if (!download) {
             return;
         }
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         ExecutorService executorService = Executors.newFixedThreadPool(10);
         try {
-            for (Map.Entry<String, String> pluginEntry : getAllRunnablePlugin().entrySet()) {
+            for (Map.Entry<String, String> pluginEntry : getAllRunnablePlugin(currentPluginCore).entrySet()) {
                 String pluginShortName = pluginEntry.getKey();
                 String pluginId = pluginEntry.getValue();
                 File file = PluginFiles.getPluginFile(pluginShortName);
@@ -481,8 +481,7 @@ public class PluginScanRunnable implements Runnable {
         }
     }
 
-    private void bootstrapInstalledPluginArtifacts() {
-        PluginCore currentPluginCore = currentPluginCore();
+    private void bootstrapInstalledPluginArtifacts(PluginCore currentPluginCore) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         List<File> pluginFiles = PluginFiles.pluginFilesIn(new File(PluginConfig.getInstance().getPluginBasePath()));
         ExecutorService executorService = Executors.newFixedThreadPool(pluginStartThreads(pluginFiles.size()));
@@ -493,7 +492,7 @@ public class PluginScanRunnable implements Runnable {
             }
             String pluginId = pluginIdForInstalledArtifact(currentPluginCore, pluginShortName);
             // installed-plugins 是可信 artifact 清单，但是否需要重新收集元数据由文件指纹决定。
-            if (!PluginBootstrap.shouldStartPluginFileForMetadata(file, pluginId)) {
+            if (!PluginBootstrap.shouldStartPluginFileForMetadata(file, pluginId, currentPluginCore)) {
                 continue;
             }
             futures.add(CompletableFuture.runAsync(() -> {

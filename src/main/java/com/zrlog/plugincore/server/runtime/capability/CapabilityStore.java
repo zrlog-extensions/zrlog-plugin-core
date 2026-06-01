@@ -30,7 +30,11 @@ public class CapabilityStore {
     public void register(PluginCapability capability) {
         for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
             CapabilityDocumentSnapshot snapshot = loadSnapshot();
-            snapshot.getDocument().setItems(registerItems(snapshot.getDocument().getItems(), capability));
+            CapabilityMutationResult result = registerItems(snapshot.getDocument().getItems(), capability);
+            if (!result.isChanged()) {
+                return;
+            }
+            snapshot.getDocument().setItems(result.getItems());
             if (saveDocumentIfUnchanged(snapshot)) {
                 return;
             }
@@ -38,7 +42,7 @@ public class CapabilityStore {
         throw new IllegalStateException("Failed to register capability due to concurrent modification");
     }
 
-    private List<PluginCapability> registerItems(List<PluginCapability> currentItems, PluginCapability capability) {
+    private CapabilityMutationResult registerItems(List<PluginCapability> currentItems, PluginCapability capability) {
         List<PluginCapability> next = new ArrayList<>();
         for (PluginCapability item : currentItems) {
             if (!sameIdentity(item, capability)) {
@@ -47,7 +51,7 @@ public class CapabilityStore {
         }
         normalize(capability);
         next.add(capability);
-        return next;
+        return new CapabilityMutationResult(next, !sameCapabilityItems(currentItems, next));
     }
 
     public void replacePluginCapabilities(String pluginId, List<PluginCapability> capabilities) {
@@ -61,8 +65,12 @@ public class CapabilityStore {
     public void replacePluginCapabilities(String pluginId, List<String> pluginNames, List<PluginCapability> capabilities) {
         for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
             CapabilityDocumentSnapshot snapshot = loadSnapshot();
-            snapshot.getDocument().setItems(replacePluginCapabilityItems(
-                    snapshot.getDocument().getItems(), pluginId, pluginNames, capabilities));
+            CapabilityMutationResult result = replacePluginCapabilityItems(
+                    snapshot.getDocument().getItems(), pluginId, pluginNames, capabilities);
+            if (!result.isChanged()) {
+                return;
+            }
+            snapshot.getDocument().setItems(result.getItems());
             if (saveDocumentIfUnchanged(snapshot)) {
                 return;
             }
@@ -70,10 +78,10 @@ public class CapabilityStore {
         throw new IllegalStateException("Failed to replace plugin capabilities due to concurrent modification");
     }
 
-    private List<PluginCapability> replacePluginCapabilityItems(List<PluginCapability> currentItems,
-                                                                String pluginId,
-                                                                List<String> pluginNames,
-                                                                List<PluginCapability> capabilities) {
+    private CapabilityMutationResult replacePluginCapabilityItems(List<PluginCapability> currentItems,
+                                                                  String pluginId,
+                                                                  List<String> pluginNames,
+                                                                  List<PluginCapability> capabilities) {
         List<PluginCapability> next = new ArrayList<>();
         for (PluginCapability item : currentItems) {
             if (!samePlugin(pluginId, pluginNames, item)) {
@@ -86,7 +94,11 @@ public class CapabilityStore {
                 next.add(capability);
             }
         }
-        return next;
+        return new CapabilityMutationResult(next, !sameCapabilityItems(currentItems, next));
+    }
+
+    private boolean sameCapabilityItems(List<PluginCapability> left, List<PluginCapability> right) {
+        return Objects.equals(gson.toJson(left), gson.toJson(right));
     }
 
     private boolean samePlugin(String pluginId, List<String> pluginNames, PluginCapability capability) {
@@ -122,13 +134,27 @@ public class CapabilityStore {
     }
 
     public List<PluginCapability> listByType(String type) {
-        return listAll().stream()
+        return listByType(listAll(), type);
+    }
+
+    public static List<PluginCapability> listByType(List<PluginCapability> items, String type) {
+        if (items == null) {
+            return new ArrayList<>();
+        }
+        return items.stream()
                 .filter(item -> Objects.equals(type, item.getType()))
                 .collect(Collectors.toList());
     }
 
     public Optional<PluginCapability> find(String pluginId, String key) {
-        return listAll().stream()
+        return find(listAll(), pluginId, key);
+    }
+
+    public static Optional<PluginCapability> find(List<PluginCapability> items, String pluginId, String key) {
+        if (items == null) {
+            return Optional.empty();
+        }
+        return items.stream()
                 .filter(item -> Objects.equals(pluginId, item.getPluginId()))
                 .filter(item -> Objects.equals(key, item.getKey()))
                 .findFirst();
@@ -230,6 +256,24 @@ public class CapabilityStore {
 
     private boolean sameIdentity(PluginCapability left, PluginCapability right) {
         return Objects.equals(left.getPluginId(), right.getPluginId()) && Objects.equals(left.getKey(), right.getKey());
+    }
+
+    private static class CapabilityMutationResult {
+        private final List<PluginCapability> items;
+        private final boolean changed;
+
+        private CapabilityMutationResult(List<PluginCapability> items, boolean changed) {
+            this.items = items;
+            this.changed = changed;
+        }
+
+        public List<PluginCapability> getItems() {
+            return items;
+        }
+
+        public boolean isChanged() {
+            return changed;
+        }
     }
 
     public static class CapabilityDocumentSnapshot {

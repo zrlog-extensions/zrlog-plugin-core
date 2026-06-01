@@ -122,6 +122,29 @@ public class PluginRuntimeStateStoreTest {
         assertEquals("ready", next.getStatus());
     }
 
+    @Test
+    public void shouldCleanupInstancesAndRemoveStatesInSingleMutation() {
+        InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
+        PluginRuntimeStateStore store = new PluginRuntimeStateStore(kvStore);
+        PluginRuntimeState state = state("reminder", "待办提醒");
+        state.setInstances(Arrays.asList(
+                instance("expired", "ready", 1000L, 1),
+                instance("fresh", "ready", 6500L, 2)
+        ));
+        store.upsert(state);
+        store.upsert(state("orphan", "孤儿插件"));
+
+        PluginRuntimeStateDocument document = store.cleanupInstancesAndRemoveStates(7000L, 3000L, 3000L,
+                item -> Objects.equals("orphan", item.getPluginId()));
+
+        assertEquals(1, document.getItems().size());
+        PluginRuntimeState next = document.getItems().get(0);
+        assertEquals("reminder", next.getPluginId());
+        assertEquals(1, next.getInstances().size());
+        assertEquals("fresh", next.getInstances().get(0).getInstanceId());
+        assertEquals(Integer.valueOf(2), next.getActiveInvocationCount());
+    }
+
     private PluginRuntimeState state(String pluginId, String pluginName) {
         PluginRuntimeState state = new PluginRuntimeState();
         state.setPluginId(pluginId);

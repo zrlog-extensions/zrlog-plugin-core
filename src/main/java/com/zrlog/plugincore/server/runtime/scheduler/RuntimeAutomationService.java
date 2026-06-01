@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 public class RuntimeAutomationService {
 
@@ -24,11 +25,28 @@ public class RuntimeAutomationService {
     private final AutomationStore automationStore;
     private final CapabilityStore capabilityStore;
     private final BasicCronParser cronParser;
+    private final Supplier<PluginRuntimeSetting> runtimeSettingSupplier;
 
     public RuntimeAutomationService(AutomationStore automationStore, CapabilityStore capabilityStore, BasicCronParser cronParser) {
+        this(automationStore, capabilityStore, cronParser, PluginRuntimeSetting::new);
+    }
+
+    public RuntimeAutomationService(AutomationStore automationStore,
+                                    CapabilityStore capabilityStore,
+                                    BasicCronParser cronParser,
+                                    PluginRuntimeSetting runtimeSetting) {
+        this(automationStore, capabilityStore, cronParser,
+                () -> runtimeSetting == null ? new PluginRuntimeSetting() : runtimeSetting);
+    }
+
+    RuntimeAutomationService(AutomationStore automationStore,
+                             CapabilityStore capabilityStore,
+                             BasicCronParser cronParser,
+                             Supplier<PluginRuntimeSetting> runtimeSettingSupplier) {
         this.automationStore = automationStore;
         this.capabilityStore = capabilityStore;
         this.cronParser = cronParser;
+        this.runtimeSettingSupplier = runtimeSettingSupplier;
     }
 
     public List<PluginAutomation> list() {
@@ -36,25 +54,27 @@ public class RuntimeAutomationService {
     }
 
     public List<PluginAutomation> listWithSystemAutomations() {
-        ensureSystemAutomations(ZonedDateTime.now());
-        return automationStore.list();
+        return ensureSystemAutomations(ZonedDateTime.now());
     }
 
-    public void ensureSystemAutomations(ZonedDateTime now) {
+    public List<PluginAutomation> ensureSystemAutomations(ZonedDateTime now) {
         if (now == null) {
             now = ZonedDateTime.now(ZoneId.systemDefault());
         }
-        PluginRuntimeSetting runtimeSetting = PluginCoreDAO.getInstance().loadSnapshot().getSetting().getRuntime();
+        PluginRuntimeSetting runtimeSetting = runtimeSettingSupplier.get();
+        if (runtimeSetting == null) {
+            runtimeSetting = new PluginRuntimeSetting();
+        }
         for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
             AutomationStore.AutomationDocumentSnapshot snapshot = automationStore.loadSnapshot();
             List<PluginAutomation> automations = new ArrayList<>(snapshot.getDocument().getItems());
             boolean changed = RuntimeSystemAutomations.ensureRuntimeMaintenance(automations, runtimeSetting, cronParser, now);
             if (!changed) {
-                return;
+                return snapshot.getDocument().getItems();
             }
             snapshot.getDocument().setItems(automations);
             if (automationStore.saveDocumentIfUnchanged(snapshot)) {
-                return;
+                return automations;
             }
         }
         throw new IllegalStateException("Failed to ensure system automations due to concurrent modification");
@@ -132,17 +152,8 @@ public class RuntimeAutomationService {
         if (RuntimeSystemAutomations.isRuntimeMaintenance(input)) {
             return saveSystemAutomation(input, now);
         }
-        preserveExistingCapabilityBinding(input);
-        validate(input);
-        Optional<PluginCapability> capability = capabilityStore.find(input.getPluginId(), input.getCapabilityKey());
-        if (!capability.isPresent()) {
-            throw new CronParseException("Capability not found");
-        }
-        if (capability.get().getExposure() == null || !capability.get().getExposure().contains("scheduler")) {
-            throw new CronParseException("Capability is not exposed to scheduler");
-        }
-        if (Boolean.FALSE.equals(capability.get().getEnabled())) {
-            throw new CronParseException("Capability is disabled");
+        if (input == null) {
+            throw new CronParseException("Automation is empty");
         }
         ZoneId zoneId = ZoneId.systemDefault();
         if (now == null) {
@@ -152,8 +163,19 @@ public class RuntimeAutomationService {
         List<PluginCapability> registeredCapabilities = capabilityStore.listAll();
         for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
             AutomationStore.AutomationDocumentSnapshot snapshot = automationStore.loadSnapshot();
+            PluginAutomation candidate = copyAutomation(baseInput);
+            preserveExistingCapabilityBinding(candidate, snapshot.getDocument().getItems());
+            validate(candidate);
+            PluginCapability capability = CapabilityStore.find(
+                    registeredCapabilities, candidate.getPluginId(), candidate.getCapabilityKey())
+                    .orElseThrow(() -> new CronParseException("Capability not found"));
+            validateSchedulableCapability(capability);
             SaveAutomationResult result = saveAutomationItems(
-                    snapshot.getDocument().getItems(), copyAutomation(baseInput), now, zoneId, registeredCapabilities);
+                    snapshot.getDocument().getItems(), candidate, now, zoneId, registeredCapabilities);
+            if (!result.isChanged()) {
+                copyAutomation(result.getSaved(), input);
+                return input;
+            }
             snapshot.getDocument().setItems(result.getItems());
             if (automationStore.saveDocumentIfUnchanged(snapshot)) {
                 copyAutomation(result.getSaved(), input);
@@ -188,6 +210,9 @@ public class RuntimeAutomationService {
             }
             if (!replaced) {
                 next.add(saved);
+            }
+            if (sameAutomationItems(automations, next)) {
+                return saved;
             }
             snapshot.getDocument().setItems(next);
             if (automationStore.saveDocumentIfUnchanged(snapshot)) {
@@ -268,19 +293,28 @@ public class RuntimeAutomationService {
         if (!saved) {
             next.add(input);
         }
-        return new SaveAutomationResult(next, input);
+        return new SaveAutomationResult(next, input, !sameAutomationItems(currentItems, next));
     }
 
-    private void preserveExistingCapabilityBinding(PluginAutomation input) {
+    private void preserveExistingCapabilityBinding(PluginAutomation input, List<PluginAutomation> automations) {
         if (input == null || isBlank(input.getId())) {
             return;
         }
-        for (PluginAutomation automation : automationStore.list()) {
+        for (PluginAutomation automation : automations) {
             if (Objects.equals(input.getId(), automation.getId())) {
                 input.setPluginId(automation.getPluginId());
                 input.setCapabilityKey(automation.getCapabilityKey());
                 return;
             }
+        }
+    }
+
+    private void validateSchedulableCapability(PluginCapability capability) {
+        if (capability.getExposure() == null || !capability.getExposure().contains("scheduler")) {
+            throw new CronParseException("Capability is not exposed to scheduler");
+        }
+        if (Boolean.FALSE.equals(capability.getEnabled())) {
+            throw new CronParseException("Capability is disabled");
         }
     }
 
@@ -419,6 +453,45 @@ public class RuntimeAutomationService {
         target.setPayload(source.getPayload() == null ? null : new HashMap<>(source.getPayload()));
     }
 
+    private boolean sameAutomationItems(List<PluginAutomation> left, List<PluginAutomation> right) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null || left.size() != right.size()) {
+            return false;
+        }
+        for (int i = 0; i < left.size(); i++) {
+            if (!sameAutomation(left.get(i), right.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean sameAutomation(PluginAutomation left, PluginAutomation right) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null) {
+            return false;
+        }
+        return Objects.equals(left.getId(), right.getId())
+                && Objects.equals(left.getPluginId(), right.getPluginId())
+                && Objects.equals(left.getCapabilityKey(), right.getCapabilityKey())
+                && Objects.equals(left.getName(), right.getName())
+                && Objects.equals(left.getTriggerType(), right.getTriggerType())
+                && Objects.equals(left.getCron(), right.getCron())
+                && Objects.equals(left.getTimezone(), right.getTimezone())
+                && Objects.equals(left.getEnabled(), right.getEnabled())
+                && Objects.equals(left.getSystem(), right.getSystem())
+                && Objects.equals(left.getDeletable(), right.getDeletable())
+                && Objects.equals(left.getNextRunAt(), right.getNextRunAt())
+                && Objects.equals(left.getLastRunAt(), right.getLastRunAt())
+                && Objects.equals(left.getLeaseOwner(), right.getLeaseOwner())
+                && Objects.equals(left.getLeaseUntil(), right.getLeaseUntil())
+                && Objects.equals(left.getPayload(), right.getPayload());
+    }
+
     private String defaultAutomationId(PluginCapability capability) {
         return "default:" + capability.getPluginId() + ":" + capability.getKey();
     }
@@ -463,10 +536,12 @@ public class RuntimeAutomationService {
     private static class SaveAutomationResult {
         private final List<PluginAutomation> items;
         private final PluginAutomation saved;
+        private final boolean changed;
 
-        private SaveAutomationResult(List<PluginAutomation> items, PluginAutomation saved) {
+        private SaveAutomationResult(List<PluginAutomation> items, PluginAutomation saved, boolean changed) {
             this.items = items;
             this.saved = saved;
+            this.changed = changed;
         }
 
         public List<PluginAutomation> getItems() {
@@ -475,6 +550,10 @@ public class RuntimeAutomationService {
 
         public PluginAutomation getSaved() {
             return saved;
+        }
+
+        public boolean isChanged() {
+            return changed;
         }
     }
 }

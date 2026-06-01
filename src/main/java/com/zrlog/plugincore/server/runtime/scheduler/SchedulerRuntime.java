@@ -3,7 +3,7 @@ package com.zrlog.plugincore.server.runtime.scheduler;
 import com.zrlog.plugin.message.CapabilityInvokeResult;
 import com.zrlog.plugin.common.BasicCronParser;
 import com.zrlog.plugin.common.CronParseException;
-import com.zrlog.plugincore.server.dao.PluginCoreDAO;
+import com.zrlog.plugincore.server.config.PluginCore;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityInvoker;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.InvokeContext;
@@ -41,13 +41,24 @@ public class SchedulerRuntime {
     private final BasicCronParser cronParser;
     private final SchedulerTaskLockFactory taskLockFactory;
     private final Supplier<PluginRuntimeSetting> runtimeSettingSupplier;
+    private final Supplier<PluginCore> pluginCoreSupplier;
 
     public SchedulerRuntime(AutomationStore automationStore,
                             AutomationRunStore automationRunStore,
                             CapabilityStore capabilityStore,
                             CapabilityInvoker capabilityInvoker,
                             BasicCronParser cronParser) {
-        this(automationStore, automationRunStore, capabilityStore, capabilityInvoker, cronParser, SchedulerRuntime::distributedTaskLock);
+        this(automationStore, automationRunStore, capabilityStore, capabilityInvoker, cronParser, new PluginCore());
+    }
+
+    public SchedulerRuntime(AutomationStore automationStore,
+                            AutomationRunStore automationRunStore,
+                            CapabilityStore capabilityStore,
+                            CapabilityInvoker capabilityInvoker,
+                            BasicCronParser cronParser,
+                            PluginCore pluginCore) {
+        this(automationStore, automationRunStore, capabilityStore, capabilityInvoker, cronParser,
+                SchedulerRuntime::distributedTaskLock, runtimeSettingSupplier(pluginCore), () -> pluginCore);
     }
 
     SchedulerRuntime(AutomationStore automationStore,
@@ -57,7 +68,7 @@ public class SchedulerRuntime {
                      BasicCronParser cronParser,
                      SchedulerTaskLockFactory taskLockFactory) {
         this(automationStore, automationRunStore, capabilityStore, capabilityInvoker, cronParser, taskLockFactory,
-                () -> PluginCoreDAO.getInstance().loadSnapshot().getSetting().getRuntime());
+                PluginRuntimeSetting::new);
     }
 
     SchedulerRuntime(AutomationStore automationStore,
@@ -67,12 +78,25 @@ public class SchedulerRuntime {
                      BasicCronParser cronParser,
                      SchedulerTaskLockFactory taskLockFactory,
                      Supplier<PluginRuntimeSetting> runtimeSettingSupplier) {
+        this(automationStore, automationRunStore, capabilityStore, capabilityInvoker, cronParser, taskLockFactory,
+                runtimeSettingSupplier, PluginCore::new);
+    }
+
+    SchedulerRuntime(AutomationStore automationStore,
+                     AutomationRunStore automationRunStore,
+                     CapabilityStore capabilityStore,
+                     CapabilityInvoker capabilityInvoker,
+                     BasicCronParser cronParser,
+                     SchedulerTaskLockFactory taskLockFactory,
+                     Supplier<PluginRuntimeSetting> runtimeSettingSupplier,
+                     Supplier<PluginCore> pluginCoreSupplier) {
         this.automationStore = automationStore;
         this.automationRunStore = automationRunStore;
         this.capabilityInvoker = capabilityInvoker;
         this.cronParser = cronParser;
         this.taskLockFactory = taskLockFactory;
         this.runtimeSettingSupplier = runtimeSettingSupplier;
+        this.pluginCoreSupplier = pluginCoreSupplier;
     }
 
     public SchedulerTickResult tick(ZonedDateTime now) {
@@ -80,10 +104,9 @@ public class SchedulerRuntime {
     }
 
     public SchedulerTickResult tick(ZonedDateTime now, String source) {
-        ensureSystemAutomations(now);
         SchedulerTickResult result = new SchedulerTickResult();
-        List<PluginAutomation> automations = automationStore.list();
-        List<ClaimedAutomation> claimedAutomations = new ArrayList<>();
+        List<PluginAutomation> automations = ensureSystemAutomations(now);
+        List<ClaimCandidate> claimCandidates = new ArrayList<>();
         String invocationSource = invocationSource(source);
         for (PluginAutomation automation : automations) {
             if (!Boolean.TRUE.equals(automation.getEnabled())) {
@@ -101,24 +124,20 @@ public class SchedulerRuntime {
                 result.skipped();
                 continue;
             }
-            boolean claimed = false;
-            try {
-                PluginAutomation claimedAutomation = claimDueAutomation(automation, now, UUID.randomUUID().toString());
-                if (claimedAutomation == null) {
-                    result.skipped();
-                    continue;
-                }
-                claimedAutomations.add(new ClaimedAutomation(claimedAutomation, lock, taskLock));
-                claimed = true;
-            } finally {
-                if (!claimed) {
-                    try {
-                        taskLock.unlock();
-                    } finally {
-                        lock.release();
-                    }
+            claimCandidates.add(new ClaimCandidate(automation, lock, taskLock, UUID.randomUUID().toString()));
+        }
+        List<ClaimedAutomation> claimedAutomations;
+        try {
+            claimedAutomations = claimDueAutomations(claimCandidates, now);
+        } finally {
+            for (ClaimCandidate claimCandidate : claimCandidates) {
+                if (!claimCandidate.isClaimed()) {
+                    claimCandidate.release();
                 }
             }
+        }
+        for (int i = claimedAutomations.size(); i < claimCandidates.size(); i++) {
+            result.skipped();
         }
         if (claimedAutomations.isEmpty()) {
             return result;
@@ -145,18 +164,21 @@ public class SchedulerRuntime {
         return result;
     }
 
-    private void ensureSystemAutomations(ZonedDateTime now) {
+    private List<PluginAutomation> ensureSystemAutomations(ZonedDateTime now) {
         PluginRuntimeSetting runtimeSetting = runtimeSettingSupplier.get();
+        if (runtimeSetting == null) {
+            runtimeSetting = new PluginRuntimeSetting();
+        }
         for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
             AutomationStore.AutomationDocumentSnapshot snapshot = automationStore.loadSnapshot();
             List<PluginAutomation> automations = new ArrayList<>(snapshot.getDocument().getItems());
             boolean changed = RuntimeSystemAutomations.ensureRuntimeMaintenance(automations, runtimeSetting, cronParser, now);
             if (!changed) {
-                return;
+                return snapshot.getDocument().getItems();
             }
             snapshot.getDocument().setItems(automations);
             if (automationStore.saveDocumentIfUnchanged(snapshot)) {
-                return;
+                return automations;
             }
         }
         throw new IllegalStateException("Failed to ensure scheduler system automations due to concurrent modification");
@@ -241,8 +263,46 @@ public class SchedulerRuntime {
         };
     }
 
-    private PluginAutomation claimDueAutomation(PluginAutomation automation, ZonedDateTime now, String leaseOwner) {
-        return claimAutomation(automation, now, leaseOwner, false);
+    private List<ClaimedAutomation> claimDueAutomations(List<ClaimCandidate> candidates, ZonedDateTime now) {
+        if (candidates.isEmpty()) {
+            return new ArrayList<>();
+        }
+        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
+            AutomationStore.AutomationDocumentSnapshot snapshot = automationStore.loadSnapshot();
+            boolean changed = false;
+            List<ClaimedAutomation> claimedAutomations = new ArrayList<>();
+            for (ClaimCandidate candidate : candidates) {
+                PluginAutomation current = findAutomation(snapshot.getDocument().getItems(), candidate.getAutomation());
+                if (current == null || !Boolean.TRUE.equals(current.getEnabled())) {
+                    continue;
+                }
+                if (current.getNextRunAt() == null) {
+                    updateNextRunAt(current, now);
+                    changed = true;
+                    continue;
+                }
+                if (current.getNextRunAt() > SchedulerTimes.millis(now)) {
+                    continue;
+                }
+                if (leaseActive(current, now)) {
+                    continue;
+                }
+                current.setLeaseOwner(candidate.getLeaseOwner());
+                current.setLeaseUntil(now.plusSeconds(LEASE_SECONDS).toString());
+                claimedAutomations.add(new ClaimedAutomation(copyAutomation(current), candidate));
+                changed = true;
+            }
+            if (!changed) {
+                return new ArrayList<>();
+            }
+            if (automationStore.saveDocumentIfUnchanged(snapshot)) {
+                for (ClaimedAutomation claimedAutomation : claimedAutomations) {
+                    claimedAutomation.getCandidate().markClaimed();
+                }
+                return claimedAutomations;
+            }
+        }
+        return new ArrayList<>();
     }
 
     private PluginAutomation claimAutomation(PluginAutomation automation, ZonedDateTime now, String leaseOwner, boolean ignoreSchedule) {
@@ -353,14 +413,24 @@ public class SchedulerRuntime {
     }
 
     private void executeRuntimeMaintenance(PluginAutomation automation, ZonedDateTime now) {
-        PluginRuntimeStates.cleanupDirtyRuntimeStates(PluginCoreDAO.getInstance().loadSnapshot());
+        PluginCore pluginCore = pluginCore();
+        PluginRuntimeStates.cleanupDirtyRuntimeStates(pluginCore);
         PluginRuntimeSetting runtimeSetting = RuntimeSystemAutomations.runtimeSettingFromPayload(automation.getPayload());
         if (!runtimeSetting.getOnDemandEnabled()) {
             com.zrlog.plugincore.server.plugin.PluginBootstrap.loadPluginsAsync();
         }
         if (runtimeSetting.getIdleStopEnabled()) {
-            new PluginIdleStopRunner().stopIdlePlugins(now.toInstant().toEpochMilli(), runtimeSetting);
+            new PluginIdleStopRunner().stopIdlePlugins(now.toInstant().toEpochMilli(), runtimeSetting, pluginCore);
         }
+    }
+
+    private PluginCore pluginCore() {
+        PluginCore pluginCore = pluginCoreSupplier.get();
+        return pluginCore == null ? new PluginCore() : pluginCore;
+    }
+
+    private static Supplier<PluginRuntimeSetting> runtimeSettingSupplier(PluginCore pluginCore) {
+        return () -> pluginCore == null ? new PluginRuntimeSetting() : pluginCore.getSetting().getRuntime();
     }
 
     private PluginAutomationRun newRun(PluginAutomation automation, ZonedDateTime now) {
@@ -393,27 +463,88 @@ public class SchedulerRuntime {
         return ZoneId.of(timezone);
     }
 
-    private static class ClaimedAutomation {
+    private PluginAutomation copyAutomation(PluginAutomation source) {
+        PluginAutomation target = new PluginAutomation();
+        target.setId(source.getId());
+        target.setPluginId(source.getPluginId());
+        target.setCapabilityKey(source.getCapabilityKey());
+        target.setName(source.getName());
+        target.setTriggerType(source.getTriggerType());
+        target.setCron(source.getCron());
+        target.setTimezone(source.getTimezone());
+        target.setEnabled(source.getEnabled());
+        target.setSystem(source.getSystem());
+        target.setDeletable(source.getDeletable());
+        target.setNextRunAt(source.getNextRunAt());
+        target.setLastRunAt(source.getLastRunAt());
+        target.setLeaseOwner(source.getLeaseOwner());
+        target.setLeaseUntil(source.getLeaseUntil());
+        target.setPayload(source.getPayload());
+        return target;
+    }
+
+    private static class ClaimCandidate {
         private final PluginAutomation automation;
         private final Semaphore lock;
         private final SchedulerTaskLock taskLock;
+        private final String leaseOwner;
+        private boolean claimed;
 
-        private ClaimedAutomation(PluginAutomation automation, Semaphore lock, SchedulerTaskLock taskLock) {
+        private ClaimCandidate(PluginAutomation automation, Semaphore lock, SchedulerTaskLock taskLock, String leaseOwner) {
             this.automation = automation;
             this.lock = lock;
             this.taskLock = taskLock;
+            this.leaseOwner = leaseOwner;
         }
 
         public PluginAutomation getAutomation() {
             return automation;
         }
 
+        public String getLeaseOwner() {
+            return leaseOwner;
+        }
+
+        public boolean isClaimed() {
+            return claimed;
+        }
+
+        public void markClaimed() {
+            this.claimed = true;
+        }
+
+        public void release() {
+            try {
+                taskLock.unlock();
+            } finally {
+                lock.release();
+            }
+        }
+    }
+
+    private static class ClaimedAutomation {
+        private final PluginAutomation automation;
+        private final ClaimCandidate candidate;
+
+        private ClaimedAutomation(PluginAutomation automation, ClaimCandidate candidate) {
+            this.automation = automation;
+            this.candidate = candidate;
+        }
+
+        public PluginAutomation getAutomation() {
+            return automation;
+        }
+
+        public ClaimCandidate getCandidate() {
+            return candidate;
+        }
+
         public Semaphore getLock() {
-            return lock;
+            return candidate.lock;
         }
 
         public SchedulerTaskLock getTaskLock() {
-            return taskLock;
+            return candidate.taskLock;
         }
     }
 

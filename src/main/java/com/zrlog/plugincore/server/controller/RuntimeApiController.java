@@ -10,6 +10,7 @@ import com.zrlog.plugin.common.KvRepository;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.message.PluginCapability;
 import com.zrlog.plugincore.server.Application;
+import com.zrlog.plugincore.server.config.PluginCore;
 import com.zrlog.plugincore.server.config.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.dao.WebSiteDAO;
@@ -74,8 +75,13 @@ public class RuntimeApiController extends Controller {
         if (getRequest().getMethod() == HttpMethod.POST) {
             return saveAutomation();
         }
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
         Map<String, Object> map = success();
-        map.put("items", automationResponses(automationService().listWithSystemAutomations(), pluginsById(), capabilitiesByKey()));
+        List<PluginCapability> capabilities = capabilityStore().listAll();
+        map.put("items", automationResponses(
+                automationService(pluginCore.getSetting().getRuntime()).listWithSystemAutomations(),
+                pluginsById(pluginCore),
+                capabilitiesByKey(capabilities)));
         map.put("systemTimezone", ZoneId.systemDefault().getId());
         return map;
     }
@@ -96,9 +102,11 @@ public class RuntimeApiController extends Controller {
     @ResponseBody
     public Map<String, Object> automationRunNow() {
         try {
-            PluginAutomationRun run = schedulerTickService().runNow(getRequest().getParaToStr("id"), ZonedDateTime.now());
+            PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+            PluginAutomationRun run = schedulerTickService(pluginCore).runNow(getRequest().getParaToStr("id"), ZonedDateTime.now());
             Map<String, Object> map = success();
-            map.put("item", automationRunResponse(run, pluginsById(), capabilitiesByKey()));
+            List<PluginCapability> capabilities = capabilityStore().listAll();
+            map.put("item", automationRunResponse(run, pluginsById(pluginCore), capabilitiesByKey(capabilities)));
             return map;
         } catch (RuntimeException e) {
             return error(e.getMessage());
@@ -108,7 +116,8 @@ public class RuntimeApiController extends Controller {
     @ResponseBody
     public Map<String, Object> schedulerTick() {
         try {
-            SchedulerTickResult result = schedulerTickService().tick(ZonedDateTime.now(), RuntimeSources.TICK);
+            SchedulerTickResult result = schedulerTickService(PluginCoreDAO.getInstance().loadSnapshot())
+                    .tick(ZonedDateTime.now(), RuntimeSources.TICK);
             Map<String, Object> map = success();
             map.put("result", result);
             return map;
@@ -121,7 +130,8 @@ public class RuntimeApiController extends Controller {
     public Map<String, Object> automationRuns() {
         Map<String, Object> map = success();
         RuntimePage<PluginAutomationRun> page = newestPage(automationRunStore().list(), 8);
-        map.put("items", automationRunResponses(page.getItems(), pluginsById(), capabilitiesByKey()));
+        List<PluginCapability> capabilities = capabilityStore().listAll();
+        map.put("items", automationRunResponses(page.getItems(), pluginsById(), capabilitiesByKey(capabilities)));
         putPage(map, page);
         return map;
     }
@@ -136,11 +146,12 @@ public class RuntimeApiController extends Controller {
     @ResponseBody
     public Map<String, Object> runtimeStart() {
         String pluginId = getRequest().getParaToStr("pluginId");
-        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOById(pluginId);
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOById(pluginCore, pluginId);
         if (pluginVO == null || pluginVO.getPlugin() == null) {
             return error("插件不存在");
         }
-        boolean started = runtimeStateService().ensureStarted(pluginVO.getPlugin().getId());
+        boolean started = runtimeStateService(pluginCore).ensureStarted(pluginVO.getPlugin().getId());
         if (!started) {
             return error("插件启动失败");
         }
@@ -152,7 +163,8 @@ public class RuntimeApiController extends Controller {
     @ResponseBody
     public Map<String, Object> runtimeStop() {
         String pluginId = getRequest().getParaToStr("pluginId");
-        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOById(pluginId);
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOById(pluginCore, pluginId);
         if (pluginVO == null || pluginVO.getPlugin() == null) {
             return error("插件不存在");
         }
@@ -161,12 +173,12 @@ public class RuntimeApiController extends Controller {
         }
         String pluginName = pluginDisplayName(pluginVO.getPlugin());
         try {
-            runtimeStateService().markStopping(pluginId, pluginName);
+            runtimeStateService(pluginCore).markStopping(pluginId, pluginName);
             PluginBootstrap.stopPlugin(pluginVO.getPlugin().getShortName());
-            runtimeStateService().markStopped(pluginId, pluginName);
+            runtimeStateService(pluginCore).markStopped(pluginId, pluginName);
             return success();
         } catch (RuntimeException e) {
-            runtimeStateService().markFailed(pluginId, pluginName, e.getMessage());
+            runtimeStateService(pluginCore).markFailed(pluginId, pluginName, e.getMessage());
             return error(e.getMessage());
         }
     }
@@ -242,8 +254,12 @@ public class RuntimeApiController extends Controller {
     }
 
     private Map<String, Plugin> pluginsById() {
+        return pluginsById(PluginCoreDAO.getInstance().loadSnapshot());
+    }
+
+    private Map<String, Plugin> pluginsById(PluginCore pluginCore) {
         Map<String, Plugin> pluginsById = new HashMap<String, Plugin>();
-        for (PluginVO pluginVO : PluginCoreDAO.getInstance().getPluginVOs()) {
+        for (PluginVO pluginVO : PluginCoreDAO.getInstance().getPluginVOs(pluginCore)) {
             if (pluginVO == null || pluginVO.getPlugin() == null || isBlank(pluginVO.getPlugin().getId())) {
                 continue;
             }
@@ -252,9 +268,9 @@ public class RuntimeApiController extends Controller {
         return pluginsById;
     }
 
-    private Map<String, PluginCapability> capabilitiesByKey() {
+    private Map<String, PluginCapability> capabilitiesByKey(List<PluginCapability> capabilities) {
         Map<String, PluginCapability> capabilitiesByKey = new HashMap<String, PluginCapability>();
-        for (PluginCapability capability : capabilityStore().listAll()) {
+        for (PluginCapability capability : capabilities) {
             if (capability == null || isBlank(capability.getPluginId()) || isBlank(capability.getKey())) {
                 continue;
             }
@@ -273,17 +289,18 @@ public class RuntimeApiController extends Controller {
 
     @ResponseBody
     public Map<String, Object> notificationChannels() {
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
         List<PluginCapability> providers = capabilityStore().listByType("notification_channel").stream()
                 .filter(item -> item.getExposure() != null && item.getExposure().contains("notification"))
                 .filter(item -> !isBlank(item.getChannel()))
                 .collect(Collectors.toList());
-        NotificationSetting setting = PluginCoreDAO.getInstance().loadSnapshot().getSetting().getNotification();
+        NotificationSetting setting = pluginCore.getSetting().getNotification();
         NotificationProviderResolver resolver = new NotificationProviderResolver();
         Set<String> channels = new HashSet<String>();
         for (PluginCapability provider : providers) {
             channels.add(provider.getChannel());
         }
-        Map<String, Plugin> pluginsById = pluginsById();
+        Map<String, Plugin> pluginsById = pluginsById(pluginCore);
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         for (String channel : channels) {
             PluginCapability selected = resolver.resolve(channel, providers, setting).orElse(null);
@@ -353,12 +370,13 @@ public class RuntimeApiController extends Controller {
 
     @ResponseBody
     public Map<String, Object> serviceProviders() {
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
         ServiceProviderResolver resolver = new ServiceProviderResolver();
         List<PluginCapability> providers = capabilityStore().listByType("service").stream()
                 .filter(item -> item.getExposure() != null && item.getExposure().contains("internal"))
                 .filter(item -> !isBlank(resolver.serviceNameFor(item)))
                 .collect(Collectors.toList());
-        ServiceSetting setting = PluginCoreDAO.getInstance().loadSnapshot().getSetting().getService();
+        ServiceSetting setting = pluginCore.getSetting().getService();
         Set<String> serviceNames = new HashSet<String>();
         for (PluginCapability provider : providers) {
             serviceNames.add(resolver.serviceNameFor(provider));
@@ -366,7 +384,7 @@ public class RuntimeApiController extends Controller {
         List<String> sortedServiceNames = new ArrayList<String>(serviceNames);
         Collections.sort(sortedServiceNames);
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
-        Map<String, Plugin> pluginsById = pluginsById();
+        Map<String, Plugin> pluginsById = pluginsById(pluginCore);
         for (String serviceName : sortedServiceNames) {
             PluginCapability selected = resolver.resolve(serviceName, providers, setting).orElse(null);
             boolean reviewRequired = resolver.reviewRequired(serviceName, providers, setting);
@@ -460,7 +478,7 @@ public class RuntimeApiController extends Controller {
             return error("评论插件不存在");
         }
         try {
-            new WebSiteDAO().saveOrUpdate(COMMENT_PLUGIN_NAME_KEY, shortName);
+            new WebSiteDAO().saveOrUpdateChanged(COMMENT_PLUGIN_NAME_KEY, shortName);
             return success();
         } catch (SQLException e) {
             return error(e.getMessage());
@@ -474,7 +492,7 @@ public class RuntimeApiController extends Controller {
                 ? providers.get(0).getShortName()
                 : DEFAULT_COMMENT_PLUGIN;
         try {
-            new WebSiteDAO().saveOrUpdate(COMMENT_PLUGIN_NAME_KEY, shortName);
+            new WebSiteDAO().saveOrUpdateChanged(COMMENT_PLUGIN_NAME_KEY, shortName);
             return success();
         } catch (SQLException e) {
             return error(e.getMessage());
@@ -485,7 +503,9 @@ public class RuntimeApiController extends Controller {
         try {
             PluginAutomation automation = readAutomation();
             Map<String, Object> map = success();
-            map.put("item", automationResponse(automationService().save(automation, null), pluginsById(), capabilitiesByKey()));
+            PluginAutomation saved = automationService().save(automation, null);
+            List<PluginCapability> capabilities = capabilityStore().listAll();
+            map.put("item", automationResponse(saved, pluginsById(), capabilitiesByKey(capabilities)));
             return map;
         } catch (RuntimeException e) {
             return error(e.getMessage());
@@ -837,18 +857,26 @@ public class RuntimeApiController extends Controller {
     }
 
     private RuntimeAutomationService automationService() {
-        return new RuntimeAutomationService(automationStore(), capabilityStore(), new BasicCronParser());
+        KvRepository kvStore = kvStore();
+        return new RuntimeAutomationService(new AutomationStore(kvStore), new CapabilityStore(kvStore), new BasicCronParser());
     }
 
-    private SchedulerTickService schedulerTickService() {
+    private RuntimeAutomationService automationService(PluginRuntimeSetting runtimeSetting) {
+        KvRepository kvStore = kvStore();
+        return new RuntimeAutomationService(new AutomationStore(kvStore), new CapabilityStore(kvStore), new BasicCronParser(), runtimeSetting);
+    }
+
+    private SchedulerTickService schedulerTickService(PluginCore pluginCore) {
+        KvRepository kvStore = kvStore();
         SchedulerRuntime runtime = new SchedulerRuntime(
-                automationStore(),
-                automationRunStore(),
-                capabilityStore(),
-                RuntimeCapabilityInvokerFactory.socket(kvStore()),
-                new BasicCronParser()
+                new AutomationStore(kvStore),
+                new AutomationRunStore(kvStore),
+                new CapabilityStore(kvStore),
+                RuntimeCapabilityInvokerFactory.socket(kvStore, pluginCore),
+                new BasicCronParser(),
+                pluginCore
         );
-        return new SchedulerTickService(PluginCoreDAO.getInstance().loadSnapshot().getSetting().getScheduler(), runtime);
+        return new SchedulerTickService(pluginCore.getSetting().getScheduler(), runtime);
     }
 
     private AutomationStore automationStore() {
@@ -867,8 +895,9 @@ public class RuntimeApiController extends Controller {
         return new NotificationDeliveryStore(kvStore());
     }
 
-    private PluginRuntimeStateService runtimeStateService() {
-        return new PluginRuntimeStateService(runtimeStateStore(), new DefaultPluginRuntimeStarter());
+    private PluginRuntimeStateService runtimeStateService(PluginCore pluginCore) {
+        KvRepository kvStore = kvStore();
+        return new PluginRuntimeStateService(new PluginRuntimeStateStore(kvStore), new DefaultPluginRuntimeStarter(pluginCore));
     }
 
     private int activeInvocationCount(String pluginId) {

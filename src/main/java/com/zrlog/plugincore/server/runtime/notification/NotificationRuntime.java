@@ -7,6 +7,7 @@ import com.zrlog.plugincore.server.runtime.capability.CapabilityInvoker;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.InvokeContext;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,8 +39,9 @@ public class NotificationRuntime {
             deliveryStore.append(failedDelivery(null, null, "No notification channels"));
             return result;
         }
+        List<PluginCapability> capabilities = capabilityStore.listAll();
         for (String channel : request.getChannels()) {
-            Optional<PluginCapability> provider = providerResolver.resolve(channel, capabilityStore.listAll(), notificationSetting);
+            Optional<PluginCapability> provider = providerResolver.resolve(channel, capabilities, notificationSetting);
             if (!provider.isPresent()) {
                 result.failed();
                 deliveryStore.append(failedDelivery(channel, null, "Notification channel provider not found"));

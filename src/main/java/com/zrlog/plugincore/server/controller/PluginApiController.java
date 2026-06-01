@@ -122,7 +122,8 @@ public class PluginApiController extends Controller {
         Map<String, Object> map = new HashMap<>();
 
         String pluginShortName = getRequest().getParaToStr("name");
-        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(pluginShortName);
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(pluginCore, pluginShortName);
         if (pluginVO == null || pluginVO.getPlugin() == null) {
             map.put("code", 1);
             map.put("message", "插件不存在");
@@ -134,7 +135,7 @@ public class PluginApiController extends Controller {
             map.put("message", "插件已经启动了");
             return map;
         }
-        boolean started = runtimeStateService().ensureStarted(pluginId);
+        boolean started = runtimeStateService(pluginCore).ensureStarted(pluginId);
         map.put("code", started ? 0 : 1);
         map.put("message", started ? "插件启动成功" : "插件启动失败");
         return map;
@@ -239,7 +240,8 @@ public class PluginApiController extends Controller {
     @ResponseBody
     public Map<String, Object> status() {
         List<String> plugins = PluginSessions.getAllLocalSessions().stream().map(e -> e.getPlugin().getShortName()).collect(Collectors.toList());
-        boolean onDemandEnabled = Boolean.TRUE.equals(PluginCoreDAO.getInstance().loadSnapshot().getSetting().getRuntime().getOnDemandEnabled());
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        boolean onDemandEnabled = Boolean.TRUE.equals(pluginCore.getSetting().getRuntime().getOnDemandEnabled());
         boolean allRunning = !onDemandEnabled && PluginBootstrap.allRunning();
         return statusResponse(onDemandEnabled, allRunning, plugins);
     }
@@ -249,7 +251,8 @@ public class PluginApiController extends Controller {
         return Map.of("code", 0, "status", status, "runningPlugins", runningPlugins);
     }
 
-    private PluginRuntimeStateService runtimeStateService() {
-        return new PluginRuntimeStateService(new PluginRuntimeStateStore(new WebsiteRuntimeKvStore()), new DefaultPluginRuntimeStarter());
+    private PluginRuntimeStateService runtimeStateService(PluginCore pluginCore) {
+        return new PluginRuntimeStateService(new PluginRuntimeStateStore(new WebsiteRuntimeKvStore()),
+                new DefaultPluginRuntimeStarter(pluginCore));
     }
 }

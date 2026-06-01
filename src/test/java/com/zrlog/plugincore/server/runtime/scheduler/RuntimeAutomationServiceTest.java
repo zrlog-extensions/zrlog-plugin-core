@@ -200,6 +200,47 @@ public class RuntimeAutomationServiceTest {
     }
 
     @Test
+    public void shouldPreserveBindingFromSaveSnapshotWithoutExtraAutomationRead() {
+        InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
+        CapabilityStore capabilityStore = new CapabilityStore(kvStore);
+        capabilityStore.register(capability("plugin-a", "reminder.scanDueTasks", "scheduler"));
+        AutomationStore automationStore = new AutomationStore(kvStore);
+        automationStore.saveAll(Collections.singletonList(automation("a1")));
+        RuntimeAutomationService service = service(kvStore, capabilityStore);
+        PluginAutomation update = new PluginAutomation();
+        update.setId("a1");
+        update.setName("Updated");
+        update.setCron("*/10 * * * *");
+        update.setEnabled(Boolean.TRUE);
+        kvStore.resetCounts();
+
+        PluginAutomation saved = service.save(update, now());
+
+        assertEquals("plugin-a", saved.getPluginId());
+        assertEquals("reminder.scanDueTasks", saved.getCapabilityKey());
+        assertEquals(1, kvStore.getCount(AutomationStore.KEY));
+        assertEquals(1, kvStore.putCount(AutomationStore.KEY));
+    }
+
+    @Test
+    public void shouldSkipSaveWriteWhenAutomationIsUnchangedAfterNormalization() {
+        InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
+        CapabilityStore capabilityStore = new CapabilityStore(kvStore);
+        capabilityStore.register(capability("plugin-a", "reminder.scanDueTasks", "scheduler"));
+        RuntimeAutomationService service = service(kvStore, capabilityStore);
+        PluginAutomation saved = service.save(automation(null), now());
+        kvStore.resetCounts();
+
+        PluginAutomation update = automation(saved.getId());
+        PluginAutomation unchanged = service.save(update, now());
+
+        assertEquals(saved.getId(), unchanged.getId());
+        assertEquals(1, kvStore.getCount(CapabilityStore.KEY));
+        assertEquals(1, kvStore.getCount(AutomationStore.KEY));
+        assertEquals(0, kvStore.putCount(AutomationStore.KEY));
+    }
+
+    @Test
     public void shouldReuseExistingAutomationWhenIdIsMissingForSameCapability() {
         InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
         CapabilityStore capabilityStore = new CapabilityStore(kvStore);

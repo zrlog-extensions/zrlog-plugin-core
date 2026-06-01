@@ -114,7 +114,8 @@ public final class PluginBootstrap {
 
     private static String resolvePluginId(File pluginFile) {
         String pluginShortName = PluginFiles.getPluginShortName(pluginFile);
-        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(pluginShortName);
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(pluginCore, pluginShortName);
         if (pluginVO != null && pluginVO.getPlugin() != null && !StringUtils.isEmpty(pluginVO.getPlugin().getId())) {
             return pluginVO.getPlugin().getId();
         }
@@ -143,12 +144,16 @@ public final class PluginBootstrap {
     }
 
     public static boolean shouldStartPluginFileForMetadata(File pluginFile, String pluginId) {
+        return shouldStartPluginFileForMetadata(pluginFile, pluginId, PluginCoreDAO.getInstance().loadSnapshot());
+    }
+
+    static boolean shouldStartPluginFileForMetadata(File pluginFile, String pluginId, PluginCore pluginCore) {
         if (pluginFile == null || !pluginFile.exists() || pluginFile.length() == 0 || StringUtils.isEmpty(pluginId)) {
             return false;
         }
-        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOById(pluginId);
+        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOById(pluginCore, pluginId);
         if (pluginVO == null || pluginVO.getPlugin() == null) {
-            pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(PluginFiles.getPluginShortName(pluginFile));
+            pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(pluginCore, PluginFiles.getPluginShortName(pluginFile));
         }
         if (pluginVO == null || pluginVO.getPlugin() == null) {
             return true;
@@ -160,9 +165,10 @@ public final class PluginBootstrap {
     }
 
     private static boolean hasPluginFileChanged(File pluginFile, String pluginId) {
-        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOById(pluginId);
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOById(pluginCore, pluginId);
         if (pluginVO == null || pluginVO.getPlugin() == null) {
-            pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(PluginFiles.getPluginShortName(pluginFile));
+            pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(pluginCore, PluginFiles.getPluginShortName(pluginFile));
         }
         if (pluginVO == null || StringUtils.isEmpty(pluginVO.getFileMd5())) {
             return false;

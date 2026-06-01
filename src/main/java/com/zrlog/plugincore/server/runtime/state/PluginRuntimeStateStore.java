@@ -176,6 +176,61 @@ public class PluginRuntimeStateStore {
                 "Failed to prune stale transient plugin runtime instances due to concurrent modification");
     }
 
+    public PluginRuntimeStateDocument cleanupInstancesAndLoad(long nowMs, long legacyTtlMs, long transientTtlMs) {
+        return cleanupInstancesAndRemoveStates(nowMs, legacyTtlMs, transientTtlMs, null);
+    }
+
+    public PluginRuntimeStateDocument cleanupInstancesAndRemoveStates(long nowMs,
+                                                                      long legacyTtlMs,
+                                                                      long transientTtlMs,
+                                                                      Predicate<PluginRuntimeState> removeStatePredicate) {
+        if (legacyTtlMs <= 0 && transientTtlMs <= 0 && removeStatePredicate == null) {
+            return loadDocument();
+        }
+        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
+            PluginRuntimeStateDocumentSnapshot snapshot = loadSnapshot();
+            boolean changed = cleanupDocumentInstances(snapshot.getDocument(), nowMs, legacyTtlMs, transientTtlMs);
+            if (removeStatePredicate != null) {
+                changed = snapshot.getDocument().getItems().removeIf(removeStatePredicate) || changed;
+            }
+            if (!changed) {
+                return snapshot.getDocument();
+            }
+            if (saveDocumentIfUnchanged(snapshot)) {
+                return snapshot.getDocument();
+            }
+        }
+        throw new IllegalStateException("Failed to cleanup plugin runtime states due to concurrent modification");
+    }
+
+    private boolean cleanupDocumentInstances(PluginRuntimeStateDocument document,
+                                             long nowMs,
+                                             long legacyTtlMs,
+                                             long transientTtlMs) {
+        boolean changed = false;
+        for (PluginRuntimeState state : document.getItems()) {
+            if (state.getInstances() == null || state.getInstances().isEmpty()) {
+                continue;
+            }
+            boolean removed = state.getInstances().removeIf(instance ->
+                    isExpiredLease(instance, nowMs, legacyTtlMs)
+                            || isStaleTransientLease(instance, nowMs, transientTtlMs));
+            if (removed) {
+                PluginRuntimeStateAggregator.aggregate(state);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private boolean isExpiredLease(PluginRuntimeInstanceState instance, long nowMs, long legacyTtlMs) {
+        return legacyTtlMs > 0 && PluginRuntimeLeases.isExpired(instance, nowMs, legacyTtlMs);
+    }
+
+    private boolean isStaleTransientLease(PluginRuntimeInstanceState instance, long nowMs, long transientTtlMs) {
+        return transientTtlMs > 0 && isStaleTransientInstance(instance, nowMs, transientTtlMs);
+    }
+
     private void pruneInstances(Predicate<PluginRuntimeInstanceState> predicate, String failureMessage) {
         for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
             PluginRuntimeStateDocumentSnapshot snapshot = loadSnapshot();
