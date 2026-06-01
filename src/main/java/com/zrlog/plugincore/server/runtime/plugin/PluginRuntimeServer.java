@@ -1,9 +1,9 @@
 package com.zrlog.plugincore.server.runtime.plugin;
 
-import com.zrlog.plugincore.server.runtime.PluginRuntimeContext;
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.plugin.transport.PluginNioServer;
-import com.zrlog.plugincore.server.runtime.scheduler.InternalSchedulerRunner;
+
+import java.util.Objects;
 
 public class PluginRuntimeServer {
 
@@ -11,14 +11,12 @@ public class PluginRuntimeServer {
     private final PluginBootstrapService pluginBootstrap;
     private final Runnable schedulerStarter;
 
-    public PluginRuntimeServer() {
-        this(new PluginNioServer(), PluginRuntimeContext.current().pluginBootstrap(), InternalSchedulerRunner::start);
-    }
-
-    PluginRuntimeServer(PluginNioServer nioServer, PluginBootstrapService pluginBootstrap, Runnable schedulerStarter) {
-        this.nioServer = nioServer;
-        this.pluginBootstrap = pluginBootstrap;
-        this.schedulerStarter = schedulerStarter;
+    public PluginRuntimeServer(PluginNioServer nioServer,
+                               PluginBootstrapService pluginBootstrap,
+                               Runnable schedulerStarter) {
+        this.nioServer = Objects.requireNonNull(nioServer);
+        this.pluginBootstrap = Objects.requireNonNull(pluginBootstrap);
+        this.schedulerStarter = Objects.requireNonNull(schedulerStarter);
     }
 
     public boolean start(boolean bootstrapRuntimeWorkers) {

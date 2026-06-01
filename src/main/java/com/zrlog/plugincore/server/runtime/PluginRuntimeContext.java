@@ -15,9 +15,6 @@ import java.util.Map;
 
 public final class PluginRuntimeContext {
 
-    // Composition root only. Add wiring here; keep runtime behavior in the services.
-    private static final PluginRuntimeContext INSTANCE = defaultContext();
-
     private final PluginBootstrapService pluginBootstrap;
     private final PluginSessionRegistry pluginSessions;
     private final PluginConfig pluginConfig;
@@ -33,8 +30,12 @@ public final class PluginRuntimeContext {
         this.hostConnection = hostConnection;
     }
 
-    public static PluginRuntimeContext current() {
-        return INSTANCE;
+    public static PluginRuntimeContext unconfigured() {
+        return buildContext(PluginConfig.unconfigured(), PluginHostConnection.defaults());
+    }
+
+    public static PluginRuntimeContext create(PluginConfig pluginConfig, PluginHostConnection hostConnection) {
+        return buildContext(pluginConfig, hostConnection);
     }
 
     public PluginBootstrapService pluginBootstrap() {
@@ -53,10 +54,8 @@ public final class PluginRuntimeContext {
         return hostConnection;
     }
 
-    private static PluginRuntimeContext defaultContext() {
+    private static PluginRuntimeContext buildContext(PluginConfig pluginConfig, PluginHostConnection hostConnection) {
         Map<String, String> requiredPlugins = requiredPlugins();
-        PluginConfig pluginConfig = new PluginConfig();
-        PluginHostConnection hostConnection = new PluginHostConnection();
         PluginSessionRegistry sessionRegistry = new PluginSessionRegistry();
         PluginProcessRuntime processRuntime = new PluginProcessRuntime(sessionRegistry, pluginConfig);
         PluginLifecycleService lifecycleService = new PluginLifecycleService(processRuntime, sessionRegistry);
