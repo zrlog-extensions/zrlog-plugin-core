@@ -199,6 +199,7 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
     const navigate = useNavigate();
     const screens = Grid.useBreakpoint();
     const isMobile = Boolean((screens.xs || screens.sm) && !screens.md);
+    const isCompact = !screens.lg;
     const [messageApi, contextHolder] = message.useMessage({maxCount: 3});
     const [searchText, setSearchText] = useState("");
     const [viewType, setViewType] = useState<'grid' | 'list'>(() => {
@@ -379,7 +380,7 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
     ];
 
     return (
-        <Content style={{ padding: '20px 20px 24px 20px' }}>
+        <Content style={{ padding: isMobile ? '12px 12px 20px' : isCompact ? '16px' : '20px 20px 24px 20px' }}>
             {contextHolder}
             <CustomStyles dark={data.dark} />
             
@@ -500,7 +501,7 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
                             prefix={<SearchOutlined style={{ color: data.dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)' }} />}
                             value={searchText}
                             onChange={e => setSearchText(e.target.value)}
-                            style={{ width: 260, borderRadius: '8px', height: '36px' }}
+                            style={{ width: isMobile ? '100%' : 260, borderRadius: '8px', height: '36px' }}
                             allowClear
                         />
                         <Segmented
@@ -549,13 +550,13 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
 
                             {/* Grid View */}
                             {viewType === 'grid' && (
-                                <Row gutter={[20, 20]} style={{ marginLeft: 0, marginRight: 0 }}>
+                                <Row gutter={[isCompact ? 16 : 20, isCompact ? 16 : 20]} style={{ marginLeft: 0, marginRight: 0 }}>
                                     {filteredPlugins.map((plugin) => {
                                         const isReq = isRequired(plugin.shortName);
                                         const services = displayServices(plugin);
                                         
                                         return (
-                                            <Col md={8} lg={6} xxl={4} xs={24} sm={12} key={plugin.shortName}>
+                                            <Col md={12} lg={6} xxl={4} xs={24} sm={12} key={plugin.shortName}>
                                                 <Card
                                                     className="plugin-card-hover"
                                                     style={{
