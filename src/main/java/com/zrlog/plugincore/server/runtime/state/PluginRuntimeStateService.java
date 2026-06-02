@@ -157,16 +157,6 @@ public class PluginRuntimeStateService {
         });
     }
 
-    public void markIdle(String pluginId, String pluginName) {
-        update(pluginId, pluginName, (state, instance) -> {
-            long now = now();
-            instance.setStatus(PluginStatus.IDLE.runtimeStatus());
-            instance.setLastActiveAt(now);
-            PluginRuntimeLeases.renew(instance, now);
-            instance.setLastError(null);
-        });
-    }
-
     public void markStopping(String pluginId, String pluginName) {
         update(pluginId, pluginName, (state, instance) -> {
             long now = now();

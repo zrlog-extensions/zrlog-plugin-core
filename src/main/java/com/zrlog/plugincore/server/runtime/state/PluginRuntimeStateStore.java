@@ -160,14 +160,6 @@ public class PluginRuntimeStateStore {
         throw new IllegalStateException("Failed to prune inactive plugin runtime instances due to concurrent modification");
     }
 
-    public void pruneExpiredLeases(long nowMs, long legacyTtlMs) {
-        if (legacyTtlMs <= 0) {
-            return;
-        }
-        pruneInstances(instance -> PluginRuntimeLeases.isExpired(instance, nowMs, legacyTtlMs),
-                "Failed to prune expired plugin runtime instance leases due to concurrent modification");
-    }
-
     public void pruneStaleTransientInstances(long nowMs, long transientTtlMs) {
         if (transientTtlMs <= 0) {
             return;

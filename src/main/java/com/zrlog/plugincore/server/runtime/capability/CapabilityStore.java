@@ -122,12 +122,6 @@ public class CapabilityStore {
         return loadDocument().getItems();
     }
 
-    public List<PluginCapability> listByPluginId(String pluginId) {
-        return listAll().stream()
-                .filter(item -> Objects.equals(pluginId, item.getPluginId()))
-                .collect(Collectors.toList());
-    }
-
     public List<PluginCapability> listByExposure(String exposure) {
         return listAll().stream()
                 .filter(item -> item.getExposure() != null && item.getExposure().contains(exposure))

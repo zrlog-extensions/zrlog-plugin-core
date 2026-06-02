@@ -64,11 +64,6 @@ public class PluginHandle implements HttpErrorHandle {
         return new PluginRequestUriInfo(pluginShortName, action);
     }
 
-    public static void main(String[] args) {
-        PluginRequestUriInfo pluginRequestUriInfo = parseRequestUri("/admin/plugins/oss//assets/js/bootstrap-switch.js");
-        System.out.println(pluginRequestUriInfo.getName() + " -> " + pluginRequestUriInfo.getAction());
-    }
-
     private static File convertToFile(byte[] data, String saveFilePath) {
         int fileDescLength = HexaConversionUtil.byteArrayToIntH(HexaConversionUtil.subByts(data, 0, 4));
         FileDesc fileDesc = new Gson().fromJson(new String(HexaConversionUtil.subByts(data, 4, fileDescLength)), FileDesc.class);

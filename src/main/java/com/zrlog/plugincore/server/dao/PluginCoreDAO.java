@@ -2,7 +2,6 @@ package com.zrlog.plugincore.server.dao;
 
 import com.google.gson.Gson;
 import com.zrlog.plugin.common.LoggerUtil;
-import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.vo.PluginVO;
 
@@ -12,7 +11,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 public class PluginCoreDAO {
 
@@ -87,11 +85,6 @@ public class PluginCoreDAO {
 
     protected boolean compareAndSetPluginCore(String expectedValue, String expectedRemark, String value) throws SQLException {
         return new WebSiteDAO().compareAndSet(PLUGIN_DB_KEY, expectedValue, expectedRemark, value);
-    }
-
-    public List<Plugin> getPlugins() {
-        DaoTrace.info(LOGGER, "pluginCore.getPlugins", null);
-        return loadSnapshot().getPluginInfoMap().values().stream().map(PluginVO::getPlugin).collect(Collectors.toList());
     }
 
     public Map<String, PluginVO> getPluginInfoMap() {
