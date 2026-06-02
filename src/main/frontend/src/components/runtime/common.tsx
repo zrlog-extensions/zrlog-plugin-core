@@ -285,7 +285,6 @@ type PluginIdentityOptions = {
     pluginPreviewImageBase64?: string;
     avatarSize?: number;
     iconColor?: string;
-    iconBackgroundColor?: string;
 }
 
 export const renderPluginIdentity = ({
@@ -295,7 +294,6 @@ export const renderPluginIdentity = ({
     pluginPreviewImageBase64,
     avatarSize = 34,
     iconColor,
-    iconBackgroundColor
 }: PluginIdentityOptions) => {
     const image = textOrEmpty(pluginPreviewImageBase64);
     const titleText = typeof title === "string" ? textOrEmpty(title) : "";
@@ -319,7 +317,6 @@ export const renderPluginIdentity = ({
                 icon={!image ? <ApiOutlined style={iconColor ? {color: iconColor} : undefined} /> : undefined}
                 style={{
                     flexShrink: 0,
-                    ...(iconBackgroundColor ? {backgroundColor: iconBackgroundColor} : {})
                 }}
             />
             <Space direction="vertical" size={0} style={{minWidth: 0, maxWidth: "100%"}}>
