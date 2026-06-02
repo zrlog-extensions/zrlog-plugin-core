@@ -18,6 +18,8 @@ import com.zrlog.plugin.data.codec.MsgPacketStatus;
 import com.zrlog.plugin.common.BasicCronParser;
 import com.zrlog.plugin.message.CapabilityInvokeRequest;
 import com.zrlog.plugin.message.CapabilityInvokeResult;
+import com.zrlog.plugin.message.NotificationChannelProvider;
+import com.zrlog.plugin.message.NotificationChannelQueryResult;
 import com.zrlog.plugin.message.NotificationRequest;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.message.PluginCapability;
@@ -218,15 +220,13 @@ public class ServerActionHandler implements IActionHandler {
             session.sendJsonMsg(notificationChannelQueryResult(), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "query notification channels error", e);
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", false);
-            result.put("code", 1);
-            result.put("message", e.getMessage() == null ? "query notification channels failed" : e.getMessage());
+            NotificationChannelQueryResult result = NotificationChannelQueryResult.error(
+                    e.getMessage() == null ? "query notification channels failed" : e.getMessage());
             session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
         }
     }
 
-    private Map<String, Object> notificationChannelQueryResult() {
+    private NotificationChannelQueryResult notificationChannelQueryResult() {
         WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
         PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
         List<PluginCapability> providers = new CapabilityStore(kvStore).listByType("notification_channel");
@@ -244,7 +244,7 @@ public class ServerActionHandler implements IActionHandler {
         NotificationProviderResolver resolver = new NotificationProviderResolver();
         NotificationSetting setting = pluginCore.getSetting().getNotification();
         Map<String, Plugin> pluginsById = pluginsById(pluginCore);
-        List<Map<String, Object>> items = new ArrayList<>();
+        List<NotificationChannelProvider> items = new ArrayList<>();
         for (String channel : channels) {
             PluginCapability selected = resolver.resolve(channel, notificationProviders, setting).orElse(null);
             boolean reviewRequired = resolver.reviewRequired(channel, notificationProviders, setting);
@@ -252,29 +252,25 @@ public class ServerActionHandler implements IActionHandler {
                 if (!Objects.equals(channel, provider.getChannel())) {
                     continue;
                 }
-                Map<String, Object> item = new HashMap<>();
-                item.put("channel", channel);
-                item.put("providerPluginId", provider.getPluginId());
                 Plugin plugin = pluginsById.get(provider.getPluginId());
-                item.put("providerPluginName", pluginDisplayName(plugin));
-                item.put("providerPluginPreviewImageBase64", pluginPreviewImageBase64(plugin));
-                item.put("capabilityKey", provider.getKey());
-                item.put("capabilityLabel", provider.getLabel());
-                item.put("providerStatus", "available");
-                item.put("selected", selected != null
+                NotificationChannelProvider item = new NotificationChannelProvider();
+                item.setChannel(channel);
+                item.setProviderPluginId(provider.getPluginId());
+                item.setProviderPluginName(pluginDisplayName(plugin));
+                item.setProviderPluginPreviewImageBase64(pluginPreviewImageBase64(plugin));
+                item.setChannelIconBase64(pluginPreviewImageBase64(plugin));
+                item.setCapabilityKey(provider.getKey());
+                item.setCapabilityLabel(provider.getLabel());
+                item.setProviderStatus("available");
+                item.setSelected(selected != null
                         && Objects.equals(selected.getPluginId(), provider.getPluginId())
                         && Objects.equals(selected.getKey(), provider.getKey()));
-                item.put("confirmed", configuredNotificationProvider(setting, channel, provider));
-                item.put("reviewRequired", reviewRequired);
+                item.setConfirmed(configuredNotificationProvider(setting, channel, provider));
+                item.setReviewRequired(reviewRequired);
                 items.add(item);
             }
         }
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", true);
-        result.put("code", 0);
-        result.put("message", "成功");
-        result.put("items", items);
-        return result;
+        return NotificationChannelQueryResult.success(items);
     }
 
     private Map<String, Plugin> pluginsById(PluginCore pluginCore) {

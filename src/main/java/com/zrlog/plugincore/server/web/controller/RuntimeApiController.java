@@ -8,6 +8,8 @@ import com.hibegin.http.server.api.HttpRequest;
 import com.hibegin.http.server.web.Controller;
 import com.zrlog.plugin.common.BasicCronParser;
 import com.zrlog.plugin.common.KvRepository;
+import com.zrlog.plugin.message.NotificationChannelProvider;
+import com.zrlog.plugin.message.NotificationChannelQueryResult;
 import com.zrlog.plugin.message.NotificationRequest;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.message.PluginCapability;
@@ -291,7 +293,7 @@ public class RuntimeApiController extends Controller {
     }
 
     @ResponseBody
-    public Map<String, Object> notificationChannels() {
+    public NotificationChannelQueryResult notificationChannels() {
         PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
         List<PluginCapability> providers = capabilityStore().listByType("notification_channel").stream()
                 .filter(item -> item.getExposure() != null && item.getExposure().contains("notification"))
@@ -305,7 +307,7 @@ public class RuntimeApiController extends Controller {
         }
         Map<String, Plugin> pluginsById = pluginsById(pluginCore);
         Map<String, NotificationDelivery> latestDeliveryByProvider = latestNotificationDeliveryByProvider(notificationDeliveryStore().list());
-        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        List<NotificationChannelProvider> items = new ArrayList<NotificationChannelProvider>();
         for (String channel : channels) {
             PluginCapability selected = resolver.resolve(channel, providers, setting).orElse(null);
             boolean reviewRequired = resolver.reviewRequired(channel, providers, setting);
@@ -313,33 +315,32 @@ public class RuntimeApiController extends Controller {
                 if (!Objects.equals(channel, provider.getChannel())) {
                     continue;
                 }
-                Map<String, Object> item = new HashMap<String, Object>();
-                item.put("channel", channel);
-                item.put("providerPluginId", provider.getPluginId());
                 Plugin plugin = pluginsById.get(provider.getPluginId());
-                item.put("providerPluginName", pluginDisplayName(plugin));
-                item.put("providerPluginPreviewImageBase64", pluginPreviewImageBase64(plugin));
-                item.put("capabilityKey", provider.getKey());
-                item.put("capabilityLabel", provider.getLabel());
-                item.put("providerStatus", "available");
-                item.put("selected", selected != null
+                NotificationChannelProvider item = new NotificationChannelProvider();
+                item.setChannel(channel);
+                item.setProviderPluginId(provider.getPluginId());
+                item.setProviderPluginName(pluginDisplayName(plugin));
+                item.setProviderPluginPreviewImageBase64(pluginPreviewImageBase64(plugin));
+                item.setChannelIconBase64(pluginPreviewImageBase64(plugin));
+                item.setCapabilityKey(provider.getKey());
+                item.setCapabilityLabel(provider.getLabel());
+                item.setProviderStatus("available");
+                item.setSelected(selected != null
                         && Objects.equals(selected.getPluginId(), provider.getPluginId())
                         && Objects.equals(selected.getKey(), provider.getKey()));
-                item.put("confirmed", isConfiguredProvider(setting, channel, provider));
-                item.put("reviewRequired", reviewRequired);
+                item.setConfirmed(isConfiguredProvider(setting, channel, provider));
+                item.setReviewRequired(reviewRequired);
                 NotificationDelivery lastDelivery = latestDeliveryByProvider.get(notificationProviderKey(channel, provider.getPluginId(), provider.getKey()));
                 if (lastDelivery != null) {
-                    item.put("lastDeliveryStatus", lastDelivery.getStatus());
-                    item.put("lastDeliveryAt", lastDelivery.getCreatedAt());
-                    item.put("lastDeliveryError", lastDelivery.getErrorMessage());
-                    item.put("updatedAt", lastDelivery.getCreatedAt());
+                    item.setLastDeliveryStatus(lastDelivery.getStatus());
+                    item.setLastDeliveryAt(lastDelivery.getCreatedAt());
+                    item.setLastDeliveryError(lastDelivery.getErrorMessage());
+                    item.setUpdatedAt(lastDelivery.getCreatedAt());
                 }
                 items.add(item);
             }
         }
-        Map<String, Object> map = success();
-        map.put("items", items);
-        return map;
+        return NotificationChannelQueryResult.success(items);
     }
 
     @ResponseBody
