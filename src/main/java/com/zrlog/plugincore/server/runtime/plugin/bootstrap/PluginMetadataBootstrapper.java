@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 
 public class PluginMetadataBootstrapper {
 
-    private static final long PLUGIN_METADATA_WAIT_TIMEOUT_MS = 30000L;
+    private static final long PLUGIN_METADATA_WAIT_TIMEOUT_MS = 10000L;
     private static final long PLUGIN_METADATA_WAIT_INTERVAL_MS = 100L;
 
     private final PluginProcessRuntime processRuntime;

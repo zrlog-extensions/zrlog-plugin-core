@@ -6,6 +6,7 @@ import com.hibegin.http.server.web.Controller;
 import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.common.KvRepository;
 import com.zrlog.plugin.common.LoggerUtil;
+import com.zrlog.plugin.common.PluginExecutionTimeouts;
 import com.zrlog.plugin.data.codec.MsgPacket;
 import com.zrlog.plugin.data.codec.MsgPacketStatus;
 import com.zrlog.plugin.message.PluginCapability;
@@ -107,15 +108,17 @@ public class PluginController extends Controller {
         String pluginId = session.getPlugin().getId();
         String pluginName = PluginSessions.nameOrShortName(session.getPlugin());
         KvRepository runtimeKvStore = kvStore();
-        String capabilityKey = serviceCapabilityKey(name, pluginId,
+        PluginCapability serviceCapability = serviceCapability(name, pluginId,
                 new CapabilityStore(runtimeKvStore).listByType("service"));
+        String capabilityKey = serviceCapabilityKey(name, serviceCapability);
         String requestId = UUID.randomUUID().toString();
         String errorMessage = null;
         long startedAtMs = System.currentTimeMillis();
         stateService.markInvocationStart(pluginId, pluginName);
         try {
             int msgId = session.requestService(name, request.decodeParamMap());
-            MsgPacket responseMsgPacket = session.getResponseMsgPacketByMsgId(msgId);
+            MsgPacket responseMsgPacket = session.getResponseMsgPacketByMsgId(msgId,
+                    PluginExecutionTimeouts.executionTimeout(serviceCapability == null ? null : serviceCapability.getTimeoutSeconds()));
             if (responseMsgPacket == null) {
                 errorMessage = "service " + name + " not response";
                 getResponse().renderCode(500);
@@ -134,13 +137,16 @@ public class PluginController extends Controller {
         }
     }
 
-    private String serviceCapabilityKey(String serviceName, String pluginId, List<PluginCapability> serviceCapabilities) {
-        PluginCapability provider = new ServiceProviderResolver()
+    private PluginCapability serviceCapability(String serviceName, String pluginId, List<PluginCapability> serviceCapabilities) {
+        return new ServiceProviderResolver()
                 .providersFor(serviceName, serviceCapabilities)
                 .stream()
                 .filter(item -> Objects.equals(pluginId, item.getPluginId()))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private String serviceCapabilityKey(String serviceName, PluginCapability provider) {
         return provider == null || StringUtils.isEmpty(provider.getKey()) ? serviceName : provider.getKey();
     }
 

@@ -2,6 +2,7 @@ package com.zrlog.plugincore.server.runtime.capability;
 
 import com.zrlog.plugin.message.CapabilityInvokeResult;
 import com.zrlog.plugin.message.PluginCapability;
+import com.zrlog.plugin.common.PluginExecutionTimeouts;
 import com.zrlog.plugincore.server.runtime.invocation.CapabilityInvocationLog;
 import com.zrlog.plugincore.server.runtime.invocation.InvocationLogStore;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
@@ -49,6 +50,9 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
             result = error(validationError);
             appendLog(pluginId, capabilityKey, context, result, startedAtMs, capability);
             return result;
+        }
+        if (context.getTimeoutSeconds() == null) {
+            context.setTimeoutSeconds(timeoutSeconds(capability));
         }
         String pluginName = capability.map(PluginCapability::getPluginName).orElse(null);
         if (!stateService.ensureStarted(pluginId)) {
@@ -104,6 +108,15 @@ public class TrackingCapabilityInvoker implements CapabilityInvoker {
             return Optional.empty();
         }
         return capabilityStore.find(pluginId, capabilityKey);
+    }
+
+    private Integer timeoutSeconds(Optional<PluginCapability> capability) {
+        if (capability.isPresent()
+                && capability.get().getTimeoutSeconds() != null
+                && capability.get().getTimeoutSeconds() > 0) {
+            return capability.get().getTimeoutSeconds();
+        }
+        return PluginExecutionTimeouts.DEFAULT_EXECUTION_TIMEOUT_SECONDS;
     }
 
     private boolean isExposedTo(PluginCapability capability, String source) {

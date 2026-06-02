@@ -69,6 +69,7 @@ export type Capability = {
     channel?: string;
     defaultCron?: string;
     timezone?: string;
+    timeoutSeconds?: number;
 }
 
 export type Automation = {
@@ -259,6 +260,23 @@ export const runtimeTabFromPath = (pathname: string): RuntimeTab => {
 export const formatTime = (value?: string) => value && value.length > 0 ? value : "-";
 export const formatEpoch = (value?: number) => value ? new Date(value).toLocaleString() : "-";
 export const textOrEmpty = (value?: string) => value && value.trim().length > 0 ? value.trim() : "";
+export const formatDurationSeconds = (value?: number) => {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+        return "-";
+    }
+    if (seconds >= 3600) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        return minutes > 0 ? `${hours} 小时 ${minutes} 分钟` : `${hours} 小时`;
+    }
+    if (seconds >= 60) {
+        const minutes = Math.floor(seconds / 60);
+        const remainSeconds = seconds % 60;
+        return remainSeconds > 0 ? `${minutes} 分 ${remainSeconds} 秒` : `${minutes} 分钟`;
+    }
+    return `${seconds} 秒`;
+};
 
 type PluginIdentityOptions = {
     title: ReactNode;
@@ -378,13 +396,33 @@ export const useCapabilityView = (capabilities: Capability[]) => {
         return textOrEmpty(capability?.description);
     };
 
+    const capabilityTimeoutLabel = (pluginId?: string, key?: string) => {
+        const capability = capabilityOf(pluginId, key);
+        if (!capability?.timeoutSeconds) {
+            return "";
+        }
+        return `执行超时 ${formatDurationSeconds(capability.timeoutSeconds)}`;
+    };
+
+    const capabilityDescriptionNode = (pluginId?: string, key?: string): ReactNode => {
+        const description = capabilityDescription(pluginId, key);
+        const timeoutLabel = capabilityTimeoutLabel(pluginId, key);
+        if (!description) {
+            return timeoutLabel || undefined;
+        }
+        if (!timeoutLabel) {
+            return description;
+        }
+        return `${description} · ${timeoutLabel}`;
+    };
+
     const capabilityMeta = (pluginId?: string, key?: string) => {
         const capability = capabilityOf(pluginId, key);
         return {
             label: capabilityLabel(pluginId, key),
             pluginName: pluginNameLabel(pluginId, capability?.pluginName),
             pluginPreviewImageBase64: pluginPreviewImage(pluginId, capability?.pluginPreviewImageBase64),
-            description: textOrEmpty(capability?.description),
+            description: capabilityDescriptionNode(pluginId, key),
             key: textOrEmpty(key)
         };
     };
@@ -427,6 +465,7 @@ export const useCapabilityView = (capabilities: Capability[]) => {
     return {
         capabilityDescription,
         capabilityLabel,
+        capabilityTimeoutLabel,
         pluginNameLabel,
         renderPlugin,
         renderCapability

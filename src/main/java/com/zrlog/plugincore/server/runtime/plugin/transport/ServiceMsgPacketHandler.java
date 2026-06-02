@@ -3,6 +3,7 @@ package com.zrlog.plugincore.server.runtime.plugin.transport;
 import com.google.gson.Gson;
 import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.common.KvRepository;
+import com.zrlog.plugin.common.PluginExecutionTimeouts;
 import com.zrlog.plugin.data.codec.MsgPacket;
 import com.zrlog.plugin.data.codec.MsgPacketStatus;
 import com.zrlog.plugin.message.PluginCapability;
@@ -139,7 +140,7 @@ public class ServiceMsgPacketHandler {
                     ServiceInvocationLogs.append(runtimeKvStore, invocationPluginId, invocationCapabilityKey, invocationRequestId, null,
                             invocationStartedAtMs, System.currentTimeMillis(), callbackErrorMessage);
                 }
-            });
+            }, PluginExecutionTimeouts.executionTimeout(provider == null ? null : provider.getTimeoutSeconds()));
         } catch (Exception e) {
             if (targetPluginId != null && stateService != null) {
                 stateService.markInvocationEnd(targetPluginId, targetPluginName, e.getMessage());

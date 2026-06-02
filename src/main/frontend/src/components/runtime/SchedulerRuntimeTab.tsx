@@ -77,7 +77,7 @@ const SchedulerRuntimeTab: React.FC<Props> = () => {
     const [form] = Form.useForm();
     const maintenanceLoadStrategy = Form.useWatch("maintenanceLoadStrategy", form) as RuntimeLoadStrategy | undefined;
     const maintenanceIdleStopEnabled = Form.useWatch("maintenanceIdleStopEnabled", form);
-    const {capabilityLabel, pluginNameLabel, renderPlugin} = useCapabilityView(capabilities);
+    const {capabilityLabel, capabilityTimeoutLabel, pluginNameLabel, renderPlugin} = useCapabilityView(capabilities);
 
     const scheduledCapabilities = useMemo(() => capabilities.filter(item =>
         item.type === "scheduled" && item.exposure?.includes("scheduler")
@@ -311,8 +311,11 @@ const SchedulerRuntimeTab: React.FC<Props> = () => {
     const automationRunTaskLabel = (run: AutomationRun) =>
         stripOwnerFromTargetLabel(run.targetLabel, automationOwnerLabel(run.pluginId, run.pluginName)) ||
         capabilityLabel(run.pluginId, run.capabilityKey);
-    const automationLastRunDescription = (automation: Automation) =>
-        `上次执行 ${formatEpoch(automation.lastRunAt)}`;
+    const automationLastRunDescription = (automation: Automation) => {
+        const timeoutLabel = capabilityTimeoutLabel(automation.pluginId, automation.capabilityKey);
+        const lastRunLabel = `上次执行 ${formatEpoch(automation.lastRunAt)}`;
+        return timeoutLabel ? `${lastRunLabel} · ${timeoutLabel}` : lastRunLabel;
+    };
     const automationStatusTag = (automation: Automation) => isSystemAutomation(automation)
         ? <Tag color="processing">系统</Tag>
         : automation.enabled === false ? <Tag>停用</Tag> : <Tag color="success">启用</Tag>;
@@ -660,7 +663,12 @@ crons = ["*/5 * * * *"]`;
                             }}
                             options={scheduledCapabilities.map(item => ({
                                 value: `${item.pluginId}@@${item.key}`,
-                                label: `${pluginNameLabel(item.pluginId, item.pluginName)} / ${capabilityLabel(item.pluginId, item.key, item.label)}`
+                                label: (
+                                    <Space direction="vertical" size={0}>
+                                        <Text>{pluginNameLabel(item.pluginId, item.pluginName)} / {capabilityLabel(item.pluginId, item.key, item.label)}</Text>
+                                        <Text type="secondary" style={{fontSize: 12}}>{capabilityTimeoutLabel(item.pluginId, item.key)}</Text>
+                                    </Space>
+                                )
                             }))}
                         />
                     </Form.Item>

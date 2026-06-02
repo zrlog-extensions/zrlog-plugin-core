@@ -3,6 +3,7 @@ package com.zrlog.plugincore.server.runtime.capability;
 import com.google.gson.Gson;
 import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.common.IdUtil;
+import com.zrlog.plugin.common.PluginExecutionTimeouts;
 import com.zrlog.plugin.data.codec.MsgPacket;
 import com.zrlog.plugin.data.codec.MsgPacketStatus;
 import com.zrlog.plugin.message.CapabilityInvokeRequest;
@@ -20,7 +21,7 @@ public class SocketCapabilityInvoker implements CapabilityInvoker {
     private final Duration readTimeout;
 
     public SocketCapabilityInvoker() {
-        this(Duration.ofSeconds(60));
+        this(PluginExecutionTimeouts.DEFAULT_EXECUTION_TIMEOUT);
     }
 
     public SocketCapabilityInvoker(Duration readTimeout) {
@@ -42,7 +43,7 @@ public class SocketCapabilityInvoker implements CapabilityInvoker {
         request.setPayload(payload);
         int id = IdUtil.getInt();
         session.sendJsonMsg(request, ActionType.CAPABILITY_INVOKE.name(), id, MsgPacketStatus.SEND_REQUEST);
-        MsgPacket response = session.getResponseMsgPacketByMsgId(id, readTimeout);
+        MsgPacket response = session.getResponseMsgPacketByMsgId(id, readTimeout(context));
         if (Objects.isNull(response)) {
             return error("Capability invoke timeout or empty response");
         }
@@ -75,5 +76,12 @@ public class SocketCapabilityInvoker implements CapabilityInvoker {
         result.setSuccess(false);
         result.setErrorMessage(message);
         return result;
+    }
+
+    private Duration readTimeout(InvokeContext context) {
+        if (context == null || context.getTimeoutSeconds() == null) {
+            return readTimeout;
+        }
+        return PluginExecutionTimeouts.executionTimeout(context.getTimeoutSeconds(), readTimeout);
     }
 }

@@ -6,6 +6,7 @@ public class InvokeContext {
     private String userId;
     private String requestId;
     private String traceId;
+    private Integer timeoutSeconds;
     private boolean auditRequired;
 
     public String getSource() {
@@ -38,6 +39,14 @@ public class InvokeContext {
 
     public void setTraceId(String traceId) {
         this.traceId = traceId;
+    }
+
+    public Integer getTimeoutSeconds() {
+        return timeoutSeconds;
+    }
+
+    public void setTimeoutSeconds(Integer timeoutSeconds) {
+        this.timeoutSeconds = timeoutSeconds;
     }
 
     public boolean isAuditRequired() {

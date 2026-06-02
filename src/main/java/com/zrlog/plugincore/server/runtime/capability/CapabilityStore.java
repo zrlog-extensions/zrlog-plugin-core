@@ -3,6 +3,7 @@ package com.zrlog.plugincore.server.runtime.capability;
 import com.google.gson.Gson;
 import com.zrlog.plugin.message.PluginCapability;
 import com.zrlog.plugin.common.KvRepository;
+import com.zrlog.plugin.common.PluginExecutionTimeouts;
 import com.zrlog.plugincore.server.runtime.store.ConditionalKvRepository;
 import com.zrlog.plugincore.server.runtime.util.RuntimeDates;
 
@@ -234,7 +235,7 @@ public class CapabilityStore {
         capability.setRiskLevel("low");
         capability.setReadOnly(Boolean.FALSE);
         capability.setRequiresConfirmation(Boolean.FALSE);
-        capability.setTimeoutSeconds(30);
+        capability.setTimeoutSeconds(PluginExecutionTimeouts.DEFAULT_EXECUTION_TIMEOUT_SECONDS);
         capability.setConcurrency(1);
         capability.setEnabled(Boolean.TRUE);
         capability.setLegacy(Boolean.TRUE);
@@ -256,7 +257,7 @@ public class CapabilityStore {
             capability.setRequiresConfirmation(Boolean.FALSE);
         }
         if (capability.getTimeoutSeconds() == null) {
-            capability.setTimeoutSeconds(30);
+            capability.setTimeoutSeconds(PluginExecutionTimeouts.DEFAULT_EXECUTION_TIMEOUT_SECONDS);
         }
         if (capability.getConcurrency() == null) {
             capability.setConcurrency(1);

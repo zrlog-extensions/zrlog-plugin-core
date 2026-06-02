@@ -111,6 +111,33 @@ public class TrackingCapabilityInvokerTest {
     }
 
     @Test
+    public void shouldPassCapabilityTimeoutToDelegate() {
+        InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
+        CapabilityStore capabilityStore = new CapabilityStore(kvStore);
+        PluginCapability capability = capability("plugin-a", "static.sync", "scheduler");
+        capability.setTimeoutSeconds(900);
+        capabilityStore.register(capability);
+        final Integer[] observedTimeoutSeconds = new Integer[1];
+        TrackingCapabilityInvoker invoker = invoker(kvStore, new CapabilityInvoker() {
+            @Override
+            public CapabilityInvokeResult invoke(String pluginId,
+                                                 String capabilityKey,
+                                                 Map<String, Object> payload,
+                                                 InvokeContext context) {
+                observedTimeoutSeconds[0] = context.getTimeoutSeconds();
+                CapabilityInvokeResult result = new CapabilityInvokeResult();
+                result.setSuccess(true);
+                return result;
+            }
+        }, new FakeStarter(true), capabilityStore);
+
+        CapabilityInvokeResult result = invoker.invoke("plugin-a", "static.sync", null, context("scheduler"));
+
+        assertTrue(result.isSuccess());
+        assertEquals(Integer.valueOf(900), observedTimeoutSeconds[0]);
+    }
+
+    @Test
     public void shouldRejectHighRiskMcpInvocationAndWriteAuditLog() {
         InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
         CapabilityStore capabilityStore = new CapabilityStore(kvStore);

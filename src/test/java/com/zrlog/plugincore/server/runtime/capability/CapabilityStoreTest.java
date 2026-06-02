@@ -93,7 +93,7 @@ public class CapabilityStoreTest {
         assertFalse(stored.getExposure().contains("mcp"));
         assertEquals(Boolean.FALSE, stored.getReadOnly());
         assertEquals(Boolean.FALSE, stored.getRequiresConfirmation());
-        assertEquals(Integer.valueOf(30), stored.getTimeoutSeconds());
+        assertEquals(Integer.valueOf(600), stored.getTimeoutSeconds());
         assertEquals(Integer.valueOf(1), stored.getConcurrency());
     }
 
