@@ -393,7 +393,7 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
                                 插件管理中心
                             </Title>
                             <Text type="secondary" style={{ fontSize: '13px', display: 'block', marginTop: '2px' }}>
-                                轻松管理、配置和扩展您的 ZRLog 博客系统功能
+                                管理插件安装、配置、运行状态和扩展功能
                             </Text>
                         </div>
                     </Space>
