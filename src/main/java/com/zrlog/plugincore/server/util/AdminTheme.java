@@ -45,10 +45,7 @@ public class AdminTheme {
     }
 
     public static Map<String, String> copyHeadersWithFallback(HttpRequest request) {
-        Map<String, String> headers = new HashMap<>();
-        if (request != null && request.getHeaderMap() != null) {
-            headers.putAll(request.getHeaderMap());
-        }
+        Map<String, String> headers = ClientIpHeaders.copyHeadersWithRealIp(request);
         AdminTheme theme = fromRequest(request);
         theme.putMissingHeaders(headers);
         return headers;
@@ -98,10 +95,7 @@ public class AdminTheme {
     }
 
     private static Map<String, String> copyHeadersWithFallback(HttpRequest request, AdminTheme theme) {
-        Map<String, String> headers = new HashMap<>();
-        if (request != null && request.getHeaderMap() != null) {
-            headers.putAll(request.getHeaderMap());
-        }
+        Map<String, String> headers = ClientIpHeaders.copyHeadersWithRealIp(request);
         theme.putMissingHeaders(headers);
         return headers;
     }
