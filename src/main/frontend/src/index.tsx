@@ -117,7 +117,7 @@ const Index = () => {
         >
             <BrowserRouter>
                 <StyleProvider transformers={[legacyLogicalPropertiesTransformer]}>
-                    <Content>
+                    <Content style={{minHeight: "100vh", backgroundColor: pluginInfo.dark ? "#141414" : undefined, color: pluginInfo.dark ? "#dfdfdf" : undefined}}>
                         <App>
                             <AppBase pluginInfo={pluginInfo} onPluginInfoRefresh={reloadPluginInfo}/>
                         </App>
