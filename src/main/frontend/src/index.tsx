@@ -4,13 +4,14 @@ import * as serviceWorker from './serviceWorker';
 import zh_CN from "antd/es/locale/zh_CN";
 import {legacyLogicalPropertiesTransformer, StyleProvider} from "@ant-design/cssinjs";
 import {useCallback, useEffect, useState} from "react";
-import {App, ConfigProvider, theme} from "antd";
+import {App, ConfigProvider, Layout, theme} from "antd";
 import {BrowserRouter} from "react-router-dom";
 import AppBase from "./AppBase";
 import axios from "axios";
 import {apiPath} from "./api";
 
 const {darkAlgorithm, defaultAlgorithm} = theme;
+const {Content} = Layout;
 
 export interface PluginCoreInfoResponse {
     pluginBuildId: string
@@ -116,9 +117,11 @@ const Index = () => {
         >
             <BrowserRouter>
                 <StyleProvider transformers={[legacyLogicalPropertiesTransformer]}>
-                    <App>
-                        <AppBase pluginInfo={pluginInfo} onPluginInfoRefresh={reloadPluginInfo}/>
-                    </App>
+                    <Content>
+                        <App>
+                            <AppBase pluginInfo={pluginInfo} onPluginInfoRefresh={reloadPluginInfo}/>
+                        </App>
+                    </Content>
                 </StyleProvider>
             </BrowserRouter>
         </ConfigProvider>
