@@ -31,14 +31,15 @@ public class PluginHttpServerConfigTest {
     }
 
     @Test
-    public void shouldRegisterRuntimeRoutesUnderAdminPluginsInBlogMode() {
+    public void shouldRegisterRootAndAdminPluginRuntimeRoutesInBlogMode() {
         RunConstants.runType = RunType.BLOG;
         Router router = new PluginHttpServerConfig(0).getServerConfig().getRouter();
 
+        assertRuntimePages(router, "");
+        assertRuntimeApis(router, "/api");
         assertRuntimePages(router, "/admin/plugins");
         assertRuntimeApis(router, "/admin/plugins/api");
-        assertMissingRuntimePages(router, "");
-        assertMissingRuntimeApis(router, "/api");
+        assertLegacyNestedRuntimePathsMissing(router, "");
         assertLegacyNestedRuntimePathsMissing(router, "/admin/plugins");
     }
 
