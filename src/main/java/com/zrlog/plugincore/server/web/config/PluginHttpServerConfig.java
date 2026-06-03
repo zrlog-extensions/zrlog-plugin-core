@@ -44,7 +44,7 @@ public class PluginHttpServerConfig extends AbstractServerConfig {
     }
 
     /**
-     * "" 为正式环境使用，/admin/plugins 仅为兼容跳转路由
+     * "" 为正式环境使用，/admin/plugins 仅为早期兼容跳转路由
      *
      * @return
      */
