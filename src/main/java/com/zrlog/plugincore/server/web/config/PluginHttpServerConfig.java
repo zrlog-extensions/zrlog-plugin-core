@@ -53,7 +53,7 @@ public class PluginHttpServerConfig extends AbstractServerConfig {
         if (RunConstants.runType == RunType.DEV) {
             return Arrays.asList("", "/admin/plugins");
         }
-        return List.of("/admin/plugins");
+        return List.of("");
     }
 
     private ServerConfig initServerConfig() {
