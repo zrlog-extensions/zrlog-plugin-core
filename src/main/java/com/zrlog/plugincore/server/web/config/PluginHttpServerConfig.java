@@ -7,8 +7,8 @@ import com.hibegin.http.server.config.ServerConfig;
 import com.hibegin.http.server.web.MethodInterceptor;
 import com.zrlog.plugin.RunConstants;
 import com.zrlog.plugin.type.RunType;
-import com.zrlog.plugincore.server.runtime.PluginRuntimeServices;
 import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeServices;
 import com.zrlog.plugincore.server.runtime.scheduler.SchedulerExternalEndpoint;
 import com.zrlog.plugincore.server.web.controller.PluginApiController;
 import com.zrlog.plugincore.server.web.controller.PluginController;
@@ -17,7 +17,6 @@ import com.zrlog.plugincore.server.web.controller.SettingController;
 import com.zrlog.plugincore.server.web.controller.open.SchedulerController;
 import com.zrlog.plugincore.server.web.handler.PluginHandle;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executors;
@@ -50,10 +49,7 @@ public class PluginHttpServerConfig extends AbstractServerConfig {
      * @return
      */
     private static List<String> getBasePath() {
-        if (RunConstants.runType == RunType.DEV) {
-            return Arrays.asList("", "/admin/plugins");
-        }
-        return List.of("");
+        return List.of("", PluginHandle.OLD_PATH);
     }
 
     private ServerConfig initServerConfig() {

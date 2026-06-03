@@ -36,6 +36,8 @@ public class PluginHandle implements HttpErrorHandle {
 
     private static final Logger LOGGER = LoggerUtil.getLogger(PluginHandle.class);
 
+    public static final String OLD_PATH = "/admin/plugins";
+
     private boolean includePath(Set<String> paths, String uri) {
         for (String path : paths) {
             String tPath = path.trim();
@@ -49,7 +51,7 @@ public class PluginHandle implements HttpErrorHandle {
     }
 
     private static PluginRequestUriInfo parseRequestUri(String uri) {
-        String realUri = uri.replaceFirst("/admin/plugins/", "").replaceFirst("/p/", "").replaceFirst("/plugin/", "");
+        String realUri = uri.replaceFirst(OLD_PATH + "/", "").replaceFirst("/p/", "").replaceFirst("/plugin/", "");
         if (StringUtils.isEmpty(realUri)) {
             return new PluginRequestUriInfo("", "");
         }
