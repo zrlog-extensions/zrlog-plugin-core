@@ -1,6 +1,7 @@
 package com.zrlog.plugincore.server.util;
 
 import com.zrlog.plugin.common.IOUtil;
+import com.zrlog.plugin.common.LoggerUtil;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -9,8 +10,12 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class CmdUtil {
+
+    private static final Logger LOGGER = LoggerUtil.getLogger(CmdUtil.class);
 
     public static String sendCmd(String cmd, String... args) {
         InputStream[] in = getCmdInputStream(cmd, args);
@@ -47,7 +52,7 @@ public class CmdUtil {
         try {
             return rt.exec(cmd);
         } catch (IOException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Exec command failed: " + cmd, e);
         }
         return null;
     }
@@ -71,7 +76,7 @@ public class CmdUtil {
         try {
             return processBuilder.start();
         } catch (IOException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Exec command failed: " + command, e);
         }
         return null;
     }

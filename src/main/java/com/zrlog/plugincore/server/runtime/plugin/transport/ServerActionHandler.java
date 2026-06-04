@@ -555,7 +555,7 @@ public class ServerActionHandler implements IActionHandler {
 
                 }
             } catch (SQLException e) {
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Create article type failed", e);
             }
         }
         String alias = createArticleRequest.getAlias();
@@ -564,7 +564,7 @@ public class ServerActionHandler implements IActionHandler {
             try {
                 alias = new ArticleDAO().queryFirstObj("select max(logId) from log") + "";
             } catch (SQLException e) {
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Build article alias failed", e);
             }
         }
         Map<String, Boolean> map = new HashMap<>();
@@ -597,7 +597,7 @@ public class ServerActionHandler implements IActionHandler {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Create article failed", e);
         }
 
 
