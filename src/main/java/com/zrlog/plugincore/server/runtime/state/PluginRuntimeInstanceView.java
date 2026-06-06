@@ -19,6 +19,16 @@ public class PluginRuntimeInstanceView {
     private Long leaseExpiresAt;
     private Integer activeInvocationCount;
     private String lastError;
+    private Boolean processAlive;
+    private Long processSampledAt;
+    private Long totalCpuDurationMillis;
+    private Long residentMemoryBytes;
+    private Long virtualMemoryBytes;
+    private Integer threadCount;
+    private Long heapUsedBytes;
+    private Long heapCommittedBytes;
+    private Long heapMaxBytes;
+    private String processErrorMessage;
 
     public String getPluginId() {
         return pluginId;
@@ -154,5 +164,85 @@ public class PluginRuntimeInstanceView {
 
     public void setLastError(String lastError) {
         this.lastError = lastError;
+    }
+
+    public Boolean getProcessAlive() {
+        return processAlive;
+    }
+
+    public void setProcessAlive(Boolean processAlive) {
+        this.processAlive = processAlive;
+    }
+
+    public Long getProcessSampledAt() {
+        return processSampledAt;
+    }
+
+    public void setProcessSampledAt(Long processSampledAt) {
+        this.processSampledAt = processSampledAt;
+    }
+
+    public Long getTotalCpuDurationMillis() {
+        return totalCpuDurationMillis;
+    }
+
+    public void setTotalCpuDurationMillis(Long totalCpuDurationMillis) {
+        this.totalCpuDurationMillis = totalCpuDurationMillis;
+    }
+
+    public Long getResidentMemoryBytes() {
+        return residentMemoryBytes;
+    }
+
+    public void setResidentMemoryBytes(Long residentMemoryBytes) {
+        this.residentMemoryBytes = residentMemoryBytes;
+    }
+
+    public Long getVirtualMemoryBytes() {
+        return virtualMemoryBytes;
+    }
+
+    public void setVirtualMemoryBytes(Long virtualMemoryBytes) {
+        this.virtualMemoryBytes = virtualMemoryBytes;
+    }
+
+    public Integer getThreadCount() {
+        return threadCount;
+    }
+
+    public void setThreadCount(Integer threadCount) {
+        this.threadCount = threadCount;
+    }
+
+    public Long getHeapUsedBytes() {
+        return heapUsedBytes;
+    }
+
+    public void setHeapUsedBytes(Long heapUsedBytes) {
+        this.heapUsedBytes = heapUsedBytes;
+    }
+
+    public Long getHeapCommittedBytes() {
+        return heapCommittedBytes;
+    }
+
+    public void setHeapCommittedBytes(Long heapCommittedBytes) {
+        this.heapCommittedBytes = heapCommittedBytes;
+    }
+
+    public Long getHeapMaxBytes() {
+        return heapMaxBytes;
+    }
+
+    public void setHeapMaxBytes(Long heapMaxBytes) {
+        this.heapMaxBytes = heapMaxBytes;
+    }
+
+    public String getProcessErrorMessage() {
+        return processErrorMessage;
+    }
+
+    public void setProcessErrorMessage(String processErrorMessage) {
+        this.processErrorMessage = processErrorMessage;
     }
 }

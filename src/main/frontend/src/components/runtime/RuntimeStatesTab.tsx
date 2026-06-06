@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from "react";
-import {Button, Grid, Popconfirm, Space, Table, Tag, Typography, message} from "antd";
-import {PoweroffOutlined} from "@ant-design/icons";
+import {Button, Descriptions, Drawer, Grid, Popconfirm, Space, Table, Tag, Tooltip, Typography, message} from "antd";
+import {InfoCircleOutlined, PoweroffOutlined} from "@ant-design/icons";
 import type {ColumnsType} from "antd/es/table";
 import axios from "axios";
 import {apiPath, Capability, formatEpoch, formatTime, InvocationLog, paginationFromResponse, rowsFromResponse, RuntimeInstanceState, RuntimePagination, useCapabilityView} from "./common";
@@ -51,12 +51,55 @@ const runtimeStatusColor = (value: RuntimeVisibleStatus) => {
     return colors[value];
 };
 
+const formatBytes = (value?: number) => {
+    if (value == null) {
+        return "-";
+    }
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let size = value;
+    let unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+        size = size / 1024;
+        unitIndex += 1;
+    }
+    const fixed = size >= 10 || unitIndex === 0 ? 0 : 1;
+    return `${size.toFixed(fixed)} ${units[unitIndex]}`;
+};
+
+const formatDuration = (value?: number) => {
+    if (value == null) {
+        return "-";
+    }
+    if (value < 1000) {
+        return `${value} ms`;
+    }
+    const seconds = Math.floor(value / 1000);
+    if (seconds < 60) {
+        return `${seconds} s`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    if (minutes < 60) {
+        return `${minutes} m ${remainingSeconds} s`;
+    }
+    const hours = Math.floor(minutes / 60);
+    return `${hours} h ${minutes % 60} m`;
+};
+
+const processAliveTag = (value?: boolean, key?: string) => {
+    if (value == null) {
+        return <Tag key={key}>未知</Tag>;
+    }
+    return value ? <Tag key={key} color="success">可用</Tag> : <Tag key={key} color="error">异常</Tag>;
+};
+
 const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
     const screens = Grid.useBreakpoint();
     const isMobile = Boolean((screens.xs || screens.sm) && !screens.md);
     const [messageApi, contextHolder] = message.useMessage({maxCount: 3});
     const [loading, setLoading] = useState(false);
     const [stateActions, setStateActions] = useState<Record<string, boolean>>({});
+    const [selectedState, setSelectedState] = useState<RuntimeInstanceState | null>(null);
     const [capabilities, setCapabilities] = useState<Capability[]>([]);
     const [states, setStates] = useState<RuntimeInstanceState[]>([]);
     const [invocationLogs, setInvocationLogs] = useState<InvocationLog[]>([]);
@@ -123,6 +166,25 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
         const status = runtimeVisibleStatus(record);
         return <Tag color={runtimeStatusColor(status)}>{runtimeStatusLabel(status)}</Tag>;
     };
+    const resourceSummary = (record: RuntimeInstanceState) => {
+        const tags: React.ReactNode[] = [];
+        if (record.processAlive != null) {
+            tags.push(processAliveTag(record.processAlive, "alive"));
+        }
+        if (record.residentMemoryBytes != null) {
+            tags.push(<Tag key="rss">RSS {formatBytes(record.residentMemoryBytes)}</Tag>);
+        }
+        if (record.heapUsedBytes != null) {
+            tags.push(<Tag key="heap">堆 {formatBytes(record.heapUsedBytes)}</Tag>);
+        }
+        if (record.threadCount != null) {
+            tags.push(<Tag key="threads">线程 {record.threadCount}</Tag>);
+        }
+        if (tags.length === 0) {
+            return <Text type="secondary">-</Text>;
+        }
+        return <Space size={[4, 4]} wrap>{tags}</Space>;
+    };
     const runtimePluginCell = (record: RuntimeInstanceState) => (
         <Space direction="vertical" size={8} style={{width: "100%", minWidth: 0}}>
             {renderPlugin(record.pluginId, record.pluginName, record.pluginPreviewImageBase64)}
@@ -130,20 +192,18 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
                 <Space direction="vertical" size={4} style={{width: "100%"}}>
                     <Space size={[4, 4]} wrap>
                         {runtimeStatusTag(record)}
-                        {record.local ? <Tag color="success">本机</Tag> : <Tag>远端/未知</Tag>}
                         <Tag style={{margin: 0}}>调用 {record.activeInvocationCount || 0}</Tag>
+                        {resourceSummary(record)}
                     </Space>
-                    <Text copyable ellipsis type="secondary" style={{fontSize: 12, maxWidth: "100%"}}>
-                        实例 {record.instanceId}
-                    </Text>
                     <Text type="secondary" style={{fontSize: 12}}>活动 {formatEpoch(record.lastActiveAt)}</Text>
-                    {record.lastError && (
-                        <Text type="danger" ellipsis style={{fontSize: 12, maxWidth: "100%"}}>
-                            {record.lastError}
-                        </Text>
-                    )}
                 </Space>
             )}
+        </Space>
+    );
+    const runtimeStatusCell = (record: RuntimeInstanceState) => (
+        <Space direction="vertical" size={4}>
+            {runtimeStatusTag(record)}
+            <Tag style={{margin: 0}}>调用 {record.activeInvocationCount || 0}</Tag>
         </Space>
     );
 
@@ -157,38 +217,37 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
             )
         },
         {
-            title: "实例",
-            dataIndex: "instanceId",
-            width: 300,
-            responsive: ["md"],
-            render: (value: string) => <Text copyable ellipsis style={{maxWidth: 280}}>{value}</Text>
-        },
-        {title: "进程号", dataIndex: "processId", width: 100, render: (value?: number) => value || "-", responsive: ["lg"]},
-        {
-            title: "归属",
-            dataIndex: "local",
-            width: 100,
-            responsive: ["md"],
-            render: (value?: boolean) => value ? <Tag color="success">本机</Tag> : <Tag>远端/未知</Tag>
-        },
-        {
             title: "运行状态",
             key: "status",
-            width: 110,
+            width: 130,
             responsive: ["md"],
-            render: (_, record) => runtimeStatusTag(record)
+            render: (_, record) => runtimeStatusCell(record)
         },
-        {title: "活动调用", dataIndex: "activeInvocationCount", width: 100, responsive: ["md"]},
-        {title: "连接时间", dataIndex: "readyAt", width: 180, render: formatEpoch, responsive: ["lg"]},
+        {
+            title: "资源",
+            key: "resource",
+            width: 260,
+            responsive: ["md"],
+            render: (_, record) => resourceSummary(record)
+        },
         {title: "最后活动", dataIndex: "lastActiveAt", width: 180, render: formatEpoch, responsive: ["md"]},
-        {title: "最后心跳", dataIndex: "heartbeatAt", width: 180, render: formatEpoch, responsive: ["lg"]},
-        {title: "最后错误", dataIndex: "lastError", render: formatTime, responsive: ["md"]},
         {
             title: "操作",
             key: "action",
-            width: isMobile ? 64 : 120,
+            width: isMobile ? 96 : 160,
             render: (_, record) => (
-                <Space>
+                <Space size={isMobile ? 2 : "small"}>
+                    <Tooltip title="详情">
+                        <Button
+                            type={isMobile ? "text" : "link"}
+                            size="small"
+                            icon={<InfoCircleOutlined />}
+                            aria-label="详情"
+                            onClick={() => setSelectedState(record)}
+                        >
+                            {!isMobile && "详情"}
+                        </Button>
+                    </Tooltip>
                     <Popconfirm title="停止这个本机插件进程？" okText="停止" cancelText="取消" onConfirm={() => stopPlugin(record)}>
                         <Button
                             danger
@@ -206,6 +265,63 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
             )
         }
     ];
+    const detailDrawer = (
+        <Drawer
+            title="运行实例"
+            open={Boolean(selectedState)}
+            onClose={() => setSelectedState(null)}
+            width={isMobile ? "100%" : 640}
+        >
+            {selectedState && (
+                <Space direction="vertical" size={16} style={{width: "100%"}}>
+                    {renderPlugin(selectedState.pluginId, selectedState.pluginName, selectedState.pluginPreviewImageBase64)}
+                    <Descriptions bordered size="small" column={1}>
+                        <Descriptions.Item label="状态">
+                            <Space size={[4, 4]} wrap>
+                                {runtimeStatusTag(selectedState)}
+                                {selectedState.local ? <Tag color="success">本机</Tag> : <Tag>远端/未知</Tag>}
+                                <Tag style={{margin: 0}}>调用 {selectedState.activeInvocationCount || 0}</Tag>
+                            </Space>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="实例">
+                            <Text copyable ellipsis style={{maxWidth: "100%"}}>{selectedState.instanceId}</Text>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="进程号">{selectedState.processId || "-"}</Descriptions.Item>
+                        <Descriptions.Item label="运行模式">{selectedState.runtimeMode || "-"}</Descriptions.Item>
+                        <Descriptions.Item label="连接时间">{formatEpoch(selectedState.readyAt)}</Descriptions.Item>
+                        <Descriptions.Item label="最后活动">{formatEpoch(selectedState.lastActiveAt)}</Descriptions.Item>
+                        <Descriptions.Item label="最后心跳">{formatEpoch(selectedState.heartbeatAt)}</Descriptions.Item>
+                        <Descriptions.Item label="租约过期">{formatEpoch(selectedState.leaseExpiresAt)}</Descriptions.Item>
+                    </Descriptions>
+                    <Descriptions bordered size="small" column={1} title="资源">
+                        <Descriptions.Item label="进程响应">{processAliveTag(selectedState.processAlive)}</Descriptions.Item>
+                        <Descriptions.Item label="采样时间">{formatEpoch(selectedState.processSampledAt)}</Descriptions.Item>
+                        <Descriptions.Item label="RSS">{formatBytes(selectedState.residentMemoryBytes)}</Descriptions.Item>
+                        <Descriptions.Item label="虚拟内存">{formatBytes(selectedState.virtualMemoryBytes)}</Descriptions.Item>
+                        <Descriptions.Item label="堆已用">{formatBytes(selectedState.heapUsedBytes)}</Descriptions.Item>
+                        <Descriptions.Item label="堆已提交">{formatBytes(selectedState.heapCommittedBytes)}</Descriptions.Item>
+                        <Descriptions.Item label="堆上限">{formatBytes(selectedState.heapMaxBytes)}</Descriptions.Item>
+                        <Descriptions.Item label="CPU 时间">{formatDuration(selectedState.totalCpuDurationMillis)}</Descriptions.Item>
+                        <Descriptions.Item label="线程数">{selectedState.threadCount == null ? "-" : selectedState.threadCount}</Descriptions.Item>
+                    </Descriptions>
+                    {(selectedState.lastError || selectedState.processErrorMessage) && (
+                        <Descriptions bordered size="small" column={1} title="错误">
+                            {selectedState.lastError && (
+                                <Descriptions.Item label="运行错误">
+                                    <Text type="danger">{selectedState.lastError}</Text>
+                                </Descriptions.Item>
+                            )}
+                            {selectedState.processErrorMessage && (
+                                <Descriptions.Item label="进程查询">
+                                    <Text type="danger">{selectedState.processErrorMessage}</Text>
+                                </Descriptions.Item>
+                            )}
+                        </Descriptions>
+                    )}
+                </Space>
+            )}
+        </Drawer>
+    );
 
     const invocationStatusTag = (value: string) => value === "success" ? <Tag color="success">成功</Tag> : <Tag color="error">失败</Tag>;
     const invocationRiskTag = (value?: string) => {
@@ -297,8 +413,9 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
                 columns={stateColumns}
                 dataSource={states}
                 pagination={false}
-                scroll={isMobile ? undefined : {x: 1300}}
+                scroll={isMobile ? undefined : {x: 1000}}
             />
+            {detailDrawer}
             <Text strong>能力调用日志</Text>
             <Table<InvocationLog>
                 loading={loading}

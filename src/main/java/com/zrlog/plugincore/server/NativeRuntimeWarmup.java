@@ -19,6 +19,7 @@ import com.zrlog.plugin.message.CapabilityInvokeResult;
 import com.zrlog.plugin.message.NotificationRequest;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.message.PluginCapability;
+import com.zrlog.plugin.message.PluginProcessInfo;
 import com.zrlog.plugin.message.SchedulerQueryRequest;
 import com.zrlog.plugin.message.SchedulerQueryResult;
 import com.zrlog.plugin.message.SchedulerUpdateRequest;
@@ -141,6 +142,7 @@ final class NativeRuntimeWarmup {
         ActionType.valueOf(ActionType.NOTIFICATION_PUBLISH.name());
         ActionType.valueOf(ActionType.NOTIFICATION_CHANNEL_QUERY.name());
         ActionType.valueOf(ActionType.SCHEDULER_QUERY.name());
+        ActionType.valueOf(ActionType.PLUGIN_PROCESS_QUERY.name());
         ActionType.valueOf(ActionType.SCHEDULER_UPDATE.name());
     }
 
@@ -167,12 +169,17 @@ final class NativeRuntimeWarmup {
         dispose.handler(null, packet(new NotificationRequest(), ActionType.NOTIFICATION_PUBLISH), actionHandler);
         dispose.handler(null, packet(new HashMap<String, Object>(), ActionType.NOTIFICATION_CHANNEL_QUERY), actionHandler);
         dispose.handler(null, packet(new SchedulerQueryRequest(), ActionType.SCHEDULER_QUERY), actionHandler);
+        dispose.handler(null, packet(new byte[0], ContentType.BYTE, ActionType.PLUGIN_PROCESS_QUERY), actionHandler);
         dispose.handler(null, packet(new SchedulerUpdateRequest(), ActionType.SCHEDULER_UPDATE), actionHandler);
         return actionHandler.getCount();
     }
 
     private static MsgPacket packet(Object data, ActionType actionType) {
         return new MsgPacket(data, ContentType.JSON, MsgPacketStatus.SEND_REQUEST, actionType.ordinal() + 1, actionType.name());
+    }
+
+    private static MsgPacket packet(Object data, ContentType contentType, ActionType actionType) {
+        return new MsgPacket(data, contentType, MsgPacketStatus.SEND_REQUEST, actionType.ordinal() + 1, actionType.name());
     }
 
     private static String samplePluginJson() {
@@ -300,6 +307,12 @@ final class NativeRuntimeWarmup {
         public void schedulerQuery(IOSession session, MsgPacket msgPacket) {
             gson.toJson(msgPacket.convertToClass(SchedulerQueryRequest.class));
             gson.toJson(new SchedulerQueryResult());
+            count++;
+        }
+
+        @Override
+        public void pluginProcessQuery(IOSession session, MsgPacket msgPacket) {
+            gson.toJson(new PluginProcessInfo());
             count++;
         }
 

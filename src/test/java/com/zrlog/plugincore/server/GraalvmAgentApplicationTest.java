@@ -5,6 +5,7 @@ import com.zrlog.plugin.message.CapabilityInvokeResult;
 import com.zrlog.plugin.message.NotificationRequest;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.message.PluginCapability;
+import com.zrlog.plugin.message.PluginProcessInfo;
 import com.zrlog.plugin.message.SchedulerQueryRequest;
 import com.zrlog.plugin.message.SchedulerQueryResult;
 import com.zrlog.plugin.message.SchedulerUpdateRequest;
@@ -41,6 +42,7 @@ public class GraalvmAgentApplicationTest {
         assertTrue(classes.contains(SchedulerQueryResult.class));
         assertTrue(classes.contains(SchedulerUpdateRequest.class));
         assertTrue(classes.contains(SchedulerUpdateResult.class));
+        assertTrue(classes.contains(PluginProcessInfo.class));
         assertTrue(classes.contains(PluginAutomation.class));
         assertTrue(classes.contains(PluginAutomationRun.class));
         assertTrue(classes.contains(SchedulerSetting.class));
@@ -64,6 +66,6 @@ public class GraalvmAgentApplicationTest {
         assertEquals(1, result.getNotificationSuccessCount());
         assertEquals(0, result.getNotificationFailedCount());
         assertEquals(2, result.getAnnotatedCapabilityCount());
-        assertEquals(5, result.getActionDispatchCount());
+        assertEquals(6, result.getActionDispatchCount());
     }
 }

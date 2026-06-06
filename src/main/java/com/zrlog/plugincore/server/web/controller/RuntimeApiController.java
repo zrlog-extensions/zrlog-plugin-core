@@ -27,6 +27,7 @@ import com.zrlog.plugincore.server.runtime.capability.RuntimeSources;
 import com.zrlog.plugincore.server.runtime.invocation.CapabilityInvocationLog;
 import com.zrlog.plugincore.server.runtime.invocation.InvocationLogStore;
 import com.zrlog.plugincore.server.runtime.notification.*;
+import com.zrlog.plugincore.server.runtime.plugin.process.PluginProcessQueryService;
 import com.zrlog.plugincore.server.runtime.scheduler.*;
 import com.zrlog.plugincore.server.runtime.service.ServiceProviderResolver;
 import com.zrlog.plugincore.server.runtime.service.ServiceProviderSetting;
@@ -846,7 +847,7 @@ public class RuntimeApiController extends Controller {
     }
 
     static List<?> runtimeStatesForCurrentMode() {
-        return PluginCoreRunMode.isNativeAgent() ? Collections.emptyList() : PluginRuntimeStates.runtimeInstancesForDisplay();
+        return PluginCoreRunMode.isNativeAgent() ? Collections.emptyList() : new PluginProcessQueryService().query();
     }
 
     private boolean isCommentProviderPlugin(Plugin plugin) {

@@ -139,6 +139,16 @@ export type RuntimeInstanceState = {
     leaseExpiresAt?: number;
     activeInvocationCount?: number;
     lastError?: string;
+    processAlive?: boolean;
+    processSampledAt?: number;
+    totalCpuDurationMillis?: number;
+    residentMemoryBytes?: number;
+    virtualMemoryBytes?: number;
+    threadCount?: number;
+    heapUsedBytes?: number;
+    heapCommittedBytes?: number;
+    heapMaxBytes?: number;
+    processErrorMessage?: string;
 }
 
 export type InvocationLog = {

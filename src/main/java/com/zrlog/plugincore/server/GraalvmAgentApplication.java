@@ -10,6 +10,7 @@ import com.zrlog.plugin.message.CapabilityInvokeResult;
 import com.zrlog.plugin.message.NotificationRequest;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.message.PluginCapability;
+import com.zrlog.plugin.message.PluginProcessInfo;
 import com.zrlog.plugin.message.SchedulerQueryRequest;
 import com.zrlog.plugin.message.SchedulerQueryResult;
 import com.zrlog.plugin.message.SchedulerUpdateRequest;
@@ -88,6 +89,7 @@ public class GraalvmAgentApplication {
                 SchedulerQueryResult.class,
                 SchedulerUpdateRequest.class,
                 SchedulerUpdateResult.class,
+                PluginProcessInfo.class,
                 PluginRuntimeSetting.class,
                 NotificationRequest.class,
                 NotificationDelivery.class,
