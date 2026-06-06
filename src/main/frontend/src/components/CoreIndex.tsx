@@ -285,9 +285,6 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
                             <span className="plugin-list-name" style={{ fontWeight: 600, fontSize: '14px', color: data.dark ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.85)' }}>
                                 {pluginNameText(plugin)}
                             </span>
-                            <Tag color="blue" bordered={false} style={{ fontSize: '10px', margin: 0, padding: '0 4px', lineHeight: '14px' }}>
-                                v{plugin.version}
-                            </Tag>
                             {isRequired(plugin.shortName) && (
                                 <Tag color="gold" bordered={false} style={{ fontSize: '10px', margin: 0, padding: '0 4px', lineHeight: '14px' }}>
                                     系统
@@ -400,12 +397,6 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
                     </Space>
                 </div>
                 <Space size="middle" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ textAlign: 'right', marginRight: '8px' }}>
-                        <div style={{ fontSize: '11px', opacity: 0.6 }}>系统版本</div>
-                        <Tag color="processing" style={{ margin: 0, borderRadius: '4px', fontWeight: 600 }}>
-                            v{data.pluginVersion}.{data.pluginBuildNumber}
-                        </Tag>
-                    </div>
                     <div style={{ textAlign: 'right', marginRight: '16px' }}>
                         <div style={{ fontSize: '11px', opacity: 0.6 }}>已安装插件</div>
                         <Tag color="success" style={{ margin: 0, borderRadius: '4px', fontWeight: 600 }}>
@@ -646,9 +637,6 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
                                                                 <span style={{ fontWeight: 600, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, color: data.dark ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.85)' }} title={plugin.shortName}>
                                                                     {pluginNameText(plugin)}
                                                                 </span>
-                                                                <Tag color="blue" bordered={false} style={{ margin: 0, transform: 'scale(0.85)', transformOrigin: 'right center' }}>
-                                                                    v{plugin.version}
-                                                                </Tag>
                                                             </div>
                                                             <Paragraph style={{
                                                                 fontSize: '13px',
