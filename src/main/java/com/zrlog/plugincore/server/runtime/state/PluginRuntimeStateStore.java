@@ -2,7 +2,9 @@ package com.zrlog.plugincore.server.runtime.state;
 
 import com.google.gson.Gson;
 import com.zrlog.plugin.common.KvRepository;
+import com.zrlog.plugincore.server.runtime.lock.DistributedLock;
 import com.zrlog.plugincore.server.runtime.store.ConditionalKvRepository;
+import com.zrlog.plugincore.server.runtime.store.WebsiteRuntimeKvStore;
 import com.zrlog.plugincore.server.runtime.util.RuntimeDates;
 import com.zrlog.plugincore.server.type.PluginStatus;
 
@@ -12,19 +14,31 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public class PluginRuntimeStateStore {
 
     public static final String KEY = "plugin.runtime.states";
-    private static final int STORE_UPDATE_RETRIES = 3;
+    private static final int STORE_UPDATE_RETRIES = 10;
+    private static final long STORE_UPDATE_RETRY_BACKOFF_MS = 5L;
+    private static final long STORE_UPDATE_LOCK_WAIT_MS = 5000L;
+    private static final String STORE_UPDATE_LOCK_KEY = "plugin_runtime_states";
+    private static final Object STORE_UPDATE_LOCK = new Object();
 
     private final KvRepository kvStore;
+    private final Lock updateLock;
     private final Gson gson = new Gson();
 
     public PluginRuntimeStateStore(KvRepository kvStore) {
+        this(kvStore, newUpdateLock(kvStore));
+    }
+
+    PluginRuntimeStateStore(KvRepository kvStore, Lock updateLock) {
         this.kvStore = kvStore;
+        this.updateLock = updateLock;
     }
 
     public List<PluginRuntimeState> list() {
@@ -38,30 +52,22 @@ public class PluginRuntimeStateStore {
     }
 
     public void update(String pluginId, Consumer<PluginRuntimeState> consumer) {
-        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
-            PluginRuntimeStateDocumentSnapshot snapshot = loadSnapshot();
+        mutateDocument("Failed to update plugin runtime states due to concurrent modification", snapshot -> {
             PluginRuntimeStateDocument document = snapshot.getDocument();
             PluginRuntimeState state = findItem(document.getItems(), pluginId).orElseGet(PluginRuntimeState::new);
             state.setPluginId(pluginId);
             consumer.accept(state);
             document.setItems(upsertItems(document.getItems(), state));
-            if (saveDocumentIfUnchanged(snapshot)) {
-                return;
-            }
-        }
-        throw new IllegalStateException("Failed to update plugin runtime states due to concurrent modification");
+            return StoreMutationResult.changed();
+        });
     }
 
     public void upsert(PluginRuntimeState state) {
-        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
-            PluginRuntimeStateDocumentSnapshot snapshot = loadSnapshot();
+        mutateDocument("Failed to update plugin runtime states due to concurrent modification", snapshot -> {
             PluginRuntimeStateDocument document = snapshot.getDocument();
             document.setItems(upsertItems(document.getItems(), state));
-            if (saveDocumentIfUnchanged(snapshot)) {
-                return;
-            }
-        }
-        throw new IllegalStateException("Failed to update plugin runtime states due to concurrent modification");
+            return StoreMutationResult.changed();
+        });
     }
 
     private List<PluginRuntimeState> upsertItems(List<PluginRuntimeState> currentItems, PluginRuntimeState state) {
@@ -97,47 +103,38 @@ public class PluginRuntimeStateStore {
     }
 
     public void delete(String pluginId) {
-        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
-            PluginRuntimeStateDocumentSnapshot snapshot = loadSnapshot();
+        mutateDocument("Failed to delete plugin runtime state due to concurrent modification", snapshot -> {
             RemoveItemsResult result = removeItems(snapshot.getDocument().getItems(), pluginId);
             if (!result.isRemoved()) {
-                return;
+                return StoreMutationResult.unchanged();
             }
             snapshot.getDocument().setItems(result.getItems());
-            if (saveDocumentIfUnchanged(snapshot)) {
-                return;
-            }
-        }
-        throw new IllegalStateException("Failed to delete plugin runtime state due to concurrent modification");
+            return StoreMutationResult.changed();
+        });
     }
 
     public void removeInstances(String pluginId, Predicate<PluginRuntimeInstanceState> predicate) {
-        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
-            PluginRuntimeStateDocumentSnapshot snapshot = loadSnapshot();
+        mutateDocument("Failed to remove plugin runtime instances due to concurrent modification", snapshot -> {
             Optional<PluginRuntimeState> optional = findItem(snapshot.getDocument().getItems(), pluginId);
             if (!optional.isPresent() || optional.get().getInstances() == null || optional.get().getInstances().isEmpty()) {
-                return;
+                return StoreMutationResult.unchanged();
             }
             PluginRuntimeState state = optional.get();
             boolean removed = state.getInstances().removeIf(predicate);
             if (!removed) {
-                return;
+                return StoreMutationResult.unchanged();
             }
             PluginRuntimeStateAggregator.aggregate(state);
             snapshot.getDocument().setItems(upsertItems(snapshot.getDocument().getItems(), state));
-            if (saveDocumentIfUnchanged(snapshot)) {
-                return;
-            }
-        }
-        throw new IllegalStateException("Failed to remove plugin runtime instances due to concurrent modification");
+            return StoreMutationResult.changed();
+        });
     }
 
     public void pruneInactiveInstances(long nowMs, long inactiveTtlMs) {
         if (inactiveTtlMs <= 0) {
             return;
         }
-        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
-            PluginRuntimeStateDocumentSnapshot snapshot = loadSnapshot();
+        mutateDocument("Failed to prune inactive plugin runtime instances due to concurrent modification", snapshot -> {
             boolean changed = false;
             for (PluginRuntimeState state : snapshot.getDocument().getItems()) {
                 if (state.getInstances() == null || state.getInstances().isEmpty()) {
@@ -151,13 +148,10 @@ public class PluginRuntimeStateStore {
                 }
             }
             if (!changed) {
-                return;
+                return StoreMutationResult.unchanged();
             }
-            if (saveDocumentIfUnchanged(snapshot)) {
-                return;
-            }
-        }
-        throw new IllegalStateException("Failed to prune inactive plugin runtime instances due to concurrent modification");
+            return StoreMutationResult.changed();
+        });
     }
 
     public void pruneStaleTransientInstances(long nowMs, long transientTtlMs) {
@@ -179,20 +173,16 @@ public class PluginRuntimeStateStore {
         if (legacyTtlMs <= 0 && transientTtlMs <= 0 && removeStatePredicate == null) {
             return loadDocument();
         }
-        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
-            PluginRuntimeStateDocumentSnapshot snapshot = loadSnapshot();
+        return mutateDocument("Failed to cleanup plugin runtime states due to concurrent modification", snapshot -> {
             boolean changed = cleanupDocumentInstances(snapshot.getDocument(), nowMs, legacyTtlMs, transientTtlMs);
             if (removeStatePredicate != null) {
                 changed = snapshot.getDocument().getItems().removeIf(removeStatePredicate) || changed;
             }
             if (!changed) {
-                return snapshot.getDocument();
+                return StoreMutationResult.unchanged(snapshot.getDocument());
             }
-            if (saveDocumentIfUnchanged(snapshot)) {
-                return snapshot.getDocument();
-            }
-        }
-        throw new IllegalStateException("Failed to cleanup plugin runtime states due to concurrent modification");
+            return StoreMutationResult.changed(snapshot.getDocument());
+        });
     }
 
     private boolean cleanupDocumentInstances(PluginRuntimeStateDocument document,
@@ -224,8 +214,7 @@ public class PluginRuntimeStateStore {
     }
 
     private void pruneInstances(Predicate<PluginRuntimeInstanceState> predicate, String failureMessage) {
-        for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
-            PluginRuntimeStateDocumentSnapshot snapshot = loadSnapshot();
+        mutateDocument(failureMessage, snapshot -> {
             boolean changed = false;
             for (PluginRuntimeState state : snapshot.getDocument().getItems()) {
                 if (state.getInstances() == null || state.getInstances().isEmpty()) {
@@ -238,13 +227,67 @@ public class PluginRuntimeStateStore {
                 }
             }
             if (!changed) {
-                return;
+                return StoreMutationResult.unchanged();
             }
-            if (saveDocumentIfUnchanged(snapshot)) {
-                return;
+            return StoreMutationResult.changed();
+        });
+    }
+
+    private <T> T mutateDocument(String failureMessage, StoreMutation<T> mutation) {
+        synchronized (STORE_UPDATE_LOCK) {
+            boolean locked = acquireUpdateLock(failureMessage);
+            try {
+                for (int i = 0; i < STORE_UPDATE_RETRIES; i++) {
+                    PluginRuntimeStateDocumentSnapshot snapshot = loadSnapshot();
+                    StoreMutationResult<T> result = mutation.mutate(snapshot);
+                    if (!result.isChanged()) {
+                        return result.getValue();
+                    }
+                    if (saveDocumentIfUnchanged(snapshot)) {
+                        return result.getValue();
+                    }
+                    if (i + 1 < STORE_UPDATE_RETRIES && !sleepBeforeRetry(i)) {
+                        throw new IllegalStateException(failureMessage);
+                    }
+                }
+            } finally {
+                if (locked) {
+                    updateLock.unlock();
+                }
             }
         }
         throw new IllegalStateException(failureMessage);
+    }
+
+    private boolean acquireUpdateLock(String failureMessage) {
+        if (updateLock == null) {
+            return false;
+        }
+        try {
+            // The DB lock reduces cross-process write contention; CAS remains the source of truth if the lock is stale.
+            return updateLock.tryLock(STORE_UPDATE_LOCK_WAIT_MS, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(failureMessage, e);
+        }
+    }
+
+    private static Lock newUpdateLock(KvRepository kvStore) {
+        if (kvStore instanceof WebsiteRuntimeKvStore) {
+            return new DistributedLock(STORE_UPDATE_LOCK_KEY);
+        }
+        return null;
+    }
+
+    private boolean sleepBeforeRetry(int attempt) {
+        long sleepMs = Math.min(50L, (attempt + 1L) * STORE_UPDATE_RETRY_BACKOFF_MS);
+        try {
+            Thread.sleep(sleepMs);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     private RemoveItemsResult removeItems(List<PluginRuntimeState> currentItems, String pluginId) {
@@ -330,6 +373,44 @@ public class PluginRuntimeStateStore {
             item.setEffectiveStatus(null);
         }
         return gson.toJson(document);
+    }
+
+    private interface StoreMutation<T> {
+        StoreMutationResult<T> mutate(PluginRuntimeStateDocumentSnapshot snapshot);
+    }
+
+    private static class StoreMutationResult<T> {
+        private final boolean changed;
+        private final T value;
+
+        private StoreMutationResult(boolean changed, T value) {
+            this.changed = changed;
+            this.value = value;
+        }
+
+        private static StoreMutationResult<Void> changed() {
+            return new StoreMutationResult<Void>(true, null);
+        }
+
+        private static <T> StoreMutationResult<T> changed(T value) {
+            return new StoreMutationResult<T>(true, value);
+        }
+
+        private static StoreMutationResult<Void> unchanged() {
+            return new StoreMutationResult<Void>(false, null);
+        }
+
+        private static <T> StoreMutationResult<T> unchanged(T value) {
+            return new StoreMutationResult<T>(false, value);
+        }
+
+        private boolean isChanged() {
+            return changed;
+        }
+
+        private T getValue() {
+            return value;
+        }
     }
 
     private static class RemoveItemsResult {

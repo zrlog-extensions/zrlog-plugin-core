@@ -10,6 +10,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
 
 import static org.junit.Assert.assertEquals;
 
@@ -61,6 +64,52 @@ public class PluginRuntimeStateStoreTest {
         assertEquals("one", store.find("plugin-a").get().getPluginName());
         assertEquals("two", store.find("plugin-b").get().getPluginName());
         assertEquals(2, kvStore.getCompareAndSetCount());
+    }
+
+    @Test
+    public void shouldRetryUpdateWhenRepeatedConcurrentRuntimeStateWritesWin() {
+        StaleOnceKvStore kvStore = new StaleOnceKvStore(
+                Optional.<String>empty(),
+                documentJson(state("plugin-b", "two")),
+                5
+        );
+        PluginRuntimeStateStore store = new PluginRuntimeStateStore(kvStore);
+
+        store.update("plugin-a", state -> {
+            state.setPluginName("one");
+            state.setStatus("initializing");
+        });
+
+        assertEquals(2, store.list().size());
+        assertEquals("initializing", store.find("plugin-a").get().getStatus());
+        assertEquals("two", store.find("plugin-b").get().getPluginName());
+        assertEquals(6, kvStore.getCompareAndSetCount());
+    }
+
+    @Test
+    public void shouldUseUpdateLockAroundRuntimeStateMutationWhenProvided() {
+        InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
+        RecordingLock lock = new RecordingLock(true);
+        PluginRuntimeStateStore store = new PluginRuntimeStateStore(kvStore, lock);
+
+        store.upsert(state("plugin-a", "one"));
+
+        assertEquals(1, lock.getTryLockCount());
+        assertEquals(1, lock.getUnlockCount());
+        assertEquals("one", store.find("plugin-a").get().getPluginName());
+    }
+
+    @Test
+    public void shouldFallbackToCasWhenUpdateLockIsBusy() {
+        InMemoryRuntimeKvStore kvStore = new InMemoryRuntimeKvStore();
+        RecordingLock lock = new RecordingLock(false);
+        PluginRuntimeStateStore store = new PluginRuntimeStateStore(kvStore, lock);
+
+        store.upsert(state("plugin-a", "one"));
+
+        assertEquals(1, lock.getTryLockCount());
+        assertEquals(0, lock.getUnlockCount());
+        assertEquals("one", store.find("plugin-a").get().getPluginName());
     }
 
     @Test
@@ -176,12 +225,18 @@ public class PluginRuntimeStateStoreTest {
     private static class StaleOnceKvStore implements KvRepository, ConditionalKvRepository {
         private Optional<String> value;
         private final String staleValue;
-        private boolean staleInjected;
+        private final int staleWriteCount;
+        private int staleInjectedCount;
         private int compareAndSetCount;
 
         private StaleOnceKvStore(Optional<String> value, String staleValue) {
+            this(value, staleValue, 1);
+        }
+
+        private StaleOnceKvStore(Optional<String> value, String staleValue, int staleWriteCount) {
             this.value = value;
             this.staleValue = staleValue;
+            this.staleWriteCount = staleWriteCount;
         }
 
         @Override
@@ -197,9 +252,9 @@ public class PluginRuntimeStateStoreTest {
         @Override
         public synchronized boolean compareAndSet(String key, Optional<String> expectedValue, String value) {
             compareAndSetCount++;
-            if (!staleInjected) {
+            if (staleInjectedCount < staleWriteCount) {
                 this.value = Optional.of(staleValue);
-                staleInjected = true;
+                staleInjectedCount++;
                 return false;
             }
             if (!Objects.equals(this.value, expectedValue)) {
@@ -211,6 +266,55 @@ public class PluginRuntimeStateStoreTest {
 
         private int getCompareAndSetCount() {
             return compareAndSetCount;
+        }
+    }
+
+    private static class RecordingLock implements Lock {
+        private final boolean acquired;
+        private int tryLockCount;
+        private int unlockCount;
+
+        private RecordingLock(boolean acquired) {
+            this.acquired = acquired;
+        }
+
+        @Override
+        public boolean tryLock(long time, TimeUnit unit) {
+            tryLockCount++;
+            return acquired;
+        }
+
+        @Override
+        public void unlock() {
+            unlockCount++;
+        }
+
+        @Override
+        public void lock() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void lockInterruptibly() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean tryLock() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Condition newCondition() {
+            throw new UnsupportedOperationException();
+        }
+
+        private int getTryLockCount() {
+            return tryLockCount;
+        }
+
+        private int getUnlockCount() {
+            return unlockCount;
         }
     }
 }
