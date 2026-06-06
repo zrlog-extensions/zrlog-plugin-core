@@ -13,12 +13,15 @@ import com.zrlog.plugin.common.IdUtil;
 import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugin.data.codec.*;
 import com.zrlog.plugin.type.ActionType;
+import com.zrlog.plugincore.server.dao.PluginCoreDAO;
+import com.zrlog.plugincore.server.runtime.plugin.artifact.PluginFiles;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStates;
 import com.zrlog.plugincore.server.util.AdminTheme;
 import com.zrlog.plugincore.server.util.HttpMsgUtil;
 import com.zrlog.plugincore.server.util.StringUtils;
+import com.zrlog.plugincore.server.vo.PluginVO;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -81,7 +84,7 @@ public class PluginHandle implements HttpErrorHandle {
         boolean isLogin = Boolean.parseBoolean(httpRequest.getHeader("IsLogin"));
         httpRequest.getAttr().put("isLogin", isLogin);
         PluginRequestUriInfo pluginRequestUriInfo = parseRequestUri(httpRequest.getUri());
-        if (isInternalUri(pluginRequestUriInfo.getName())) {
+        if (!isPluginRequest(pluginRequestUriInfo.getName())) {
             httpResponse.renderCode(404);
             return;
         }
@@ -188,6 +191,34 @@ public class PluginHandle implements HttpErrorHandle {
 
     private IOSession getReadySession(String pluginShortName) {
         return PluginSessions.getOrStartLocalSessionByPluginShortName(pluginShortName);
+    }
+
+    private boolean isPluginRequest(String pluginShortName) {
+        return shouldTreatAsPluginRequest(pluginShortName,
+                registeredPlugin(pluginShortName),
+                pluginFileExists(pluginShortName));
+    }
+
+    static boolean shouldTreatAsPluginRequest(String pluginShortName, boolean registeredPlugin, boolean pluginFileExists) {
+        return !StringUtils.isEmpty(pluginShortName)
+                && !isInternalUri(pluginShortName)
+                && (registeredPlugin || pluginFileExists);
+    }
+
+    private boolean registeredPlugin(String pluginShortName) {
+        if (StringUtils.isEmpty(pluginShortName)) {
+            return false;
+        }
+        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(pluginShortName);
+        return pluginVO != null && pluginVO.getPlugin() != null;
+    }
+
+    private boolean pluginFileExists(String pluginShortName) {
+        if (StringUtils.isEmpty(pluginShortName)) {
+            return false;
+        }
+        File pluginFile = PluginFiles.getAvailablePluginFile(pluginShortName);
+        return pluginFile.exists() && pluginFile.length() > 0;
     }
 
     private boolean isDevRequest(HttpRequest httpRequest) {

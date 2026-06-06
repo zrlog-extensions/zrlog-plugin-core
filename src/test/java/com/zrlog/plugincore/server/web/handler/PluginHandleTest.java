@@ -41,4 +41,29 @@ public class PluginHandleTest {
     public void shouldTreatRuntimeServicesAsInternalUri() {
         assertTrue(PluginHandle.isInternalUri("runtime-services"));
     }
+
+    @Test
+    public void shouldTreatRegisteredPluginAsPluginRequest() {
+        assertTrue(PluginHandle.shouldTreatAsPluginRequest("reminder", true, false));
+    }
+
+    @Test
+    public void shouldTreatExistingPluginFileAsPluginRequestBeforeMetadataReady() {
+        assertTrue(PluginHandle.shouldTreatAsPluginRequest("reminder", false, true));
+    }
+
+    @Test
+    public void shouldNotTreatUnknownPathAsPluginRequest() {
+        assertFalse(PluginHandle.shouldTreatAsPluginRequest("missing", false, false));
+    }
+
+    @Test
+    public void shouldNotTreatEmptyPathAsPluginRequest() {
+        assertFalse(PluginHandle.shouldTreatAsPluginRequest("", true, true));
+    }
+
+    @Test
+    public void shouldNotTreatInternalPathAsPluginRequest() {
+        assertFalse(PluginHandle.shouldTreatAsPluginRequest("static", true, true));
+    }
 }
