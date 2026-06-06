@@ -1,0 +1,44 @@
+package com.zrlog.plugincore.server.web.handler;
+
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+public class PluginHandleTest {
+
+    @Test
+    public void shouldParseAdminPluginRootPath() {
+        PluginRequestUriInfo info = PluginHandle.parseRequestUri("/admin/plugins/reminder");
+
+        assertEquals("reminder", info.getName());
+        assertEquals("/", info.getAction());
+    }
+
+    @Test
+    public void shouldRedirectPluginRootWithoutTrailingSlash() {
+        PluginRequestUriInfo info = PluginHandle.parseRequestUri("/admin/plugins/reminder");
+
+        assertTrue(PluginHandle.shouldRedirectPluginRoot("/admin/plugins/reminder", info));
+        assertEquals("/admin/plugins/reminder/", PluginHandle.pluginRootRedirectUri("/admin/plugins/reminder"));
+    }
+
+    @Test
+    public void shouldPreserveQueryWhenRedirectingPluginRoot() {
+        assertEquals("/admin/plugins/reminder/?tab=main",
+                PluginHandle.pluginRootRedirectUri("/admin/plugins/reminder?tab=main"));
+    }
+
+    @Test
+    public void shouldNotRedirectNestedPluginPath() {
+        PluginRequestUriInfo info = PluginHandle.parseRequestUri("/admin/plugins/reminder/static/app.js");
+
+        assertFalse(PluginHandle.shouldRedirectPluginRoot("/admin/plugins/reminder/static/app.js", info));
+    }
+
+    @Test
+    public void shouldTreatRuntimeServicesAsInternalUri() {
+        assertTrue(PluginHandle.isInternalUri("runtime-services"));
+    }
+}

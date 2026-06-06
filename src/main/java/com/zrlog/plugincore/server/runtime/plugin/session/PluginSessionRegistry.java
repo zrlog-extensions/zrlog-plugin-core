@@ -20,6 +20,23 @@ public class PluginSessionRegistry {
     public static final String PROCESS_ID_ATTR = "_zrlog_process_id";
 
     private final List<IOSession> localSessions = new CopyOnWriteArrayList<>();
+    private final SessionStopMarker sessionStopMarker;
+    private final PluginSessionHeartbeat heartbeat;
+
+    public PluginSessionRegistry() {
+        this(PluginRuntimeStates::markStoppedIfCurrent, null);
+    }
+
+    PluginSessionRegistry(SessionStopMarker sessionStopMarker) {
+        this(sessionStopMarker, PluginSessionHeartbeat.disabled());
+    }
+
+    PluginSessionRegistry(SessionStopMarker sessionStopMarker, PluginSessionHeartbeat heartbeat) {
+        this.sessionStopMarker = sessionStopMarker == null ? PluginRuntimeStates::markStoppedIfCurrent : sessionStopMarker;
+        this.heartbeat = heartbeat == null
+                ? PluginSessionHeartbeat.active(this::getAllLocalSessions, this::closeLocalSession)
+                : heartbeat;
+    }
 
     public boolean isCurrentPluginIdentity(Plugin plugin) {
         PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(plugin.getShortName());
@@ -75,7 +92,7 @@ public class PluginSessionRegistry {
         if (!PluginRuntimeStates.ensureStarted(pluginVO.getPlugin())) {
             return null;
         }
-        return getLocalSessionByPluginShortName(pluginShortName);
+        return getLocalSessionByPluginId(pluginVO.getPlugin().getId());
     }
 
     public IOSession getLocalSessionByPluginId(String pluginId) {
@@ -108,6 +125,8 @@ public class PluginSessionRegistry {
             return;
         }
         sessionId(session);
+        heartbeat.start();
+        heartbeat.register(session);
         if (!localSessions.contains(session)) {
             localSessions.add(session);
         }
@@ -125,10 +144,9 @@ public class PluginSessionRegistry {
 
     private IOSession firstOpenLocalSession(Predicate<IOSession> matcher) {
         for (IOSession session : localSessions(matcher)) {
-            if (isSessionOpen(session)) {
+            if (isSessionUsable(session)) {
                 return session;
             }
-            removeClosedLocalSession(session);
         }
         return null;
     }
@@ -136,11 +154,9 @@ public class PluginSessionRegistry {
     private List<IOSession> openLocalSessions(Predicate<IOSession> matcher) {
         List<IOSession> sessions = new ArrayList<>();
         for (IOSession session : localSessions(matcher)) {
-            if (isSessionOpen(session)) {
+            if (isSessionUsable(session)) {
                 sessions.add(session);
-                continue;
             }
-            removeClosedLocalSession(session);
         }
         return sessions;
     }
@@ -185,7 +201,7 @@ public class PluginSessionRegistry {
         String runtimeInstanceId = runtimeInstanceId(session);
         removeLocalSession(session);
         if (!hasOpenSessionForRuntimeInstance(pluginId, runtimeInstanceId)) {
-            PluginRuntimeStates.markStoppedIfCurrent(session);
+            sessionStopMarker.markStoppedIfCurrent(session);
         }
     }
 
@@ -232,5 +248,21 @@ public class PluginSessionRegistry {
     private boolean isSessionOpen(IOSession session) {
         Object channel = session.getSystemAttr().get("_channel");
         return channel instanceof Channel && ((Channel) channel).isOpen();
+    }
+
+    private boolean isSessionUsable(IOSession session) {
+        if (!isSessionOpen(session)) {
+            removeClosedLocalSession(session);
+            return false;
+        }
+        if (!heartbeat.ensureRecentHeartbeat(session, System.currentTimeMillis())) {
+            closeLocalSession(session);
+            return false;
+        }
+        return true;
+    }
+
+    interface SessionStopMarker {
+        void markStoppedIfCurrent(IOSession session);
     }
 }

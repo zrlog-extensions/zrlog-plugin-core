@@ -50,7 +50,7 @@ public class PluginHandle implements HttpErrorHandle {
         return false;
     }
 
-    private static PluginRequestUriInfo parseRequestUri(String uri) {
+    static PluginRequestUriInfo parseRequestUri(String uri) {
         String realUri = uri.replaceFirst(OLD_PATH + "/", "").replaceFirst("/p/", "").replaceFirst("/plugin/", "");
         if (StringUtils.isEmpty(realUri)) {
             return new PluginRequestUriInfo("", "");
@@ -83,6 +83,10 @@ public class PluginHandle implements HttpErrorHandle {
         PluginRequestUriInfo pluginRequestUriInfo = parseRequestUri(httpRequest.getUri());
         if (isInternalUri(pluginRequestUriInfo.getName())) {
             httpResponse.renderCode(404);
+            return;
+        }
+        if (shouldRedirectPluginRoot(httpRequest.getUri(), pluginRequestUriInfo)) {
+            httpResponse.redirect(pluginRootRedirectUri(httpRequest.getUri()));
             return;
         }
 
@@ -190,12 +194,40 @@ public class PluginHandle implements HttpErrorHandle {
         return Objects.equals(httpRequest.getHeader("DEV_MODE"), "true");
     }
 
-    private boolean isInternalUri(String firstSegment) {
+    static boolean isInternalUri(String firstSegment) {
         return Objects.equals("api", firstSegment)
                 || Objects.equals("static", firstSegment)
                 || Objects.equals("runtime-scheduler", firstSegment)
                 || Objects.equals("runtime-states", firstSegment)
-                || Objects.equals("runtime-notification", firstSegment);
+                || Objects.equals("runtime-notification", firstSegment)
+                || Objects.equals("runtime-services", firstSegment);
+    }
+
+    static boolean shouldRedirectPluginRoot(String uri, PluginRequestUriInfo pluginRequestUriInfo) {
+        return pluginRequestUriInfo != null
+                && !StringUtils.isEmpty(pluginRequestUriInfo.getName())
+                && "/".equals(pluginRequestUriInfo.getAction())
+                && uri != null
+                && !pathPart(uri).endsWith("/");
+    }
+
+    static String pluginRootRedirectUri(String uri) {
+        if (uri == null) {
+            return "/";
+        }
+        int queryIndex = uri.indexOf('?');
+        if (queryIndex < 0) {
+            return uri + "/";
+        }
+        return uri.substring(0, queryIndex) + "/" + uri.substring(queryIndex);
+    }
+
+    private static String pathPart(String uri) {
+        int queryIndex = uri.indexOf('?');
+        if (queryIndex < 0) {
+            return uri;
+        }
+        return uri.substring(0, queryIndex);
     }
 
     private static String getExt(HttpRequest httpRequest, MsgPacket responseMsgPacket) {
