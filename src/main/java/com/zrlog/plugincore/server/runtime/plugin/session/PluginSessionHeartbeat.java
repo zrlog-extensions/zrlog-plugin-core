@@ -131,6 +131,9 @@ final class PluginSessionHeartbeat {
                 if (!shouldSendPing(session, nowMs)) {
                     return;
                 }
+                if (!session.getPlugin().getVersion().startsWith("4.")) {
+                    return;
+                }
                 sendPing(session, nowMs, true);
             } catch (RuntimeException e) {
                 LOGGER.log(Level.WARNING, PluginLogContext.prefix("plugin heartbeat error"), e);
@@ -158,6 +161,9 @@ final class PluginSessionHeartbeat {
     }
 
     private boolean pingAndWait(IOSession session, long nowMs) {
+        if (!session.getPlugin().getVersion().startsWith("4.")) {
+            return true;
+        }
         int msgId = sendPing(session, nowMs, false);
         MsgPacket response = session.getResponseMsgPacketByMsgId(msgId, Duration.ofMillis(HEARTBEAT_TIMEOUT_MS));
         if (isPingResponse(response)) {

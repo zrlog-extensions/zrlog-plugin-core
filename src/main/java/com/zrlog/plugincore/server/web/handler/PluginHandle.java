@@ -1,6 +1,7 @@
 package com.zrlog.plugincore.server.web.handler;
 
 import com.google.gson.Gson;
+import com.hibegin.common.dao.ResultBeanUtils;
 import com.hibegin.common.util.EnvKit;
 import com.hibegin.http.server.api.HttpErrorHandle;
 import com.hibegin.http.server.api.HttpRequest;
@@ -28,6 +29,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Level;
@@ -137,7 +139,10 @@ public class PluginHandle implements HttpErrorHandle {
                     }
                     AdminTheme.applyTo(msgBody, httpRequest);
                     msgBody.setParam(httpRequest.decodeParamMap());
-                    session.sendJsonMsg(msgBody, actionType.name(), id, MsgPacketStatus.SEND_REQUEST);
+                    Map convert = ResultBeanUtils.convert(msgBody, Map.class);
+                    //
+                    convert.put("class", "com.fzb.zrlog.plugin.data.codec.HttpRequestInfo");
+                    session.sendJsonMsg(convert, actionType.name(), id, MsgPacketStatus.SEND_REQUEST);
                     String accessUrl = httpRequest.getHeader("AccessUrl");
                     String cookie = httpRequest.getHeader("Cookie");
                     if (accessUrl == null) {
