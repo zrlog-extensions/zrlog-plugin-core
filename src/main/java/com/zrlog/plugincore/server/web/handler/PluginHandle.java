@@ -1,35 +1,25 @@
 package com.zrlog.plugincore.server.web.handler;
 
 import com.google.gson.Gson;
-import com.hibegin.common.dao.ResultBeanUtils;
 import com.hibegin.common.util.EnvKit;
 import com.hibegin.http.server.api.HttpErrorHandle;
 import com.hibegin.http.server.api.HttpRequest;
 import com.hibegin.http.server.api.HttpResponse;
-import com.hibegin.http.server.util.MimeTypeUtil;
 import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.common.HexaConversionUtil;
 import com.zrlog.plugin.common.IOUtil;
-import com.zrlog.plugin.common.IdUtil;
 import com.zrlog.plugin.common.LoggerUtil;
-import com.zrlog.plugin.data.codec.*;
-import com.zrlog.plugin.type.ActionType;
+import com.zrlog.plugin.data.codec.ContentType;
+import com.zrlog.plugin.data.codec.FileDesc;
+import com.zrlog.plugin.data.codec.MsgPacket;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.runtime.plugin.artifact.PluginFiles;
 import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
-import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
-import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStates;
-import com.zrlog.plugincore.server.util.AdminTheme;
-import com.zrlog.plugincore.server.util.HttpMsgUtil;
 import com.zrlog.plugincore.server.util.StringUtils;
 import com.zrlog.plugincore.server.vo.PluginVO;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Level;
@@ -72,15 +62,6 @@ public class PluginHandle implements HttpErrorHandle {
         return new PluginRequestUriInfo(pluginShortName, action);
     }
 
-    private static File convertToFile(byte[] data, String saveFilePath) {
-        int fileDescLength = HexaConversionUtil.byteArrayToIntH(HexaConversionUtil.subByts(data, 0, 4));
-        FileDesc fileDesc = new Gson().fromJson(new String(HexaConversionUtil.subByts(data, 4, fileDescLength)), FileDesc.class);
-        int dataLength = HexaConversionUtil.byteArrayToIntH(HexaConversionUtil.subByts(data, fileDescLength + 4 + 32, 4));
-        byte[] fileBytes = HexaConversionUtil.subByts(data, fileDescLength + 8 + 32, dataLength);
-        File resultFile = new File(saveFilePath + "/" + fileDesc.getFileName());
-        IOUtil.writeBytesToFile(fileBytes, resultFile);
-        return resultFile;
-    }
 
     @Override
     public void doHandle(HttpRequest httpRequest, HttpResponse httpResponse, Throwable e) {
@@ -108,97 +89,16 @@ public class PluginHandle implements HttpErrorHandle {
                 httpResponse.renderCode(503);
                 return;
             }
+            if (!devMode && !isLogin && !includePath(session.getPlugin().getPaths(), pluginRequestUriInfo.getAction())) {
+                httpResponse.renderCode(403);
+                return;
+            }
             try (PluginLogContext.Scope sessionScope = PluginLogContext.open(session)) {
-                if (!devMode && !isLogin && !includePath(session.getPlugin().getPaths(), pluginRequestUriInfo.getAction())) {
-                    httpResponse.renderCode(403);
-                    return;
-                }
-
-                PluginRuntimeStateService stateService = PluginRuntimeStates.newStateService(session);
-                String pluginId = session.getPlugin().getId();
-                String pluginName = PluginSessions.nameOrShortName(session.getPlugin());
-                String errorMessage = null;
-                stateService.markInvocationStart(pluginId, pluginName);
-                //Full Blog System ENV
-                int id = IdUtil.getInt();
-                try {
-                    HttpRequestInfo msgBody = HttpMsgUtil.genInfo(httpRequest);
-                    msgBody.setUri(pluginRequestUriInfo.getAction());
-                    if (("/".equals(msgBody.getUri()) && !"".equals(session.getPlugin().getIndexPage()))) {
-                        msgBody.setUri(session.getPlugin().getIndexPage());
-                    }
-                    ActionType actionType;
-                    if (new File(msgBody.getUri()).getName().contains(".")) {
-                        actionType = ActionType.HTTP_FILE;
-                    } else {
-                        actionType = ActionType.HTTP_METHOD;
-                        if (httpRequest.getRequestBodyByteBuffer() != null) {
-                            msgBody.setRequestBody(requestBodyBytes(httpRequest.getRequestBodyByteBuffer()));
-                        }
-                        msgBody.setUri(msgBody.getUri() + ".action");
-                    }
-                    AdminTheme.applyTo(msgBody, httpRequest);
-                    msgBody.setParam(httpRequest.decodeParamMap());
-                    Map convert = ResultBeanUtils.convert(msgBody, Map.class);
-                    //
-                    convert.put("class", "com.fzb.zrlog.plugin.data.codec.HttpRequestInfo");
-                    session.sendJsonMsg(convert, actionType.name(), id, MsgPacketStatus.SEND_REQUEST);
-                    String accessUrl = httpRequest.getHeader("AccessUrl");
-                    String cookie = httpRequest.getHeader("Cookie");
-                    if (accessUrl == null) {
-                        accessUrl = "";
-                    }
-                    if (cookie == null) {
-                        cookie = "";
-                    }
-                    session.getAttr().put("accessUrl", accessUrl);
-                    session.getAttr().put("cookie", cookie);
-                    MsgPacket responseMsgPacket = session.getResponseMsgPacketByMsgId(id);
-                    if (Objects.isNull(responseMsgPacket)) {
-                        errorMessage = "plugin " + session.getPlugin().getShortName() + " not response";
-                        LOGGER.warning(PluginLogContext.prefix(httpRequest.getUri() + " -> error, " + errorMessage));
-                        httpResponse.renderCode(500);
-                        return;
-                    }
-                    if (responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_ERROR) {
-                        errorMessage = "plugin " + session.getPlugin().getShortName() + " response error";
-                    }
-                    if (responseMsgPacket.getMethodStr().equals(ActionType.HTTP_ATTACHMENT_FILE.name())) {
-                        String tempDirPath = System.getProperty("java.io.tmpdir");
-                        File tempDir = new File(tempDirPath);
-
-                        if (!tempDir.exists()) {
-                            tempDir.mkdirs(); // 确保目录存在
-                        }
-                        File file = convertToFile(responseMsgPacket.getData().array(), tempDirPath);
-                        try {
-                            httpResponse.renderFile(file);
-                            return;
-                        } finally {
-                            file.delete();
-                        }
-                    }
-                    String ext = getExt(httpRequest, responseMsgPacket);
-                    InputStream in = new ByteArrayInputStream(responseMsgPacket.getData().array());
-                    httpResponse.addHeader("Content-Type", MimeTypeUtil.getMimeStrByExt(ext));
-                    httpResponse.write(in, responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_SUCCESS ? 200 : 500);
-                } catch (RuntimeException ex) {
-                    errorMessage = ex.getMessage();
-                    throw ex;
-                } finally {
-                    session.getPipeMap().remove(id);
-                    stateService.markInvocationEnd(pluginId, pluginName, errorMessage);
-                }
+                new PluginHttpStream(session, pluginRequestUriInfo, httpRequest, httpResponse).handle();
             }
         }
     }
 
-    private byte[] requestBodyBytes(ByteBuffer buffer) {
-        ByteBuffer duplicate = buffer.asReadOnlyBuffer();
-        byte[] bytes = new byte[duplicate.remaining()];
-        duplicate.get(bytes);
-        return bytes;
-    }
 
     private IOSession getReadySession(String pluginShortName) {
         return PluginSessions.getOrStartLocalSessionByPluginShortName(pluginShortName);
@@ -270,18 +170,5 @@ public class PluginHandle implements HttpErrorHandle {
             return uri;
         }
         return uri.substring(0, queryIndex);
-    }
-
-    private static String getExt(HttpRequest httpRequest, MsgPacket responseMsgPacket) {
-        if (responseMsgPacket.getContentType() == ContentType.JSON) {
-            return "json";
-        } else if (responseMsgPacket.getContentType() == ContentType.HTML) {
-            return "html";
-        } else if (responseMsgPacket.getContentType() == ContentType.XML) {
-            return "xml";
-        } else if (responseMsgPacket.getContentType() == ContentType.IMAGE_SVG_XML) {
-            return "svg";
-        }
-        return httpRequest.getUri().substring(httpRequest.getUri().lastIndexOf(".") + 1);
     }
 }

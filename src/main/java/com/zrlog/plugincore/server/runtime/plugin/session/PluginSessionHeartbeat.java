@@ -3,6 +3,8 @@ package com.zrlog.plugincore.server.runtime.plugin.session;
 import com.hibegin.common.util.LoggerUtil;
 import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.common.IdUtil;
+import com.zrlog.plugin.common.PluginVersionUtils;
+import com.zrlog.plugin.common.type.PluginVersion;
 import com.zrlog.plugin.data.codec.ContentType;
 import com.zrlog.plugin.data.codec.MsgPacket;
 import com.zrlog.plugin.data.codec.MsgPacketStatus;
@@ -131,7 +133,7 @@ final class PluginSessionHeartbeat {
                 if (!shouldSendPing(session, nowMs)) {
                     return;
                 }
-                if (!session.getPlugin().getVersion().startsWith("4.")) {
+                if (!PluginVersionUtils.isUpper(session.getPlugin(), PluginVersion.V4)) {
                     return;
                 }
                 sendPing(session, nowMs, true);
@@ -161,7 +163,7 @@ final class PluginSessionHeartbeat {
     }
 
     private boolean pingAndWait(IOSession session, long nowMs) {
-        if (!session.getPlugin().getVersion().startsWith("4.")) {
+        if (!PluginVersionUtils.isUpper(session.getPlugin(), PluginVersion.V4)) {
             return true;
         }
         int msgId = sendPing(session, nowMs, false);
