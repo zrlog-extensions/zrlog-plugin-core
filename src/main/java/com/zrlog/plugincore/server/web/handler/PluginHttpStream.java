@@ -90,8 +90,6 @@ public class PluginHttpStream {
             if (cookie == null) {
                 cookie = "";
             }
-            session.getAttr().put("accessUrl", accessUrl);
-            session.getAttr().put("cookie", cookie);
             MsgPacket responseMsgPacket = session.getResponseMsgPacketByMsgId(id);
             if (Objects.isNull(responseMsgPacket)) {
                 errorMessage = "plugin " + session.getPlugin().getShortName() + " not response";
