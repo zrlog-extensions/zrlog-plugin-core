@@ -9,6 +9,7 @@ import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.vo.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.runtime.plugin.artifact.PluginFiles;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessionRegistry;
 import com.zrlog.plugincore.server.runtime.state.DefaultPluginRuntimeStarter;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
@@ -66,42 +67,49 @@ public class PluginProcessRuntime {
         Runtime rt = Runtime.getRuntime();
         rt.addShutdownHook(new Thread(() -> {
             for (Map.Entry<String, Process> entry : processMap.entrySet()) {
-                entry.getValue().destroy();
-                LOGGER.info("close plugin " + " " + entry.getKey());
+                String pluginShortName = processPluginShortNameMap.get(entry.getKey());
+                try (PluginLogContext.Scope ignored = PluginLogContext.open(entry.getKey(), pluginShortName, pluginShortName)) {
+                    entry.getValue().destroy();
+                    LOGGER.info(PluginLogContext.prefix("close plugin " + pluginShortName));
+                }
             }
         }));
     }
 
     public void destroy(String pluginShortName) {
-        sessionRegistry.closeLocalSessionsByPluginShortName(pluginShortName);
-        boolean destroyed = false;
-        for (Map.Entry<String, String> entry : new ArrayList<Map.Entry<String, String>>(processPluginShortNameMap.entrySet())) {
-            if (!Objects.equals(pluginShortName, entry.getValue())) {
-                continue;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(null, pluginShortName, pluginShortName)) {
+            sessionRegistry.closeLocalSessionsByPluginShortName(pluginShortName);
+            boolean destroyed = false;
+            for (Map.Entry<String, String> entry : new ArrayList<Map.Entry<String, String>>(processPluginShortNameMap.entrySet())) {
+                if (!Objects.equals(pluginShortName, entry.getValue())) {
+                    continue;
+                }
+                destroyByPluginId(entry.getKey(), pluginShortName);
+                destroyed = true;
             }
-            destroyByPluginId(entry.getKey(), pluginShortName);
-            destroyed = true;
-        }
-        if (destroyed) {
-            return;
-        }
-        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(pluginShortName);
-        if (pluginVO != null && pluginVO.getPlugin() != null) {
-            destroyByPluginId(pluginVO.getPlugin().getId(), pluginShortName);
+            if (destroyed) {
+                return;
+            }
+            PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(pluginShortName);
+            if (pluginVO != null && pluginVO.getPlugin() != null) {
+                destroyByPluginId(pluginVO.getPlugin().getId(), pluginShortName);
+            }
         }
     }
 
     public void destroyByPluginId(String pluginId, String pluginShortName) {
-        sessionRegistry.closeLocalSessionsByPluginId(pluginId);
-        Process process = processMap.remove(pluginId);
-        if (process != null) {
-            process.destroy();
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, pluginShortName, pluginShortName)) {
+            sessionRegistry.closeLocalSessionsByPluginId(pluginId);
+            Process process = processMap.remove(pluginId);
+            if (process != null) {
+                process.destroy();
+            }
+            processPluginShortNameMap.remove(pluginId);
+            processStartedAtMap.remove(pluginId);
+            String pluginName = pluginNameOrShortName(pluginId, pluginShortName);
+            markProcessRuntimeStopped(pluginId, pluginName);
+            runtimeStateService().markStopped(pluginId, pluginName);
         }
-        processPluginShortNameMap.remove(pluginId);
-        processStartedAtMap.remove(pluginId);
-        String pluginName = pluginNameOrShortName(pluginId, pluginShortName);
-        markProcessRuntimeStopped(pluginId, pluginName);
-        runtimeStateService().markStopped(pluginId, pluginName);
     }
 
     public void loadPlugin(final File pluginFile, String pluginId) {
@@ -109,54 +117,56 @@ public class PluginProcessRuntime {
             return;
         }
         String pluginShortName = PluginFiles.getPluginShortName(pluginFile);
-        synchronized (pluginStartLock(pluginShortName, pluginId)) {
-            destroyOtherProcesses(pluginShortName, pluginId);
-            if (!prepareProcessSlot(pluginId, pluginShortName)) {
-                return;
-            }
-            PluginRuntimeStates.removeLocalRuntimeInstances(pluginId);
-            LOGGER.info("run plugin " + pluginShortName);
-            String userDir = pluginConfig.getPluginHomeFolder(pluginShortName);
-            String tmpDir = pluginConfig.getPluginTempFolder(pluginShortName);
-            new File(userDir).mkdirs();
-            new File(tmpDir).mkdirs();
-            LaunchCommand launchCommand = buildLaunchCommand(
-                    pluginFile,
-                    pluginConfig.getMasterPort(),
-                    pluginId,
-                    userDir,
-                    tmpDir,
-                    ConfigKit.get("pluginJvmArgs", "") + "",
-                    System.getProperty("java.home")
-            );
-            if (!pluginFile.getName().endsWith(".jar")) {
-                if (File.separatorChar == '/') {
-                    CmdUtil.sendCmd("chmod", "a+x", pluginFile.toString());
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, pluginShortName, pluginShortName)) {
+            synchronized (pluginStartLock(pluginShortName, pluginId)) {
+                destroyOtherProcesses(pluginShortName, pluginId);
+                if (!prepareProcessSlot(pluginId, pluginShortName)) {
+                    return;
                 }
+                PluginRuntimeStates.removeLocalRuntimeInstances(pluginId);
+                LOGGER.info(PluginLogContext.prefix("run plugin " + pluginShortName));
+                String userDir = pluginConfig.getPluginHomeFolder(pluginShortName);
+                String tmpDir = pluginConfig.getPluginTempFolder(pluginShortName);
+                new File(userDir).mkdirs();
+                new File(tmpDir).mkdirs();
+                LaunchCommand launchCommand = buildLaunchCommand(
+                        pluginFile,
+                        pluginConfig.getMasterPort(),
+                        pluginId,
+                        userDir,
+                        tmpDir,
+                        ConfigKit.get("pluginJvmArgs", "") + "",
+                        System.getProperty("java.home")
+                );
+                if (!pluginFile.getName().endsWith(".jar")) {
+                    if (File.separatorChar == '/') {
+                        CmdUtil.sendCmd("chmod", "a+x", pluginFile.toString());
+                    }
+                }
+                Process pr = CmdUtil.getProcess(
+                        launchCommand.workingDirectory,
+                        launchCommand.environment,
+                        launchCommand.program,
+                        launchCommand.args.toArray(new Object[0])
+                );
+                if (pr != null) {
+                    long processId = pr.pid();
+                    String runtimeInstanceId = PluginRuntimeStates.newRuntimeInstanceId(processId);
+                    processMap.put(pluginId, pr);
+                    processPluginShortNameMap.put(pluginId, pluginShortName);
+                    processStartedAtMap.put(pluginId, System.currentTimeMillis());
+                    processIdMap.put(pluginId, processId);
+                    processRuntimeInstanceIdMap.put(pluginId, runtimeInstanceId);
+                    runtimeStateService(runtimeInstanceId).markStarting(pluginId,
+                            pluginNameOrShortName(pluginId, pluginShortName), runtimeMode(pluginFile), processId);
+                    AtomicBoolean cleaned = new AtomicBoolean(false);
+                    printInputStreamWithThread(pr, pr.getInputStream(), pluginShortName, "PINFO", pluginId, cleaned);
+                    printInputStreamWithThread(pr, pr.getErrorStream(), pluginShortName, "PERROR", pluginId, cleaned);
+                    watchProcessExit(pr, pluginShortName, pluginId, cleaned);
+                    return;
+                }
+                runtimeStateService().markFailed(pluginId, pluginNameOrShortName(pluginId, pluginShortName), "Plugin process start failed");
             }
-            Process pr = CmdUtil.getProcess(
-                    launchCommand.workingDirectory,
-                    launchCommand.environment,
-                    launchCommand.program,
-                    launchCommand.args.toArray(new Object[0])
-            );
-            if (pr != null) {
-                long processId = pr.pid();
-                String runtimeInstanceId = PluginRuntimeStates.newRuntimeInstanceId(processId);
-                processMap.put(pluginId, pr);
-                processPluginShortNameMap.put(pluginId, pluginShortName);
-                processStartedAtMap.put(pluginId, System.currentTimeMillis());
-                processIdMap.put(pluginId, processId);
-                processRuntimeInstanceIdMap.put(pluginId, runtimeInstanceId);
-                runtimeStateService(runtimeInstanceId).markStarting(pluginId,
-                        pluginNameOrShortName(pluginId, pluginShortName), runtimeMode(pluginFile), processId);
-                AtomicBoolean cleaned = new AtomicBoolean(false);
-                printInputStreamWithThread(pr, pr.getInputStream(), pluginShortName, "PINFO", pluginId, cleaned);
-                printInputStreamWithThread(pr, pr.getErrorStream(), pluginShortName, "PERROR", pluginId, cleaned);
-                watchProcessExit(pr, pluginShortName, pluginId, cleaned);
-                return;
-            }
-            runtimeStateService().markFailed(pluginId, pluginNameOrShortName(pluginId, pluginShortName), "Plugin process start failed");
         }
     }
 
@@ -172,11 +182,13 @@ public class PluginProcessRuntime {
                                             final String printLevel, final String uuid,
                                             AtomicBoolean cleaned) {
         new Thread(() -> {
-            try {
-                drainProcessOutput(pr, in, pluginShortName, printLevel, uuid, cleaned);
-            } catch (IOException e) {
-                if (EnvKit.isDevMode()) {
-                    LOGGER.log(Level.SEVERE, "plugin output error", e);
+            try (PluginLogContext.Scope ignored = PluginLogContext.open(uuid, pluginShortName, pluginShortName)) {
+                try {
+                    drainProcessOutput(pr, in, pluginShortName, printLevel, uuid, cleaned);
+                } catch (IOException e) {
+                    if (EnvKit.isDevMode()) {
+                        LOGGER.log(Level.SEVERE, PluginLogContext.prefix("plugin output error"), e);
+                    }
                 }
             }
         }, "zrlog-plugin-output-" + printLevel + "-" + pluginShortName).start();
@@ -200,32 +212,36 @@ public class PluginProcessRuntime {
     private void watchProcessExit(final Process pr, final String pluginShortName, final String pluginId,
                                   AtomicBoolean cleaned) {
         new Thread(() -> {
-            try {
-                int exitCode = pr.waitFor();
-                if (EnvKit.isDevMode()) {
-                    LOGGER.info("plugin " + pluginShortName + " exited with code " + exitCode);
+            try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, pluginShortName, pluginShortName)) {
+                try {
+                    int exitCode = pr.waitFor();
+                    if (EnvKit.isDevMode()) {
+                        LOGGER.info(PluginLogContext.prefix("plugin " + pluginShortName + " exited with code " + exitCode));
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    cleanupExitedProcess(pr, pluginShortName, pluginId, cleaned);
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } finally {
-                cleanupExitedProcess(pr, pluginShortName, pluginId, cleaned);
             }
         }, "zrlog-plugin-watch-" + pluginShortName).start();
     }
 
     private void cleanupExitedProcess(Process process, String pluginShortName, String pluginId, AtomicBoolean cleaned) {
-        if (!cleaned.compareAndSet(false, true)) {
-            return;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, pluginShortName, pluginShortName)) {
+            if (!cleaned.compareAndSet(false, true)) {
+                return;
+            }
+            if (!processMap.remove(pluginId, process)) {
+                return;
+            }
+            sessionRegistry.closeLocalSessionsByPluginId(pluginId);
+            processPluginShortNameMap.remove(pluginId);
+            processStartedAtMap.remove(pluginId);
+            String pluginName = pluginNameOrShortName(pluginId, pluginShortName);
+            markProcessRuntimeStopped(pluginId, pluginName);
+            runtimeStateService().markStopped(pluginId, pluginName);
         }
-        if (!processMap.remove(pluginId, process)) {
-            return;
-        }
-        sessionRegistry.closeLocalSessionsByPluginId(pluginId);
-        processPluginShortNameMap.remove(pluginId);
-        processStartedAtMap.remove(pluginId);
-        String pluginName = pluginNameOrShortName(pluginId, pluginShortName);
-        markProcessRuntimeStopped(pluginId, pluginName);
-        runtimeStateService().markStopped(pluginId, pluginName);
     }
 
     private void destroyOtherProcesses(String pluginShortName, String currentPluginId) {
@@ -254,7 +270,7 @@ public class PluginProcessRuntime {
             processStartedAtMap.remove(pluginId);
             markProcessRuntimeStopped(pluginId, pluginNameOrShortName(pluginId, pluginShortName));
             sessionRegistry.closeLocalSessionsByPluginId(pluginId);
-            LOGGER.warning("restart plugin " + pluginShortName + " because process has no local session");
+            LOGGER.warning(PluginLogContext.prefix("restart plugin " + pluginShortName + " because process has no local session"));
         }
         return true;
     }

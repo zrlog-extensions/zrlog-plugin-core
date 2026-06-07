@@ -1,6 +1,7 @@
 package com.zrlog.plugincore.server.runtime.scheduler;
 
 import com.zrlog.plugin.message.CapabilityInvokeResult;
+import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.common.BasicCronParser;
 import com.zrlog.plugin.common.CronParseException;
 import com.zrlog.plugincore.server.model.PluginCore;
@@ -11,9 +12,11 @@ import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.InvokeContext;
 import com.zrlog.plugincore.server.runtime.capability.RuntimeSources;
 import com.zrlog.plugincore.server.runtime.lock.DistributedLock;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.state.PluginIdleStopRunner;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeSetting;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStates;
+import com.zrlog.plugincore.server.vo.PluginVO;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -191,29 +194,31 @@ public class SchedulerRuntime {
     }
 
     private SchedulerTickResult executeClaimedAutomation(ClaimedAutomation claimedAutomation, ZonedDateTime now, String source) {
-        SchedulerTickResult result = new SchedulerTickResult();
-        try {
-            PluginAutomationRun run = executeAutomation(claimedAutomation.getAutomation(), now, source);
-            automationRunStore.append(run);
-            if (Objects.equals("success", run.getStatus())) {
-                result.executed();
-            } else {
-                result.failed();
-            }
-        } catch (RuntimeException e) {
-            result.failed();
-        } finally {
+        try (PluginLogContext.Scope ignored = automationLogScope(claimedAutomation.getAutomation())) {
+            SchedulerTickResult result = new SchedulerTickResult();
             try {
-                finishClaimedAutomation(claimedAutomation.getAutomation(), now, false);
+                PluginAutomationRun run = executeAutomation(claimedAutomation.getAutomation(), now, source);
+                automationRunStore.append(run);
+                if (Objects.equals("success", run.getStatus())) {
+                    result.executed();
+                } else {
+                    result.failed();
+                }
+            } catch (RuntimeException e) {
+                result.failed();
             } finally {
                 try {
-                    claimedAutomation.getTaskLock().unlock();
+                    finishClaimedAutomation(claimedAutomation.getAutomation(), now, false);
                 } finally {
-                    claimedAutomation.getLock().release();
+                    try {
+                        claimedAutomation.getTaskLock().unlock();
+                    } finally {
+                        claimedAutomation.getLock().release();
+                    }
                 }
             }
+            return result;
         }
-        return result;
     }
 
     public PluginAutomationRun runNow(String automationId, ZonedDateTime now) {
@@ -225,21 +230,23 @@ public class SchedulerRuntime {
             if (!Objects.equals(automationId, automation.getId())) {
                 continue;
             }
-            Semaphore lock = executionLock(automation);
-            if (!lock.tryAcquire()) {
-                throw new CronParseException("Automation is already running");
-            }
-            try {
-                PluginAutomation claimed = claimAutomation(automation, now, UUID.randomUUID().toString(), true);
-                if (claimed == null) {
+            try (PluginLogContext.Scope ignored = automationLogScope(automation)) {
+                Semaphore lock = executionLock(automation);
+                if (!lock.tryAcquire()) {
                     throw new CronParseException("Automation is already running");
                 }
-                PluginAutomationRun run = executeAutomation(claimed, now, RuntimeSources.TICK);
-                automationRunStore.append(run);
-                finishClaimedAutomation(claimed, now, true);
-                return run;
-            } finally {
-                lock.release();
+                try {
+                    PluginAutomation claimed = claimAutomation(automation, now, UUID.randomUUID().toString(), true);
+                    if (claimed == null) {
+                        throw new CronParseException("Automation is already running");
+                    }
+                    PluginAutomationRun run = executeAutomation(claimed, now, RuntimeSources.TICK);
+                    automationRunStore.append(run);
+                    finishClaimedAutomation(claimed, now, true);
+                    return run;
+                } finally {
+                    lock.release();
+                }
             }
         }
         throw new CronParseException("Automation not found");
@@ -433,6 +440,30 @@ public class SchedulerRuntime {
     private PluginCore pluginCore() {
         PluginCore pluginCore = pluginCoreSupplier.get();
         return pluginCore == null ? new PluginCore() : pluginCore;
+    }
+
+    private PluginLogContext.Scope automationLogScope(PluginAutomation automation) {
+        if (automation == null) {
+            return PluginLogContext.open(null, null, null);
+        }
+        Plugin plugin = pluginById(automation.getPluginId());
+        return PluginLogContext.open(automation.getPluginId(),
+                plugin == null ? null : plugin.getShortName(),
+                plugin == null ? null : plugin.getName());
+    }
+
+    private Plugin pluginById(String pluginId) {
+        PluginCore pluginCore = pluginCore();
+        if (pluginCore.getPluginInfoMap() == null) {
+            return null;
+        }
+        for (PluginVO pluginVO : pluginCore.getPluginInfoMap().values()) {
+            if (pluginVO != null && pluginVO.getPlugin() != null
+                    && Objects.equals(pluginId, pluginVO.getPlugin().getId())) {
+                return pluginVO.getPlugin();
+            }
+        }
+        return null;
     }
 
     private static Supplier<PluginRuntimeSetting> runtimeSettingSupplier(PluginCore pluginCore) {

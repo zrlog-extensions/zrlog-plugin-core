@@ -5,6 +5,7 @@ import com.zrlog.plugincore.server.runtime.plugin.config.PluginConfig;
 import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.runtime.plugin.artifact.PluginFiles;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessionRegistry;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.vo.PluginVO;
 import com.zrlog.plugincore.server.util.StringUtils;
 
@@ -129,13 +130,15 @@ public class PluginArtifactBootstrapper {
                     continue;
                 }
                 futures.add(CompletableFuture.runAsync(() -> {
-                    try {
-                        File downloadedFile = PluginFiles.downloadPlugin(file.getName());
-                        if (!metadataBootstrapper.startPluginFileForMetadata(downloadedFile, pluginId)) {
-                            LOGGER.warning("downloaded plugin " + pluginShortName + " but metadata was not registered");
+                    try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, pluginShortName, pluginShortName)) {
+                        try {
+                            File downloadedFile = PluginFiles.downloadPlugin(file.getName());
+                            if (!metadataBootstrapper.startPluginFileForMetadata(downloadedFile, pluginId)) {
+                                LOGGER.warning(PluginLogContext.prefix("downloaded plugin " + pluginShortName + " but metadata was not registered"));
+                            }
+                        } catch (Exception e) {
+                            LOGGER.log(Level.SEVERE, PluginLogContext.prefix("download error"), e);
                         }
-                    } catch (Exception e) {
-                        LOGGER.log(Level.SEVERE, "download error", e);
                     }
                 }, executorService));
             }
@@ -159,8 +162,10 @@ public class PluginArtifactBootstrapper {
                 continue;
             }
             futures.add(CompletableFuture.runAsync(() -> {
-                if (!metadataBootstrapper.startPluginFileForMetadata(file, pluginId)) {
-                    LOGGER.warning("plugin " + pluginShortName + " file exists but metadata was not registered");
+                try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, pluginShortName, pluginShortName)) {
+                    if (!metadataBootstrapper.startPluginFileForMetadata(file, pluginId)) {
+                        LOGGER.warning(PluginLogContext.prefix("plugin " + pluginShortName + " file exists but metadata was not registered"));
+                    }
                 }
             }, executorService));
         }

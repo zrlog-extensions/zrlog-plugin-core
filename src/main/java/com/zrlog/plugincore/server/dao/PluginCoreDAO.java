@@ -1,6 +1,7 @@
 package com.zrlog.plugincore.server.dao;
 
 import com.google.gson.Gson;
+import com.hibegin.common.dao.DaoTrace;
 import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.vo.PluginVO;

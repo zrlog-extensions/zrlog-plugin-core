@@ -2,6 +2,7 @@ package com.zrlog.plugincore.server.dao;
 
 
 import com.hibegin.common.dao.DAO;
+import com.hibegin.common.dao.DaoTrace;
 import com.zrlog.plugin.common.LoggerUtil;
 
 import java.sql.SQLException;

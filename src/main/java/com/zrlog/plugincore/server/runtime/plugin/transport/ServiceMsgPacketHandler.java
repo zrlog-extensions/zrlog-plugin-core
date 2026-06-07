@@ -10,6 +10,7 @@ import com.zrlog.plugin.message.PluginCapability;
 import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.vo.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.invocation.ServiceInvocationLogs;
@@ -93,62 +94,71 @@ public class ServiceMsgPacketHandler {
     }
 
     public void doHandle(final MsgPacket msgPacket) {
-        Map<String, Object> map = new Gson().fromJson(msgPacket.getDataStr(), Map.class);
-        if (map == null || map.get("name") == null) {
-            session.sendJsonMsg(errorResponse("Service name is required"), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
-            return;
-        }
-        String name = map.get("name").toString();
-        PluginRuntimeStateService stateService = null;
-        String targetPluginId = null;
-        String targetPluginName = null;
-        String capabilityKey = null;
-        String requestId = msgPacket == null ? UUID.randomUUID().toString() : String.valueOf(msgPacket.getMsgId());
-        long startedAtMs = System.currentTimeMillis();
-        KvRepository runtimeKvStore = kvStore();
-        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
-        List<PluginCapability> serviceCapabilities = new CapabilityStore(runtimeKvStore).listByType("service");
-        try {
-            PluginCapability provider = resolveServiceProvider(name, serviceCapabilities, pluginCore);
-            IOSession serviceSession = provider == null
-                    ? getServiceSessionWithRetry(name, null, 60, pluginCore)
-                    : getServiceSessionWithRetry(name, provider.getPluginId(), 60, pluginCore);
-            if (Objects.isNull(serviceSession) || serviceSession.getPlugin() == null) {
-                throw new RuntimeException("Not found serviceSession " + name);
+        try (PluginLogContext.Scope sourceScope = PluginLogContext.open(session)) {
+            Map<String, Object> map = new Gson().fromJson(msgPacket.getDataStr(), Map.class);
+            if (map == null || map.get("name") == null) {
+                session.sendJsonMsg(errorResponse("Service name is required"), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+                return;
             }
-            targetPluginId = serviceSession.getPlugin().getId();
-            targetPluginName = PluginSessions.nameOrShortName(serviceSession.getPlugin());
-            capabilityKey = serviceCapabilityKey(name, targetPluginId, provider, serviceCapabilities);
-            PluginRuntimeStateService invocationStateService = PluginRuntimeStates.newStateService(serviceSession);
-            stateService = invocationStateService;
-            invocationStateService.markInvocationStart(targetPluginId, targetPluginName);
-            final String invocationPluginId = targetPluginId;
-            final String invocationPluginName = targetPluginName;
-            final String invocationCapabilityKey = capabilityKey;
-            final long invocationStartedAtMs = startedAtMs;
-            final String invocationRequestId = requestId;
-            final PluginRuntimeStateService callbackStateService = invocationStateService;
-            // 消息中转
-            serviceSession.requestService(name, map, responseMsgPacket -> {
-                String callbackErrorMessage = responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_SUCCESS ? null : "service response error";
-                try {
-                    responseMsgPacket.setMsgId(msgPacket.getMsgId());
-                    session.sendMsg(responseMsgPacket);
-                } finally {
-                    callbackStateService.markInvocationEnd(invocationPluginId, invocationPluginName,
-                            callbackErrorMessage);
-                    ServiceInvocationLogs.append(runtimeKvStore, invocationPluginId, invocationCapabilityKey, invocationRequestId, null,
-                            invocationStartedAtMs, System.currentTimeMillis(), callbackErrorMessage);
+            String name = map.get("name").toString();
+            PluginRuntimeStateService stateService = null;
+            String targetPluginId = null;
+            String targetPluginName = null;
+            String capabilityKey = null;
+            String requestId = msgPacket == null ? UUID.randomUUID().toString() : String.valueOf(msgPacket.getMsgId());
+            long startedAtMs = System.currentTimeMillis();
+            KvRepository runtimeKvStore = kvStore();
+            PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+            List<PluginCapability> serviceCapabilities = new CapabilityStore(runtimeKvStore).listByType("service");
+            try {
+                PluginCapability provider = resolveServiceProvider(name, serviceCapabilities, pluginCore);
+                IOSession serviceSession = provider == null
+                        ? getServiceSessionWithRetry(name, null, 60, pluginCore)
+                        : getServiceSessionWithRetry(name, provider.getPluginId(), 60, pluginCore);
+                if (Objects.isNull(serviceSession) || serviceSession.getPlugin() == null) {
+                    throw new RuntimeException("Not found serviceSession " + name);
                 }
-            }, PluginExecutionTimeouts.executionTimeout(provider == null ? null : provider.getTimeoutSeconds()));
-        } catch (Exception e) {
-            if (targetPluginId != null && stateService != null) {
-                stateService.markInvocationEnd(targetPluginId, targetPluginName, e.getMessage());
-                ServiceInvocationLogs.append(runtimeKvStore, targetPluginId, capabilityKey == null ? name : capabilityKey, requestId, null,
-                        startedAtMs, System.currentTimeMillis(), e.getMessage());
+                targetPluginId = serviceSession.getPlugin().getId();
+                targetPluginName = PluginSessions.nameOrShortName(serviceSession.getPlugin());
+                capabilityKey = serviceCapabilityKey(name, targetPluginId, provider, serviceCapabilities);
+                PluginRuntimeStateService invocationStateService = PluginRuntimeStates.newStateService(serviceSession);
+                stateService = invocationStateService;
+                try (PluginLogContext.Scope targetScope = PluginLogContext.open(serviceSession)) {
+                    invocationStateService.markInvocationStart(targetPluginId, targetPluginName);
+                }
+                final String invocationPluginId = targetPluginId;
+                final String invocationPluginName = targetPluginName;
+                final String invocationCapabilityKey = capabilityKey;
+                final long invocationStartedAtMs = startedAtMs;
+                final String invocationRequestId = requestId;
+                final PluginRuntimeStateService callbackStateService = invocationStateService;
+                final IOSession callbackServiceSession = serviceSession;
+                // 消息中转
+                serviceSession.requestService(name, map, responseMsgPacket -> {
+                    try (PluginLogContext.Scope callbackScope = PluginLogContext.open(callbackServiceSession)) {
+                        String callbackErrorMessage = responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_SUCCESS ? null : "service response error";
+                        try {
+                            responseMsgPacket.setMsgId(msgPacket.getMsgId());
+                            session.sendMsg(responseMsgPacket);
+                        } finally {
+                            callbackStateService.markInvocationEnd(invocationPluginId, invocationPluginName,
+                                    callbackErrorMessage);
+                            ServiceInvocationLogs.append(runtimeKvStore, invocationPluginId, invocationCapabilityKey, invocationRequestId, null,
+                                    invocationStartedAtMs, System.currentTimeMillis(), callbackErrorMessage);
+                        }
+                    }
+                }, PluginExecutionTimeouts.executionTimeout(provider == null ? null : provider.getTimeoutSeconds()));
+            } catch (Exception e) {
+                if (targetPluginId != null && stateService != null) {
+                    try (PluginLogContext.Scope targetScope = PluginLogContext.open(targetPluginId, null, targetPluginName)) {
+                        stateService.markInvocationEnd(targetPluginId, targetPluginName, e.getMessage());
+                        ServiceInvocationLogs.append(runtimeKvStore, targetPluginId, capabilityKey == null ? name : capabilityKey, requestId, null,
+                                startedAtMs, System.currentTimeMillis(), e.getMessage());
+                    }
+                }
+                // not found service response error
+                session.sendJsonMsg(errorResponse(e.getMessage()), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
             }
-            // not found service response error
-            session.sendJsonMsg(errorResponse(e.getMessage()), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
         }
     }
 

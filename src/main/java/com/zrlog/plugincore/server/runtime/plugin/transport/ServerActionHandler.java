@@ -38,6 +38,7 @@ import com.zrlog.plugincore.server.dao.TypeDAO;
 import com.zrlog.plugincore.server.dao.WebSiteDAO;
 import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityRegistrationService;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
@@ -76,8 +77,10 @@ public class ServerActionHandler implements IActionHandler {
 
     @Override
     public void service(final IOSession session, final MsgPacket msgPacket) {
-        if (msgPacket.getStatus() == MsgPacketStatus.SEND_REQUEST) {
-            new ServiceMsgPacketHandler(session).doHandle(msgPacket);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            if (msgPacket.getStatus() == MsgPacketStatus.SEND_REQUEST) {
+                new ServiceMsgPacketHandler(session).doHandle(msgPacket);
+            }
         }
     }
 
@@ -91,29 +94,32 @@ public class ServerActionHandler implements IActionHandler {
             byte[] bytes = HttpUtils.sendGetRequest(PluginRuntimeBridge.hostConnection().getBlogApiHomeUrl()
                     + "/api/admin/refreshCache", requestHeaders);
             if (EnvKit.isDevMode()) {
-                LOGGER.info("refresh cache success " + new String(bytes));
+                LOGGER.info(PluginLogContext.prefix("refresh cache success " + new String(bytes)));
             }
         } catch (Exception e) {
-            LOGGER.warning("Refresh cache failed,  " + e.getMessage());
+            LOGGER.warning(PluginLogContext.prefix("Refresh cache failed,  " + e.getMessage()));
         }
     }
 
     @Override
     public void initConnect(IOSession session, MsgPacket msgPacket) {
         Plugin plugin = new Gson().fromJson(msgPacket.getDataStr(), Plugin.class);
+        PluginLogContext.bind(session, plugin);
         session.setPlugin(plugin);
-        String pluginName = PluginSessions.nameOrShortName(plugin);
-        WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
-        CapabilityStore capabilityStore = new CapabilityStore(kvStore);
-        List<PluginCapability> capabilities;
-        try {
-            capabilities = initializePluginLifecycle(session, msgPacket, plugin, pluginName, kvStore, capabilityStore);
-        } catch (RuntimeException e) {
-            failPluginLifecycleInitialization(session, msgPacket, plugin, pluginName, runtimeStateService(kvStore, session), e);
-            return;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(plugin)) {
+            String pluginName = PluginSessions.nameOrShortName(plugin);
+            WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+            CapabilityStore capabilityStore = new CapabilityStore(kvStore);
+            List<PluginCapability> capabilities;
+            try {
+                capabilities = initializePluginLifecycle(session, msgPacket, plugin, pluginName, kvStore, capabilityStore);
+            } catch (RuntimeException e) {
+                failPluginLifecycleInitialization(session, msgPacket, plugin, pluginName, runtimeStateService(kvStore, session), e);
+                return;
+            }
+            bootstrapRuntimeFeaturesBestEffort(kvStore, capabilityStore, capabilities);
+            //doRefreshCache(20);
         }
-        bootstrapRuntimeFeaturesBestEffort(kvStore, capabilityStore, capabilities);
-        //doRefreshCache(20);
     }
 
     private List<PluginCapability> initializePluginLifecycle(IOSession session,
@@ -141,7 +147,7 @@ public class ServerActionHandler implements IActionHandler {
                                                    String pluginName,
                                                    PluginRuntimeStateService stateService,
                                                    RuntimeException e) {
-        LOGGER.log(Level.WARNING, "init plugin runtime error", e);
+        LOGGER.log(Level.WARNING, PluginLogContext.prefix("init plugin runtime error"), e);
         session.sendJsonMsg(errorMap(e.getMessage()), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
         if (plugin == null) {
             return;
@@ -163,7 +169,7 @@ public class ServerActionHandler implements IActionHandler {
                     .ensureDefaultAutomations(capabilities, null);
         } catch (RuntimeException e) {
             // Scheduler bootstrap is runtime feature setup; it must not fail plugin lifecycle initialization.
-            LOGGER.log(Level.WARNING, "init plugin default automations error", e);
+            LOGGER.log(Level.WARNING, PluginLogContext.prefix("init plugin default automations error"), e);
         }
     }
 
@@ -176,53 +182,59 @@ public class ServerActionHandler implements IActionHandler {
 
     @Override
     public void capabilityInvoke(IOSession session, MsgPacket msgPacket) {
-        WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
-        CapabilityInvokeRequest request = new Gson().fromJson(msgPacket.getDataStr(), CapabilityInvokeRequest.class);
-        if (request == null) {
-            sendCapabilityResult(session, msgPacket, capabilityError("Capability invoke request is invalid"));
-            return;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+            CapabilityInvokeRequest request = new Gson().fromJson(msgPacket.getDataStr(), CapabilityInvokeRequest.class);
+            if (request == null) {
+                sendCapabilityResult(session, msgPacket, capabilityError("Capability invoke request is invalid"));
+                return;
+            }
+            InvokeContext context = new InvokeContext();
+            context.setSource("internal");
+            context.setRequestId(request.getRequestId());
+            context.setTraceId(request.getTraceId());
+            CapabilityInvokeResult result = RuntimeCapabilityInvokerFactory.socket(kvStore)
+                    .invoke(request.getPluginId(), request.getCapabilityKey(), request.getPayload(), context);
+            sendCapabilityResult(session, msgPacket, result);
         }
-        InvokeContext context = new InvokeContext();
-        context.setSource("internal");
-        context.setRequestId(request.getRequestId());
-        context.setTraceId(request.getTraceId());
-        CapabilityInvokeResult result = RuntimeCapabilityInvokerFactory.socket(kvStore)
-                .invoke(request.getPluginId(), request.getCapabilityKey(), request.getPayload(), context);
-        sendCapabilityResult(session, msgPacket, result);
     }
 
     @Override
     public void notificationPublish(IOSession session, MsgPacket msgPacket) {
-        WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
-        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
-        NotificationRequest request = new Gson().fromJson(msgPacket.getDataStr(), NotificationRequest.class);
-        if (Objects.isNull(request.getSourcePluginId())) {
-            request.setSourcePluginId(session.getPlugin().getId());
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+            PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+            NotificationRequest request = new Gson().fromJson(msgPacket.getDataStr(), NotificationRequest.class);
+            if (Objects.isNull(request.getSourcePluginId())) {
+                request.setSourcePluginId(session.getPlugin().getId());
+            }
+            if (Objects.isNull(request.getSourcePluginName())) {
+                request.setSourcePluginName(PluginSessions.nameOrShortName(session.getPlugin()));
+            }
+            NotificationRuntime notificationRuntime = new NotificationRuntime(
+                    new CapabilityStore(kvStore),
+                    new NotificationDeliveryStore(kvStore),
+                    new NotificationProviderResolver(),
+                    pluginCore.getSetting().getNotification(),
+                    RuntimeCapabilityInvokerFactory.socket(kvStore, pluginCore)
+            );
+            NotificationPublishResult result = notificationRuntime.publish(request);
+            session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(),
+                    result.getFailedCount() == 0 ? MsgPacketStatus.RESPONSE_SUCCESS : MsgPacketStatus.RESPONSE_ERROR);
         }
-        if (Objects.isNull(request.getSourcePluginName())) {
-            request.setSourcePluginName(PluginSessions.nameOrShortName(session.getPlugin()));
-        }
-        NotificationRuntime notificationRuntime = new NotificationRuntime(
-                new CapabilityStore(kvStore),
-                new NotificationDeliveryStore(kvStore),
-                new NotificationProviderResolver(),
-                pluginCore.getSetting().getNotification(),
-                RuntimeCapabilityInvokerFactory.socket(kvStore, pluginCore)
-        );
-        NotificationPublishResult result = notificationRuntime.publish(request);
-        session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(),
-                result.getFailedCount() == 0 ? MsgPacketStatus.RESPONSE_SUCCESS : MsgPacketStatus.RESPONSE_ERROR);
     }
 
     @Override
     public void notificationChannelQuery(IOSession session, MsgPacket msgPacket) {
-        try {
-            session.sendJsonMsg(notificationChannelQueryResult(), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "query notification channels error", e);
-            NotificationChannelQueryResult result = NotificationChannelQueryResult.error(
-                    e.getMessage() == null ? "query notification channels failed" : e.getMessage());
-            session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            try {
+                session.sendJsonMsg(notificationChannelQueryResult(), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, PluginLogContext.prefix("query notification channels error"), e);
+                NotificationChannelQueryResult result = NotificationChannelQueryResult.error(
+                        e.getMessage() == null ? "query notification channels failed" : e.getMessage());
+                session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+            }
         }
     }
 
@@ -313,27 +325,31 @@ public class ServerActionHandler implements IActionHandler {
 
     @Override
     public void schedulerQuery(IOSession session, MsgPacket msgPacket) {
-        WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
-        SchedulerQueryRequest request = new Gson().fromJson(msgPacket.getDataStr(), SchedulerQueryRequest.class);
-        SchedulerQueryResult result = new SchedulerQueryService(
-                new AutomationStore(kvStore),
-                new CapabilityStore(kvStore)
-        ).query(session.getPlugin(), request);
-        session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(),
-                result.isSuccess() ? MsgPacketStatus.RESPONSE_SUCCESS : MsgPacketStatus.RESPONSE_ERROR);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+            SchedulerQueryRequest request = new Gson().fromJson(msgPacket.getDataStr(), SchedulerQueryRequest.class);
+            SchedulerQueryResult result = new SchedulerQueryService(
+                    new AutomationStore(kvStore),
+                    new CapabilityStore(kvStore)
+            ).query(session.getPlugin(), request);
+            session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(),
+                    result.isSuccess() ? MsgPacketStatus.RESPONSE_SUCCESS : MsgPacketStatus.RESPONSE_ERROR);
+        }
     }
 
     @Override
     public void schedulerUpdate(IOSession session, MsgPacket msgPacket) {
-        WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
-        SchedulerUpdateRequest request = new Gson().fromJson(msgPacket.getDataStr(), SchedulerUpdateRequest.class);
-        SchedulerUpdateResult result = new SchedulerUpdateService(
-                new AutomationStore(kvStore),
-                new CapabilityStore(kvStore),
-                new BasicCronParser()
-        ).update(session.getPlugin(), request, null);
-        session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(),
-                result.isSuccess() ? MsgPacketStatus.RESPONSE_SUCCESS : MsgPacketStatus.RESPONSE_ERROR);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+            SchedulerUpdateRequest request = new Gson().fromJson(msgPacket.getDataStr(), SchedulerUpdateRequest.class);
+            SchedulerUpdateResult result = new SchedulerUpdateService(
+                    new AutomationStore(kvStore),
+                    new CapabilityStore(kvStore),
+                    new BasicCronParser()
+            ).update(session.getPlugin(), request, null);
+            session.sendJsonMsg(result, msgPacket.getMethodStr(), msgPacket.getMsgId(),
+                    result.isSuccess() ? MsgPacketStatus.RESPONSE_SUCCESS : MsgPacketStatus.RESPONSE_ERROR);
+        }
     }
 
     private void sendCapabilityResult(IOSession session, MsgPacket msgPacket, CapabilityInvokeResult result) {
@@ -371,119 +387,129 @@ public class ServerActionHandler implements IActionHandler {
 
     @Override
     public void loadWebSite(IOSession session, MsgPacket msgPacket) {
-        Map map = new Gson().fromJson(msgPacket.getDataStr(), Map.class);
-        String[] rawKeys = ((String) map.get("key")).split(",");
-        try {
-            Map<String, Object> webSiteByNameIn = new WebSiteDAO().getWebSiteByNameIn(Arrays.asList(Arrays.stream(rawKeys).map(e -> {
-                return toWebSiteName(session, e);
-            }).toArray(String[]::new)));
-            Map<String, Object> resultMap = new LinkedHashMap<>();
-            for (String rawKey : rawKeys) {
-                resultMap.put(rawKey, webSiteByNameIn.get(toWebSiteName(session, rawKey)));
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            Map map = new Gson().fromJson(msgPacket.getDataStr(), Map.class);
+            String[] rawKeys = ((String) map.get("key")).split(",");
+            try {
+                Map<String, Object> webSiteByNameIn = new WebSiteDAO().getWebSiteByNameIn(Arrays.asList(Arrays.stream(rawKeys).map(e -> {
+                    return toWebSiteName(session, e);
+                }).toArray(String[]::new)));
+                Map<String, Object> resultMap = new LinkedHashMap<>();
+                for (String rawKey : rawKeys) {
+                    resultMap.put(rawKey, webSiteByNameIn.get(toWebSiteName(session, rawKey)));
+                }
+                session.sendJsonMsg(resultMap, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, PluginLogContext.prefix("load website failed"), e);
             }
-            session.sendJsonMsg(resultMap, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "", e);
         }
     }
 
     @Override
     public void setWebSite(IOSession session, MsgPacket msgPacket) {
-        Map<String, Object> map = new Gson().fromJson(msgPacket.getDataStr(), Map.class);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            Map<String, Object> map = new Gson().fromJson(msgPacket.getDataStr(), Map.class);
 
-        Map<String, Object> resultMap = new HashMap<>();
-        try {
-            WebSiteDAO webSiteDAO = new WebSiteDAO();
-            Map<String, Object> values = new LinkedHashMap<>();
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                values.put(toWebSiteName(session, entry.getKey()), entry.getValue());
-            }
-            Map<String, Boolean> results = webSiteDAO.saveOrUpdateChanged(values);
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                Map<String, Object> result = new HashMap<>();
-                result.put("result", Boolean.TRUE.equals(results.get(toWebSiteName(session, entry.getKey()))));
-                resultMap.put(entry.getKey(), result);
-            }
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "", e);
-        }
-        if (map.get("syncTemplate") != null) {
-            if (ResultValueConvertUtils.toBoolean(map.get("syncTemplate"))) {
-                String accessHost = (String) map.get("host");
-                String accessFolder = (String) map.get("folder");
-                if (accessHost != null && accessFolder != null) {
-                    accessHost = accessFolder + "/" + accessFolder;
+            Map<String, Object> resultMap = new HashMap<>();
+            try {
+                WebSiteDAO webSiteDAO = new WebSiteDAO();
+                Map<String, Object> values = new LinkedHashMap<>();
+                for (Map.Entry<String, Object> entry : map.entrySet()) {
+                    values.put(toWebSiteName(session, entry.getKey()), entry.getValue());
                 }
-                if (accessHost != null) {
+                Map<String, Boolean> results = webSiteDAO.saveOrUpdateChanged(values);
+                for (Map.Entry<String, Object> entry : map.entrySet()) {
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("result", Boolean.TRUE.equals(results.get(toWebSiteName(session, entry.getKey()))));
+                    resultMap.put(entry.getKey(), result);
+                }
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, PluginLogContext.prefix("set website failed"), e);
+            }
+            if (map.get("syncTemplate") != null) {
+                if (ResultValueConvertUtils.toBoolean(map.get("syncTemplate"))) {
+                    String accessHost = (String) map.get("host");
+                    String accessFolder = (String) map.get("folder");
+                    if (accessHost != null && accessFolder != null) {
+                        accessHost = accessFolder + "/" + accessFolder;
+                    }
+                    if (accessHost != null) {
+                        try {
+                            new WebSiteDAO().saveOrUpdateChanged("staticResourceHost", accessHost);
+                        } catch (SQLException e) {
+                            LOGGER.log(Level.SEVERE, PluginLogContext.prefix("sync static resource host failed"), e);
+                        }
+                    }
+                } else {
                     try {
-                        new WebSiteDAO().saveOrUpdateChanged("staticResourceHost", accessHost);
+                        new WebSiteDAO().saveOrUpdateChanged("staticResourceHost", "");
                     } catch (SQLException e) {
-                        LOGGER.log(Level.SEVERE, "", e);
+                        LOGGER.log(Level.SEVERE, PluginLogContext.prefix("clear static resource host failed"), e);
                     }
                 }
-            } else {
-                try {
-                    new WebSiteDAO().saveOrUpdateChanged("staticResourceHost", "");
-                } catch (SQLException e) {
-                    LOGGER.log(Level.SEVERE, "", e);
-                }
             }
-        }
-        session.sendJsonMsg(resultMap, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-        try {
-            doRefreshCache();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            session.sendJsonMsg(resultMap, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+            try {
+                doRefreshCache();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
     @Override
     public void httpMethod(final IOSession session, final MsgPacket msgPacket) {
-        if (msgPacket.getStatus() == MsgPacketStatus.SEND_REQUEST) {
-            try {
-                BaseHttpRequestInfo httpRequestInfo = new Gson().fromJson(msgPacket.getDataStr(), BaseHttpRequestInfo.class);
-                HttpResponseInfo httpResponseInfo = HttpUtils.doRequest(httpRequestInfo);
-                session.sendJsonMsg(httpResponseInfo, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-            } catch (Exception e) {
-                HttpResponseInfo httpResponseInfo = new HttpResponseInfo();
-                httpResponseInfo.setStatusCode(500);
-                httpResponseInfo.setHeader(new HashMap<>());
-                httpResponseInfo.setResponseBody(LoggerUtil.recordStackTraceMsg(e).getBytes(StandardCharsets.UTF_8));
-                session.sendJsonMsg(httpResponseInfo, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            if (msgPacket.getStatus() == MsgPacketStatus.SEND_REQUEST) {
+                try {
+                    BaseHttpRequestInfo httpRequestInfo = new Gson().fromJson(msgPacket.getDataStr(), BaseHttpRequestInfo.class);
+                    HttpResponseInfo httpResponseInfo = HttpUtils.doRequest(httpRequestInfo);
+                    session.sendJsonMsg(httpResponseInfo, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+                } catch (Exception e) {
+                    HttpResponseInfo httpResponseInfo = new HttpResponseInfo();
+                    httpResponseInfo.setStatusCode(500);
+                    httpResponseInfo.setHeader(new HashMap<>());
+                    httpResponseInfo.setResponseBody(LoggerUtil.recordStackTraceMsg(e).getBytes(StandardCharsets.UTF_8));
+                    session.sendJsonMsg(httpResponseInfo, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+                }
             }
         }
     }
 
     @Override
     public void deleteComment(IOSession session, MsgPacket msgPacket) {
-        Comment comment = new Gson().fromJson(msgPacket.getDataStr(), Comment.class);
-        Map<String, Boolean> map = new HashMap<>();
-        if (comment.getPostId() != null) {
-            try {
-                boolean result = new CommentDAO().set("postId", comment.getPostId()).delete();
-                map.put("result", result);
-                session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-            } catch (SQLException e) {
-                map.put("result", false);
-                LOGGER.log(Level.SEVERE, "delete comment error", e);
-                session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            Comment comment = new Gson().fromJson(msgPacket.getDataStr(), Comment.class);
+            Map<String, Boolean> map = new HashMap<>();
+            if (comment.getPostId() != null) {
+                try {
+                    boolean result = new CommentDAO().set("postId", comment.getPostId()).delete();
+                    map.put("result", result);
+                    session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+                } catch (SQLException e) {
+                    map.put("result", false);
+                    LOGGER.log(Level.SEVERE, PluginLogContext.prefix("delete comment error"), e);
+                    session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+                }
             }
         }
     }
 
     @Override
     public void addComment(IOSession session, MsgPacket msgPacket) {
-        Comment comment = new Gson().fromJson(msgPacket.getDataStr(), Comment.class);
-        Map<String, Boolean> map = new HashMap<>();
-        try {
-            boolean result = new CommentDAO().set("userHome", comment.getHome()).set("userMail", comment.getMail()).set("userIp", comment.getIp()).set("userName", comment.getName()).set("logId", comment.getLogId()).set("postId", comment.getPostId()).set("userComment", comment.getContent()).set("commTime", comment.getCreatedTime()).set("td", new Date()).set("header", comment.getHeadPortrait()).set("hide", 1).save();
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            Comment comment = new Gson().fromJson(msgPacket.getDataStr(), Comment.class);
+            Map<String, Boolean> map = new HashMap<>();
+            try {
+                boolean result = new CommentDAO().set("userHome", comment.getHome()).set("userMail", comment.getMail()).set("userIp", comment.getIp()).set("userName", comment.getName()).set("logId", comment.getLogId()).set("postId", comment.getPostId()).set("userComment", comment.getContent()).set("commTime", comment.getCreatedTime()).set("td", new Date()).set("header", comment.getHeadPortrait()).set("hide", 1).save();
 
-            map.put("result", result);
-            session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-        } catch (SQLException e) {
-            map.put("result", false);
-            LOGGER.log(Level.SEVERE, "save comment error", e);
-            session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+                map.put("result", result);
+                session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+            } catch (SQLException e) {
+                map.put("result", false);
+                LOGGER.log(Level.SEVERE, PluginLogContext.prefix("save comment error"), e);
+                session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+            }
         }
     }
 
@@ -494,9 +520,11 @@ public class ServerActionHandler implements IActionHandler {
 
     @Override
     public void getDbProperties(IOSession session, MsgPacket msgPacket) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("dbProperties", pluginConfig().getDbPropertiesFile().toString());
-        session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("dbProperties", pluginConfig().getDbPropertiesFile().toString());
+            session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+        }
     }
 
     @Override
@@ -507,28 +535,34 @@ public class ServerActionHandler implements IActionHandler {
 
     @Override
     public void loadPublicInfo(IOSession session, MsgPacket msgPacket) {
-        try {
-            session.sendJsonMsg(PublicInfoLoader.loadPublicInfo(), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "", e);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            try {
+                session.sendJsonMsg(PublicInfoLoader.loadPublicInfo(), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, PluginLogContext.prefix("load public info failed"), e);
+            }
         }
     }
 
     @Override
     public void getCurrentTemplate(IOSession session, MsgPacket msgPacket) {
-        try {
-            String templatePath = (String) new WebSiteDAO().queryValueByName("template");
-            TemplatePath template = new TemplatePath();
-            template.setValue(templatePath);
-            session.sendJsonMsg(template, ActionType.CURRENT_TEMPLATE.name(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "", e);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            try {
+                String templatePath = (String) new WebSiteDAO().queryValueByName("template");
+                TemplatePath template = new TemplatePath();
+                template.setValue(templatePath);
+                session.sendJsonMsg(template, ActionType.CURRENT_TEMPLATE.name(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, PluginLogContext.prefix("load current template failed"), e);
+            }
         }
     }
 
     @Override
     public void getBlogRuntimePath(IOSession session, MsgPacket msgPacket) {
-        session.sendJsonMsg(pluginConfig().getBlogRunTime(), ActionType.BLOG_RUN_TIME.name(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            session.sendJsonMsg(pluginConfig().getBlogRunTime(), ActionType.BLOG_RUN_TIME.name(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+        }
     }
 
     private PluginConfig pluginConfig() {
@@ -541,96 +575,100 @@ public class ServerActionHandler implements IActionHandler {
 
     @Override
     public void createArticle(IOSession session, MsgPacket msgPacket) {
-        CreateArticleRequest createArticleRequest = new Gson().fromJson(msgPacket.getDataStr(), CreateArticleRequest.class);
-        Integer typeId = 0;
-        if (createArticleRequest.getTypeId() > 0) {
-            typeId = createArticleRequest.getTypeId();
-        } else {
-            try {
-                typeId = (Integer) new TypeDAO().findByName(createArticleRequest.getType());
-                if (typeId == null) {
-                    new TypeDAO().set("typeName", createArticleRequest.getType()).set("alias", createArticleRequest.getType()).save();
-                    //query again;
-                    typeId = (Integer) new TypeDAO().findByName(createArticleRequest.getType());
-
-                }
-            } catch (SQLException e) {
-                LOGGER.log(Level.SEVERE, "Create article type failed", e);
-            }
-        }
-        String alias = createArticleRequest.getAlias();
-
-        if (alias == null) {
-            try {
-                alias = new ArticleDAO().queryFirstObj("select max(logId) from log") + "";
-            } catch (SQLException e) {
-                LOGGER.log(Level.SEVERE, "Build article alias failed", e);
-            }
-        }
-        Map<String, Boolean> map = new HashMap<>();
-        try {
-            Integer logId = (Integer) new ArticleDAO().queryFirstObj("select logId from log where alias = ?", alias);
-            DAO articleDAO = new ArticleDAO().set("releaseTime", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(createArticleRequest.getReleaseDate())).set("last_update_date", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(createArticleRequest.getReleaseDate())).set("content", createArticleRequest.getContent()).set("title", createArticleRequest.getTitle()).set("markdown", createArticleRequest.getMarkdown()).set("digest", createArticleRequest.getDigest()).set("typeId", typeId).set("private", createArticleRequest.is_private()).set("rubbish", createArticleRequest.isRubbish()).set("alias", alias).set("plain_content", getPlainSearchTxt(createArticleRequest.getContent())).set("thumbnail", createArticleRequest.getThumbnail()).set("canComment", createArticleRequest.isCanComment()).set("recommended", createArticleRequest.isRecommended()).set("keywords", createArticleRequest.getKeywords()).set("editor_type", createArticleRequest.getEditorType()).set("userId", createArticleRequest.getUserId());
-            if (logId == null) {
-                try {
-                    boolean result = articleDAO.save();
-                    doRefreshCache();
-                    map.put("result", result);
-                    session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-                } catch (Exception e) {
-                    map.put("result", false);
-                    LOGGER.log(Level.SEVERE, "save comment error", e);
-                    session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
-                }
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            CreateArticleRequest createArticleRequest = new Gson().fromJson(msgPacket.getDataStr(), CreateArticleRequest.class);
+            Integer typeId = 0;
+            if (createArticleRequest.getTypeId() > 0) {
+                typeId = createArticleRequest.getTypeId();
             } else {
                 try {
-                    Map<String, Object> cond = new HashMap<>();
-                    cond.put("logId", logId);
-                    boolean result = articleDAO.update(cond);
-                    doRefreshCache();
-                    map.put("result", result);
-                    session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-                } catch (Exception e) {
-                    map.put("result", false);
-                    LOGGER.log(Level.SEVERE, "save comment error", e);
-                    session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+                    typeId = (Integer) new TypeDAO().findByName(createArticleRequest.getType());
+                    if (typeId == null) {
+                        new TypeDAO().set("typeName", createArticleRequest.getType()).set("alias", createArticleRequest.getType()).save();
+                        //query again;
+                        typeId = (Integer) new TypeDAO().findByName(createArticleRequest.getType());
+
+                    }
+                } catch (SQLException e) {
+                    LOGGER.log(Level.SEVERE, PluginLogContext.prefix("Create article type failed"), e);
                 }
             }
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Create article failed", e);
+            String alias = createArticleRequest.getAlias();
+
+            if (alias == null) {
+                try {
+                    alias = new ArticleDAO().queryFirstObj("select max(logId) from log") + "";
+                } catch (SQLException e) {
+                    LOGGER.log(Level.SEVERE, PluginLogContext.prefix("Build article alias failed"), e);
+                }
+            }
+            Map<String, Boolean> map = new HashMap<>();
+            try {
+                Integer logId = (Integer) new ArticleDAO().queryFirstObj("select logId from log where alias = ?", alias);
+                DAO articleDAO = new ArticleDAO().set("releaseTime", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(createArticleRequest.getReleaseDate())).set("last_update_date", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(createArticleRequest.getReleaseDate())).set("content", createArticleRequest.getContent()).set("title", createArticleRequest.getTitle()).set("markdown", createArticleRequest.getMarkdown()).set("digest", createArticleRequest.getDigest()).set("typeId", typeId).set("private", createArticleRequest.is_private()).set("rubbish", createArticleRequest.isRubbish()).set("alias", alias).set("plain_content", getPlainSearchTxt(createArticleRequest.getContent())).set("thumbnail", createArticleRequest.getThumbnail()).set("canComment", createArticleRequest.isCanComment()).set("recommended", createArticleRequest.isRecommended()).set("keywords", createArticleRequest.getKeywords()).set("editor_type", createArticleRequest.getEditorType()).set("userId", createArticleRequest.getUserId());
+                if (logId == null) {
+                    try {
+                        boolean result = articleDAO.save();
+                        doRefreshCache();
+                        map.put("result", result);
+                        session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+                    } catch (Exception e) {
+                        map.put("result", false);
+                        LOGGER.log(Level.SEVERE, PluginLogContext.prefix("save article error"), e);
+                        session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+                    }
+                } else {
+                    try {
+                        Map<String, Object> cond = new HashMap<>();
+                        cond.put("logId", logId);
+                        boolean result = articleDAO.update(cond);
+                        doRefreshCache();
+                        map.put("result", result);
+                        session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+                    } catch (Exception e) {
+                        map.put("result", false);
+                        LOGGER.log(Level.SEVERE, PluginLogContext.prefix("update article error"), e);
+                        session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+                    }
+                }
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, PluginLogContext.prefix("Create article failed"), e);
+            }
         }
-
-
     }
 
     @Override
     public void refreshCache(IOSession session, MsgPacket msgPacket) {
-        Map<String, Object> map = new HashMap<>();
-        try {
-            doRefreshCache();
-            map.put("result", true);
-            session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-        } catch (Exception e) {
-            map.put("result", false);
-            map.put("message", LoggerUtil.recordStackTraceMsg(e));
-            session.sendJsonMsg(new HashMap<>(), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            Map<String, Object> map = new HashMap<>();
+            try {
+                doRefreshCache();
+                map.put("result", true);
+                session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+            } catch (Exception e) {
+                map.put("result", false);
+                map.put("message", LoggerUtil.recordStackTraceMsg(e));
+                session.sendJsonMsg(new HashMap<>(), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+            }
         }
     }
 
     @Override
     public void articleVisitViewCountAddOne(IOSession session, MsgPacket msgPacket) {
-        Map info = new Gson().fromJson(msgPacket.getDataStr(), Map.class);
-        String alias = info.get("alias").toString();
-        Map<String, Object> map = new HashMap<>();
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            Map info = new Gson().fromJson(msgPacket.getDataStr(), Map.class);
+            String alias = info.get("alias").toString();
+            Map<String, Object> map = new HashMap<>();
 
-        try {
-            new DAO().execute("update log set click = click + 1  where logId=? or alias=?", alias, alias);
-            map.put("result", true);
-            session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
-        } catch (SQLException e) {
-            map.put("result", false);
-            map.put("message", LoggerUtil.recordStackTraceMsg(e));
-            session.sendJsonMsg(new HashMap<>(), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+            try {
+                new DAO().execute("update log set click = click + 1  where logId=? or alias=?", alias, alias);
+                map.put("result", true);
+                session.sendJsonMsg(map, msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_SUCCESS);
+            } catch (SQLException e) {
+                map.put("result", false);
+                map.put("message", LoggerUtil.recordStackTraceMsg(e));
+                session.sendJsonMsg(new HashMap<>(), msgPacket.getMethodStr(), msgPacket.getMsgId(), MsgPacketStatus.RESPONSE_ERROR);
+            }
         }
     }
 

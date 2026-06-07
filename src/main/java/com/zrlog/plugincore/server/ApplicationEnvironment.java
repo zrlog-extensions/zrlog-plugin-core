@@ -29,6 +29,7 @@ class ApplicationEnvironment {
         FileHandler fileHandler = com.hibegin.common.util.LoggerUtil.buildFileHandle();
         LoggerUtil.initFileHandle(fileHandler);
         com.hibegin.common.util.LoggerUtil.initFileHandle(fileHandler);
+        com.hibegin.common.dao.DaoLoggerUtil.initFileHandle(fileHandler);
     }
 
     static void configureFaaSRuntimeRoot(String[] args) {

@@ -4,6 +4,7 @@ import com.zrlog.plugin.common.LoggerUtil;
 import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.runtime.plugin.artifact.PluginFiles;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.plugin.process.PluginProcessRuntime;
 
 import java.io.File;
@@ -61,10 +62,12 @@ public class PluginStartupCoordinator {
             }
             String pluginId = pluginVO.getValue();
             futures.add(CompletableFuture.runAsync(() -> {
-                try {
-                    processRuntime.loadPlugin(file, pluginId);
-                } catch (RuntimeException e) {
-                    LOGGER.log(Level.SEVERE, "start plugin " + file.getName() + " error", e);
+                try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, pluginVO.getKey(), pluginVO.getKey())) {
+                    try {
+                        processRuntime.loadPlugin(file, pluginId);
+                    } catch (RuntimeException e) {
+                        LOGGER.log(Level.SEVERE, PluginLogContext.prefix("start plugin " + file.getName() + " error"), e);
+                    }
                 }
             }, executorService));
         }

@@ -14,6 +14,7 @@ import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
 import com.zrlog.plugincore.server.runtime.plugin.transport.ServiceMsgPacketHandler;
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.plugin.artifact.PluginFiles;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
 import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
@@ -104,36 +105,38 @@ public class PluginController extends Controller {
             getResponse().renderCode(503);
             return;
         }
-        PluginRuntimeStateService stateService = PluginRuntimeStates.newStateService(session);
-        String pluginId = session.getPlugin().getId();
-        String pluginName = PluginSessions.nameOrShortName(session.getPlugin());
-        KvRepository runtimeKvStore = kvStore();
-        PluginCapability serviceCapability = serviceCapability(name, pluginId,
-                new CapabilityStore(runtimeKvStore).listByType("service"));
-        String capabilityKey = serviceCapabilityKey(name, serviceCapability);
-        String requestId = UUID.randomUUID().toString();
-        String errorMessage = null;
-        long startedAtMs = System.currentTimeMillis();
-        stateService.markInvocationStart(pluginId, pluginName);
-        try {
-            int msgId = session.requestService(name, request.decodeParamMap());
-            MsgPacket responseMsgPacket = session.getResponseMsgPacketByMsgId(msgId,
-                    PluginExecutionTimeouts.executionTimeout(serviceCapability == null ? null : serviceCapability.getTimeoutSeconds()));
-            if (responseMsgPacket == null) {
-                errorMessage = "service " + name + " not response";
-                getResponse().renderCode(500);
-                return;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            PluginRuntimeStateService stateService = PluginRuntimeStates.newStateService(session);
+            String pluginId = session.getPlugin().getId();
+            String pluginName = PluginSessions.nameOrShortName(session.getPlugin());
+            KvRepository runtimeKvStore = kvStore();
+            PluginCapability serviceCapability = serviceCapability(name, pluginId,
+                    new CapabilityStore(runtimeKvStore).listByType("service"));
+            String capabilityKey = serviceCapabilityKey(name, serviceCapability);
+            String requestId = UUID.randomUUID().toString();
+            String errorMessage = null;
+            long startedAtMs = System.currentTimeMillis();
+            stateService.markInvocationStart(pluginId, pluginName);
+            try {
+                int msgId = session.requestService(name, request.decodeParamMap());
+                MsgPacket responseMsgPacket = session.getResponseMsgPacketByMsgId(msgId,
+                        PluginExecutionTimeouts.executionTimeout(serviceCapability == null ? null : serviceCapability.getTimeoutSeconds()));
+                if (responseMsgPacket == null) {
+                    errorMessage = "service " + name + " not response";
+                    getResponse().renderCode(500);
+                    return;
+                }
+                if (responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_ERROR) {
+                    errorMessage = "service " + name + " response error";
+                }
+                getResponse().addHeader("Content-Type", "application/json");
+                ByteArrayInputStream bin = new ByteArrayInputStream(responseMsgPacket.getData().array());
+                getResponse().write(bin);
+            } finally {
+                stateService.markInvocationEnd(pluginId, pluginName, errorMessage);
+                ServiceInvocationLogs.append(runtimeKvStore, pluginId, capabilityKey, requestId, null,
+                        startedAtMs, System.currentTimeMillis(), errorMessage);
             }
-            if (responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_ERROR) {
-                errorMessage = "service " + name + " response error";
-            }
-            getResponse().addHeader("Content-Type", "application/json");
-            ByteArrayInputStream bin = new ByteArrayInputStream(responseMsgPacket.getData().array());
-            getResponse().write(bin);
-        } finally {
-            stateService.markInvocationEnd(pluginId, pluginName, errorMessage);
-            ServiceInvocationLogs.append(runtimeKvStore, pluginId, capabilityKey, requestId, null,
-                    startedAtMs, System.currentTimeMillis(), errorMessage);
         }
     }
 

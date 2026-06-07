@@ -5,6 +5,7 @@ import com.zrlog.plugincore.server.vo.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.plugin.artifact.PluginFiles;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
 import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
 
@@ -42,27 +43,34 @@ public class DefaultPluginRuntimeStarter implements PluginRuntimeStarter {
 
     @Override
     public Optional<PluginIdentity> findPlugin(String pluginId) {
-        for (PluginVO pluginVO : PluginCoreDAO.getInstance().getPluginVOs(pluginCore())) {
-            if (pluginVO.getPlugin() == null) {
-                continue;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, null, null)) {
+            for (PluginVO pluginVO : PluginCoreDAO.getInstance().getPluginVOs(pluginCore())) {
+                if (pluginVO.getPlugin() == null) {
+                    continue;
+                }
+                if (Objects.equals(pluginVO.getPlugin().getId(), pluginId)) {
+                    try (PluginLogContext.Scope pluginScope = PluginLogContext.open(pluginVO.getPlugin())) {
+                        return Optional.of(new PluginIdentity(pluginVO.getPlugin().getId(),
+                                pluginVO.getPlugin().getShortName(),
+                                PluginSessions.nameOrShortName(pluginVO.getPlugin())));
+                    }
+                }
             }
-            if (Objects.equals(pluginVO.getPlugin().getId(), pluginId)) {
-                return Optional.of(new PluginIdentity(pluginVO.getPlugin().getId(),
-                        pluginVO.getPlugin().getShortName(),
-                        PluginSessions.nameOrShortName(pluginVO.getPlugin())));
-            }
+            return Optional.empty();
         }
-        return Optional.empty();
     }
 
     @Override
     public void start(PluginIdentity identity) {
-        boolean autoDownloadDisabled = pluginCore().getSetting().isDisableAutoDownloadLostFile();
-        File pluginFile = PluginFiles.ensurePluginFile(identity.getPluginShortName(), autoDownloadDisabled);
-        if (pluginFile == null || !pluginFile.exists() || pluginFile.length() == 0) {
-            throw new RuntimeException(PluginFiles.missingPluginFileMessage(identity.getPluginShortName(), autoDownloadDisabled));
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(identity.getPluginId(),
+                identity.getPluginShortName(), identity.getPluginName())) {
+            boolean autoDownloadDisabled = pluginCore().getSetting().isDisableAutoDownloadLostFile();
+            File pluginFile = PluginFiles.ensurePluginFile(identity.getPluginShortName(), autoDownloadDisabled);
+            if (pluginFile == null || !pluginFile.exists() || pluginFile.length() == 0) {
+                throw new RuntimeException(PluginFiles.missingPluginFileMessage(identity.getPluginShortName(), autoDownloadDisabled));
+            }
+            pluginBootstrapService.loadPlugin(pluginFile, identity.getPluginId());
         }
-        pluginBootstrapService.loadPlugin(pluginFile, identity.getPluginId());
     }
 
     private PluginCore pluginCore() {

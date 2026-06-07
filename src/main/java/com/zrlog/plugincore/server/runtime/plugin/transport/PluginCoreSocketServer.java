@@ -9,6 +9,7 @@ import com.zrlog.plugin.data.codec.SocketDecode;
 import com.zrlog.plugin.data.codec.SocketEncode;
 import com.zrlog.plugincore.server.runtime.plugin.bootstrap.PluginBootstrapService;
 import com.zrlog.plugincore.server.runtime.plugin.config.PluginConfig;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
 
 import java.io.IOException;
@@ -162,7 +163,9 @@ public class PluginCoreSocketServer implements ISocketServer {
             LOGGER.log(Level.SEVERE, "dispose error " + e.getMessage());
         } finally {
             if (EnvKit.isDevMode()) {
-                LOGGER.info("doDecode used time " + (System.currentTimeMillis() - start) + " ms");
+                try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+                    LOGGER.info(PluginLogContext.prefix("doDecode used time " + (System.currentTimeMillis() - start) + " ms"));
+                }
             }
         }
     }

@@ -9,6 +9,7 @@ import com.zrlog.plugin.data.codec.MsgPacketStatus;
 import com.zrlog.plugin.message.CapabilityInvokeRequest;
 import com.zrlog.plugin.message.CapabilityInvokeResult;
 import com.zrlog.plugin.type.ActionType;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStates;
 
 import java.time.Duration;
@@ -30,44 +31,48 @@ public class SocketCapabilityInvoker implements CapabilityInvoker {
 
     @Override
     public CapabilityInvokeResult invoke(String pluginId, String capabilityKey, Map<String, Object> payload, InvokeContext context) {
-        IOSession session = PluginRuntimeStates.getOrStartLocalSessionByPluginId(pluginId);
-        if (Objects.isNull(session)) {
-            return error("Plugin session not found");
-        }
-        CapabilityInvokeRequest request = new CapabilityInvokeRequest();
-        request.setPluginId(pluginId);
-        request.setCapabilityKey(capabilityKey);
-        request.setSource(context == null ? null : context.getSource());
-        request.setRequestId(context == null ? null : context.getRequestId());
-        request.setTraceId(context == null ? null : context.getTraceId());
-        request.setPayload(payload);
-        int id = IdUtil.getInt();
-        session.sendJsonMsg(request, ActionType.CAPABILITY_INVOKE.name(), id, MsgPacketStatus.SEND_REQUEST);
-        MsgPacket response = session.getResponseMsgPacketByMsgId(id, readTimeout(context));
-        if (Objects.isNull(response)) {
-            return error("Capability invoke timeout or empty response");
-        }
-        if (!Objects.equals(ActionType.CAPABILITY_INVOKE.name(), response.getMethodStr())) {
-            return error("Unexpected capability response: " + response.getMethodStr());
-        }
-        try {
-            CapabilityInvokeResult result = gson.fromJson(response.getDataStr(), CapabilityInvokeResult.class);
-            if (result == null) {
-                return error("Capability invoke response is empty");
+        try (PluginLogContext.Scope requestedScope = PluginLogContext.open(pluginId, null, null)) {
+            IOSession session = PluginRuntimeStates.getOrStartLocalSessionByPluginId(pluginId);
+            if (Objects.isNull(session)) {
+                return error("Plugin session not found");
             }
-            if (!result.isSuccess() && (result.getErrorMessage() == null || result.getErrorMessage().trim().isEmpty())) {
-                result.setErrorMessage("Capability invoke failed");
+            try (PluginLogContext.Scope sessionScope = PluginLogContext.open(session)) {
+                CapabilityInvokeRequest request = new CapabilityInvokeRequest();
+                request.setPluginId(pluginId);
+                request.setCapabilityKey(capabilityKey);
+                request.setSource(context == null ? null : context.getSource());
+                request.setRequestId(context == null ? null : context.getRequestId());
+                request.setTraceId(context == null ? null : context.getTraceId());
+                request.setPayload(payload);
+                int id = IdUtil.getInt();
+                session.sendJsonMsg(request, ActionType.CAPABILITY_INVOKE.name(), id, MsgPacketStatus.SEND_REQUEST);
+                MsgPacket response = session.getResponseMsgPacketByMsgId(id, readTimeout(context));
+                if (Objects.isNull(response)) {
+                    return error("Capability invoke timeout or empty response");
+                }
+                if (!Objects.equals(ActionType.CAPABILITY_INVOKE.name(), response.getMethodStr())) {
+                    return error("Unexpected capability response: " + response.getMethodStr());
+                }
+                try {
+                    CapabilityInvokeResult result = gson.fromJson(response.getDataStr(), CapabilityInvokeResult.class);
+                    if (result == null) {
+                        return error("Capability invoke response is empty");
+                    }
+                    if (!result.isSuccess() && (result.getErrorMessage() == null || result.getErrorMessage().trim().isEmpty())) {
+                        result.setErrorMessage("Capability invoke failed");
+                    }
+                    return result;
+                } catch (Exception e) {
+                    if (response.getStatus() == MsgPacketStatus.RESPONSE_SUCCESS) {
+                        CapabilityInvokeResult result = new CapabilityInvokeResult();
+                        result.setSuccess(true);
+                        return result;
+                    }
+                    return error(e.getMessage());
+                } finally {
+                    session.getPipeMap().remove(id);
+                }
             }
-            return result;
-        } catch (Exception e) {
-            if (response.getStatus() == MsgPacketStatus.RESPONSE_SUCCESS) {
-                CapabilityInvokeResult result = new CapabilityInvokeResult();
-                result.setSuccess(true);
-                return result;
-            }
-            return error(e.getMessage());
-        } finally {
-            session.getPipeMap().remove(id);
         }
     }
 

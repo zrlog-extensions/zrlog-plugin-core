@@ -7,6 +7,7 @@ import com.zrlog.plugin.data.codec.ContentType;
 import com.zrlog.plugin.data.codec.MsgPacket;
 import com.zrlog.plugin.data.codec.MsgPacketStatus;
 import com.zrlog.plugin.type.ActionType;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 
 import java.nio.channels.Channel;
 import java.time.Duration;
@@ -83,21 +84,23 @@ final class PluginSessionHeartbeat {
     }
 
     boolean ensureRecentHeartbeat(IOSession session, long nowMs) {
-        if (!hasRecentHeartbeat(session, nowMs)) {
-            return false;
-        }
-        if (!enabled) {
-            return true;
-        }
-        if (hasFreshHeartbeat(session, nowMs)) {
-            return true;
-        }
-        synchronized (session) {
-            long now = System.currentTimeMillis();
-            if (hasFreshHeartbeat(session, now)) {
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            if (!hasRecentHeartbeat(session, nowMs)) {
+                return false;
+            }
+            if (!enabled) {
                 return true;
             }
-            return pingAndWait(session, now);
+            if (hasFreshHeartbeat(session, nowMs)) {
+                return true;
+            }
+            synchronized (session) {
+                long now = System.currentTimeMillis();
+                if (hasFreshHeartbeat(session, now)) {
+                    return true;
+                }
+                return pingAndWait(session, now);
+            }
         }
     }
 
@@ -115,21 +118,23 @@ final class PluginSessionHeartbeat {
         if (session == null) {
             return;
         }
-        try {
-            if (!isSessionOpen(session)) {
-                closeStaleSession(session);
-                return;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            try {
+                if (!isSessionOpen(session)) {
+                    closeStaleSession(session);
+                    return;
+                }
+                if (!hasRecentHeartbeat(session, nowMs)) {
+                    closeStaleSession(session);
+                    return;
+                }
+                if (!shouldSendPing(session, nowMs)) {
+                    return;
+                }
+                sendPing(session, nowMs, true);
+            } catch (RuntimeException e) {
+                LOGGER.log(Level.WARNING, PluginLogContext.prefix("plugin heartbeat error"), e);
             }
-            if (!hasRecentHeartbeat(session, nowMs)) {
-                closeStaleSession(session);
-                return;
-            }
-            if (!shouldSendPing(session, nowMs)) {
-                return;
-            }
-            sendPing(session, nowMs, true);
-        } catch (RuntimeException e) {
-            LOGGER.log(Level.WARNING, "plugin heartbeat error", e);
         }
     }
 
@@ -176,8 +181,10 @@ final class PluginSessionHeartbeat {
             return msgId;
         }
         session.sendMsg(msgPacket, response -> {
-            if (isPingResponse(response)) {
-                markHeartbeat(session, System.currentTimeMillis());
+            try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+                if (isPingResponse(response)) {
+                    markHeartbeat(session, System.currentTimeMillis());
+                }
             }
         }, Duration.ofMillis(HEARTBEAT_TIMEOUT_MS));
         return msgId;

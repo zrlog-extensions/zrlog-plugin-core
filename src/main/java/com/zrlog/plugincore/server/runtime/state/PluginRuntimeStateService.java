@@ -1,5 +1,6 @@
 package com.zrlog.plugincore.server.runtime.state;
 
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.type.PluginStatus;
 
 import java.util.ArrayList;
@@ -211,13 +212,15 @@ public class PluginRuntimeStateService {
     }
 
     private void update(String pluginId, String pluginName, BiConsumer<PluginRuntimeState, PluginRuntimeInstanceState> consumer) {
-        stateStore.update(pluginId, state -> {
-            initializeState(state, pluginId, pluginName);
-            PluginRuntimeInstanceState instance = currentInstance(state);
-            initializeInstance(instance);
-            consumer.accept(state, instance);
-            PluginRuntimeStateAggregator.aggregate(state);
-        });
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, null, pluginName)) {
+            stateStore.update(pluginId, state -> {
+                initializeState(state, pluginId, pluginName);
+                PluginRuntimeInstanceState instance = currentInstance(state);
+                initializeInstance(instance);
+                consumer.accept(state, instance);
+                PluginRuntimeStateAggregator.aggregate(state);
+            });
+        }
     }
 
     private void initializeState(PluginRuntimeState state, String pluginId, String pluginName) {

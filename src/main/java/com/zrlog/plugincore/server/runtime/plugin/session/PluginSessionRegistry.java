@@ -3,6 +3,7 @@ package com.zrlog.plugincore.server.runtime.plugin.session;
 import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStates;
 import com.zrlog.plugincore.server.util.StringUtils;
 import com.zrlog.plugincore.server.vo.PluginVO;
@@ -39,9 +40,11 @@ public class PluginSessionRegistry {
     }
 
     public boolean isCurrentPluginIdentity(Plugin plugin) {
-        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(plugin.getShortName());
-        return pluginVO != null && pluginVO.getPlugin() != null
-                && Objects.equals(plugin.getId(), pluginVO.getPlugin().getId());
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(plugin)) {
+            PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(plugin.getShortName());
+            return pluginVO != null && pluginVO.getPlugin() != null
+                    && Objects.equals(plugin.getId(), pluginVO.getPlugin().getId());
+        }
     }
 
     public String nameOrShortName(Plugin plugin) {
@@ -77,64 +80,84 @@ public class PluginSessionRegistry {
     }
 
     public IOSession getLocalSessionByPluginShortName(String pluginShortName) {
-        return firstOpenLocalSession(session -> matchesPluginShortName(session, pluginShortName));
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(null, pluginShortName, pluginShortName)) {
+            return firstOpenLocalSession(session -> matchesPluginShortName(session, pluginShortName));
+        }
     }
 
     public IOSession getOrStartLocalSessionByPluginShortName(String pluginShortName) {
-        IOSession session = getLocalSessionByPluginShortName(pluginShortName);
-        if (session != null) {
-            return session;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(null, pluginShortName, pluginShortName)) {
+            IOSession session = getLocalSessionByPluginShortName(pluginShortName);
+            if (session != null) {
+                return session;
+            }
+            PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(pluginShortName);
+            if (pluginVO == null || pluginVO.getPlugin() == null) {
+                return null;
+            }
+            try (PluginLogContext.Scope pluginScope = PluginLogContext.open(pluginVO.getPlugin())) {
+                if (!PluginRuntimeStates.ensureStarted(pluginVO.getPlugin())) {
+                    return null;
+                }
+                return getLocalSessionByPluginId(pluginVO.getPlugin().getId());
+            }
         }
-        PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOByShortName(pluginShortName);
-        if (pluginVO == null || pluginVO.getPlugin() == null) {
-            return null;
-        }
-        if (!PluginRuntimeStates.ensureStarted(pluginVO.getPlugin())) {
-            return null;
-        }
-        return getLocalSessionByPluginId(pluginVO.getPlugin().getId());
     }
 
     public IOSession getLocalSessionByPluginId(String pluginId) {
-        return firstOpenLocalSession(session -> matchesPluginId(session, pluginId));
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, null, null)) {
+            return firstOpenLocalSession(session -> matchesPluginId(session, pluginId));
+        }
     }
 
     public List<IOSession> getLocalSessionsByPluginId(String pluginId) {
-        return openLocalSessions(session -> matchesPluginId(session, pluginId));
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, null, null)) {
+            return openLocalSessions(session -> matchesPluginId(session, pluginId));
+        }
     }
 
     public List<IOSession> closeLocalSessionsByPluginId(String pluginId) {
-        return closeLocalSessions(session -> matchesPluginId(session, pluginId));
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, null, null)) {
+            return closeLocalSessions(session -> matchesPluginId(session, pluginId));
+        }
     }
 
     public List<IOSession> closeLocalSessionsByPluginShortName(String pluginShortName) {
-        return closeLocalSessions(session -> matchesPluginShortName(session, pluginShortName));
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(null, pluginShortName, pluginShortName)) {
+            return closeLocalSessions(session -> matchesPluginShortName(session, pluginShortName));
+        }
     }
 
     public boolean hasOpenSessionForRuntimeInstance(String pluginId, String runtimeInstanceId) {
-        for (IOSession session : getLocalSessionsByPluginId(pluginId)) {
-            if (session.getPlugin() != null && Objects.equals(runtimeInstanceId, runtimeInstanceId(session))) {
-                return true;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, null, null)) {
+            for (IOSession session : getLocalSessionsByPluginId(pluginId)) {
+                if (session.getPlugin() != null && Objects.equals(runtimeInstanceId, runtimeInstanceId(session))) {
+                    return true;
+                }
             }
+            return false;
         }
-        return false;
     }
 
     public void addLocalSession(IOSession session) {
-        if (session == null || session.getPlugin() == null || StringUtils.isEmpty(session.getPlugin().getId())) {
-            return;
-        }
-        sessionId(session);
-        heartbeat.start();
-        heartbeat.register(session);
-        if (!localSessions.contains(session)) {
-            localSessions.add(session);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            if (session == null || session.getPlugin() == null || StringUtils.isEmpty(session.getPlugin().getId())) {
+                return;
+            }
+            sessionId(session);
+            heartbeat.start();
+            heartbeat.register(session);
+            if (!localSessions.contains(session)) {
+                localSessions.add(session);
+            }
         }
     }
 
     public void removeLocalSession(IOSession session) {
-        if (session != null) {
-            localSessions.remove(session);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            if (session != null) {
+                localSessions.remove(session);
+            }
         }
     }
 
@@ -144,8 +167,10 @@ public class PluginSessionRegistry {
 
     private IOSession firstOpenLocalSession(Predicate<IOSession> matcher) {
         for (IOSession session : localSessions(matcher)) {
-            if (isSessionUsable(session)) {
-                return session;
+            try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+                if (isSessionUsable(session)) {
+                    return session;
+                }
             }
         }
         return null;
@@ -154,8 +179,10 @@ public class PluginSessionRegistry {
     private List<IOSession> openLocalSessions(Predicate<IOSession> matcher) {
         List<IOSession> sessions = new ArrayList<>();
         for (IOSession session : localSessions(matcher)) {
-            if (isSessionUsable(session)) {
-                sessions.add(session);
+            try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+                if (isSessionUsable(session)) {
+                    sessions.add(session);
+                }
             }
         }
         return sessions;
@@ -164,7 +191,9 @@ public class PluginSessionRegistry {
     private List<IOSession> closeLocalSessions(Predicate<IOSession> matcher) {
         List<IOSession> sessions = localSessions(matcher);
         for (IOSession session : sessions) {
-            closeLocalSession(session);
+            try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+                closeLocalSession(session);
+            }
         }
         return sessions;
     }
@@ -180,28 +209,32 @@ public class PluginSessionRegistry {
     }
 
     private void closeLocalSession(IOSession session) {
-        if (session == null) {
-            return;
-        }
-        try {
-            if (session.getSystemAttr().get("_channel") instanceof Channel) {
-                session.close();
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            if (session == null) {
+                return;
             }
-        } finally {
-            removeClosedLocalSession(session);
+            try {
+                if (session.getSystemAttr().get("_channel") instanceof Channel) {
+                    session.close();
+                }
+            } finally {
+                removeClosedLocalSession(session);
+            }
         }
     }
 
     private void removeClosedLocalSession(IOSession session) {
-        if (session == null || session.getPlugin() == null) {
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            if (session == null || session.getPlugin() == null) {
+                removeLocalSession(session);
+                return;
+            }
+            String pluginId = session.getPlugin().getId();
+            String runtimeInstanceId = runtimeInstanceId(session);
             removeLocalSession(session);
-            return;
-        }
-        String pluginId = session.getPlugin().getId();
-        String runtimeInstanceId = runtimeInstanceId(session);
-        removeLocalSession(session);
-        if (!hasOpenSessionForRuntimeInstance(pluginId, runtimeInstanceId)) {
-            sessionStopMarker.markStoppedIfCurrent(session);
+            if (!hasOpenSessionForRuntimeInstance(pluginId, runtimeInstanceId)) {
+                sessionStopMarker.markStoppedIfCurrent(session);
+            }
         }
     }
 

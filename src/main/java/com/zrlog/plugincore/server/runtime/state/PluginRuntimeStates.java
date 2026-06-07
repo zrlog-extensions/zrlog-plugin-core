@@ -6,6 +6,7 @@ import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.vo.PluginVO;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.runtime.plugin.artifact.PluginFiles;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.plugin.process.PluginProcessRuntime;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
@@ -131,30 +132,36 @@ public final class PluginRuntimeStates {
     }
 
     public static void markStoppedIfCurrent(IOSession session) {
-        if (session == null || session.getPlugin() == null || !PluginSessions.isCurrentPluginIdentity(session.getPlugin())) {
-            return;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(session)) {
+            if (session == null || session.getPlugin() == null || !PluginSessions.isCurrentPluginIdentity(session.getPlugin())) {
+                return;
+            }
+            newStateService(session).markStopped(session.getPlugin().getId(), pluginDisplayName(session.getPlugin()));
         }
-        newStateService(session).markStopped(session.getPlugin().getId(), pluginDisplayName(session.getPlugin()));
     }
 
     public static void markStoppedByPluginId(String pluginId, String pluginName) {
-        newStateService().markStopped(pluginId, pluginName);
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, null, pluginName)) {
+            newStateService().markStopped(pluginId, pluginName);
+        }
     }
 
     public static void deletePluginRuntimeReferences(String pluginId) {
-        if (StringUtils.isEmpty(pluginId)) {
-            return;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, null, null)) {
+            if (StringUtils.isEmpty(pluginId)) {
+                return;
+            }
+            WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
+            new PluginRuntimeStateStore(kvStore).delete(pluginId);
+            new CapabilityStore(kvStore).replacePluginCapabilities(pluginId, Collections.emptyList());
+            deleteAutomations(pluginId, kvStore);
+            PluginCoreDAO.getInstance().update(pluginCore -> {
+                pluginCore.getSetting().getNotification().getDefaultProviders().entrySet()
+                        .removeIf(entry -> entry.getValue() != null && Objects.equals(pluginId, entry.getValue().getPluginId()));
+                pluginCore.getSetting().getService().getDefaultProviders().entrySet()
+                        .removeIf(entry -> entry.getValue() != null && Objects.equals(pluginId, entry.getValue().getPluginId()));
+            });
         }
-        WebsiteRuntimeKvStore kvStore = new WebsiteRuntimeKvStore();
-        new PluginRuntimeStateStore(kvStore).delete(pluginId);
-        new CapabilityStore(kvStore).replacePluginCapabilities(pluginId, Collections.emptyList());
-        deleteAutomations(pluginId, kvStore);
-        PluginCoreDAO.getInstance().update(pluginCore -> {
-            pluginCore.getSetting().getNotification().getDefaultProviders().entrySet()
-                    .removeIf(entry -> entry.getValue() != null && Objects.equals(pluginId, entry.getValue().getPluginId()));
-            pluginCore.getSetting().getService().getDefaultProviders().entrySet()
-                    .removeIf(entry -> entry.getValue() != null && Objects.equals(pluginId, entry.getValue().getPluginId()));
-        });
     }
 
     private static void deleteAutomations(String pluginId, WebsiteRuntimeKvStore kvStore) {
@@ -223,11 +230,13 @@ public final class PluginRuntimeStates {
     }
 
     public static void removeLocalRuntimeInstances(String pluginId) {
-        if (StringUtils.isEmpty(pluginId)) {
-            return;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, null, null)) {
+            if (StringUtils.isEmpty(pluginId)) {
+                return;
+            }
+            new PluginRuntimeStateStore(new WebsiteRuntimeKvStore()).removeInstances(pluginId,
+                    PluginRuntimeStates::isLocalRuntimeInstance);
         }
-        new PluginRuntimeStateStore(new WebsiteRuntimeKvStore()).removeInstances(pluginId,
-                PluginRuntimeStates::isLocalRuntimeInstance);
     }
 
     private static PluginRuntimeStateDocument cleanupRuntimeInstances(PluginRuntimeStateStore stateStore, long now) {
@@ -289,23 +298,27 @@ public final class PluginRuntimeStates {
     }
 
     public static IOSession getOrStartLocalSessionByPluginId(String pluginId) {
-        IOSession session = PluginSessions.getLocalSessionByPluginId(pluginId);
-        if (session != null) {
-            return session;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, null, null)) {
+            IOSession session = PluginSessions.getLocalSessionByPluginId(pluginId);
+            if (session != null) {
+                return session;
+            }
+            boolean started = newStateService().ensureStarted(pluginId);
+            if (!started) {
+                return null;
+            }
+            return PluginSessions.getLocalSessionByPluginId(pluginId);
         }
-        boolean started = newStateService().ensureStarted(pluginId);
-        if (!started) {
-            return null;
-        }
-        return PluginSessions.getLocalSessionByPluginId(pluginId);
     }
 
     public static boolean ensureStarted(Plugin plugin) {
-        if (plugin == null || StringUtils.isEmpty(plugin.getId())) {
-            return false;
+        try (PluginLogContext.Scope ignored = PluginLogContext.open(plugin)) {
+            if (plugin == null || StringUtils.isEmpty(plugin.getId())) {
+                return false;
+            }
+            PluginIdentity identity = new PluginIdentity(plugin.getId(), plugin.getShortName(), pluginDisplayName(plugin));
+            return newStateService().ensureStarted(identity);
         }
-        PluginIdentity identity = new PluginIdentity(plugin.getId(), plugin.getShortName(), pluginDisplayName(plugin));
-        return newStateService().ensureStarted(identity);
     }
 
     private static PluginRuntimeStateService newStateService() {

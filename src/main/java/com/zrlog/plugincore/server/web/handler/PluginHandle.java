@@ -15,6 +15,7 @@ import com.zrlog.plugin.data.codec.*;
 import com.zrlog.plugin.type.ActionType;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
 import com.zrlog.plugincore.server.runtime.plugin.artifact.PluginFiles;
+import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStates;
@@ -93,92 +94,97 @@ public class PluginHandle implements HttpErrorHandle {
             return;
         }
 
-        boolean devMode = EnvKit.isDevMode();
-        boolean devRequest = devMode || isDevRequest(httpRequest);
-        if (devRequest) {
-            LOGGER.log(Level.INFO, "plugin name " + pluginRequestUriInfo.getName());
-        }
-        IOSession session = getReadySession(pluginRequestUriInfo.getName());
-        if (Objects.isNull(session)) {
-            httpResponse.renderCode(503);
-            return;
-        }
-        if (!devMode && !isLogin && !includePath(session.getPlugin().getPaths(), pluginRequestUriInfo.getAction())) {
-            httpResponse.renderCode(403);
-            return;
-        }
-
-        PluginRuntimeStateService stateService = PluginRuntimeStates.newStateService(session);
-        String pluginId = session.getPlugin().getId();
-        String pluginName = PluginSessions.nameOrShortName(session.getPlugin());
-        String errorMessage = null;
-        stateService.markInvocationStart(pluginId, pluginName);
-        //Full Blog System ENV
-        int id = IdUtil.getInt();
-        try {
-            HttpRequestInfo msgBody = HttpMsgUtil.genInfo(httpRequest);
-            msgBody.setUri(pluginRequestUriInfo.getAction());
-            if (("/".equals(msgBody.getUri()) && !"".equals(session.getPlugin().getIndexPage()))) {
-                msgBody.setUri(session.getPlugin().getIndexPage());
+        try (PluginLogContext.Scope shortNameScope = PluginLogContext.open(null,
+                pluginRequestUriInfo.getName(), pluginRequestUriInfo.getName())) {
+            boolean devMode = EnvKit.isDevMode();
+            boolean devRequest = devMode || isDevRequest(httpRequest);
+            if (devRequest) {
+                LOGGER.log(Level.INFO, PluginLogContext.prefix("plugin name " + pluginRequestUriInfo.getName()));
             }
-            ActionType actionType;
-            if (new File(msgBody.getUri()).getName().contains(".")) {
-                actionType = ActionType.HTTP_FILE;
-            } else {
-                actionType = ActionType.HTTP_METHOD;
-                if (httpRequest.getRequestBodyByteBuffer() != null) {
-                    msgBody.setRequestBody(requestBodyBytes(httpRequest.getRequestBodyByteBuffer()));
-                }
-                msgBody.setUri(msgBody.getUri() + ".action");
-            }
-            AdminTheme.applyTo(msgBody, httpRequest);
-            msgBody.setParam(httpRequest.decodeParamMap());
-            session.sendJsonMsg(msgBody, actionType.name(), id, MsgPacketStatus.SEND_REQUEST);
-            String accessUrl = httpRequest.getHeader("AccessUrl");
-            String cookie = httpRequest.getHeader("Cookie");
-            if (accessUrl == null) {
-                accessUrl = "";
-            }
-            if (cookie == null) {
-                cookie = "";
-            }
-            session.getAttr().put("accessUrl", accessUrl);
-            session.getAttr().put("cookie", cookie);
-            MsgPacket responseMsgPacket = session.getResponseMsgPacketByMsgId(id);
-            if (Objects.isNull(responseMsgPacket)) {
-                errorMessage = "plugin " + session.getPlugin().getShortName() + " not response";
-                LOGGER.warning(httpRequest.getUri() + " -> error, " + errorMessage);
-                httpResponse.renderCode(500);
+            IOSession session = getReadySession(pluginRequestUriInfo.getName());
+            if (Objects.isNull(session)) {
+                httpResponse.renderCode(503);
                 return;
             }
-            if (responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_ERROR) {
-                errorMessage = "plugin " + session.getPlugin().getShortName() + " response error";
-            }
-            if (responseMsgPacket.getMethodStr().equals(ActionType.HTTP_ATTACHMENT_FILE.name())) {
-                String tempDirPath = System.getProperty("java.io.tmpdir");
-                File tempDir = new File(tempDirPath);
-
-                if (!tempDir.exists()) {
-                    tempDir.mkdirs(); // 确保目录存在
-                }
-                File file = convertToFile(responseMsgPacket.getData().array(), tempDirPath);
-                try {
-                    httpResponse.renderFile(file);
+            try (PluginLogContext.Scope sessionScope = PluginLogContext.open(session)) {
+                if (!devMode && !isLogin && !includePath(session.getPlugin().getPaths(), pluginRequestUriInfo.getAction())) {
+                    httpResponse.renderCode(403);
                     return;
+                }
+
+                PluginRuntimeStateService stateService = PluginRuntimeStates.newStateService(session);
+                String pluginId = session.getPlugin().getId();
+                String pluginName = PluginSessions.nameOrShortName(session.getPlugin());
+                String errorMessage = null;
+                stateService.markInvocationStart(pluginId, pluginName);
+                //Full Blog System ENV
+                int id = IdUtil.getInt();
+                try {
+                    HttpRequestInfo msgBody = HttpMsgUtil.genInfo(httpRequest);
+                    msgBody.setUri(pluginRequestUriInfo.getAction());
+                    if (("/".equals(msgBody.getUri()) && !"".equals(session.getPlugin().getIndexPage()))) {
+                        msgBody.setUri(session.getPlugin().getIndexPage());
+                    }
+                    ActionType actionType;
+                    if (new File(msgBody.getUri()).getName().contains(".")) {
+                        actionType = ActionType.HTTP_FILE;
+                    } else {
+                        actionType = ActionType.HTTP_METHOD;
+                        if (httpRequest.getRequestBodyByteBuffer() != null) {
+                            msgBody.setRequestBody(requestBodyBytes(httpRequest.getRequestBodyByteBuffer()));
+                        }
+                        msgBody.setUri(msgBody.getUri() + ".action");
+                    }
+                    AdminTheme.applyTo(msgBody, httpRequest);
+                    msgBody.setParam(httpRequest.decodeParamMap());
+                    session.sendJsonMsg(msgBody, actionType.name(), id, MsgPacketStatus.SEND_REQUEST);
+                    String accessUrl = httpRequest.getHeader("AccessUrl");
+                    String cookie = httpRequest.getHeader("Cookie");
+                    if (accessUrl == null) {
+                        accessUrl = "";
+                    }
+                    if (cookie == null) {
+                        cookie = "";
+                    }
+                    session.getAttr().put("accessUrl", accessUrl);
+                    session.getAttr().put("cookie", cookie);
+                    MsgPacket responseMsgPacket = session.getResponseMsgPacketByMsgId(id);
+                    if (Objects.isNull(responseMsgPacket)) {
+                        errorMessage = "plugin " + session.getPlugin().getShortName() + " not response";
+                        LOGGER.warning(PluginLogContext.prefix(httpRequest.getUri() + " -> error, " + errorMessage));
+                        httpResponse.renderCode(500);
+                        return;
+                    }
+                    if (responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_ERROR) {
+                        errorMessage = "plugin " + session.getPlugin().getShortName() + " response error";
+                    }
+                    if (responseMsgPacket.getMethodStr().equals(ActionType.HTTP_ATTACHMENT_FILE.name())) {
+                        String tempDirPath = System.getProperty("java.io.tmpdir");
+                        File tempDir = new File(tempDirPath);
+
+                        if (!tempDir.exists()) {
+                            tempDir.mkdirs(); // 确保目录存在
+                        }
+                        File file = convertToFile(responseMsgPacket.getData().array(), tempDirPath);
+                        try {
+                            httpResponse.renderFile(file);
+                            return;
+                        } finally {
+                            file.delete();
+                        }
+                    }
+                    String ext = getExt(httpRequest, responseMsgPacket);
+                    InputStream in = new ByteArrayInputStream(responseMsgPacket.getData().array());
+                    httpResponse.addHeader("Content-Type", MimeTypeUtil.getMimeStrByExt(ext));
+                    httpResponse.write(in, responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_SUCCESS ? 200 : 500);
+                } catch (RuntimeException ex) {
+                    errorMessage = ex.getMessage();
+                    throw ex;
                 } finally {
-                    file.delete();
+                    session.getPipeMap().remove(id);
+                    stateService.markInvocationEnd(pluginId, pluginName, errorMessage);
                 }
             }
-            String ext = getExt(httpRequest, responseMsgPacket);
-            InputStream in = new ByteArrayInputStream(responseMsgPacket.getData().array());
-            httpResponse.addHeader("Content-Type", MimeTypeUtil.getMimeStrByExt(ext));
-            httpResponse.write(in, responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_SUCCESS ? 200 : 500);
-        } catch (RuntimeException ex) {
-            errorMessage = ex.getMessage();
-            throw ex;
-        } finally {
-            session.getPipeMap().remove(id);
-            stateService.markInvocationEnd(pluginId, pluginName, errorMessage);
         }
     }
 
