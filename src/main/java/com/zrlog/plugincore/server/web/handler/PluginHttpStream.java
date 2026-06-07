@@ -82,14 +82,6 @@ public class PluginHttpStream {
             } else {
                 session.sendJsonMsg(msgBody, actionType.name(), id, MsgPacketStatus.SEND_REQUEST);
             }
-            String accessUrl = httpRequest.getHeader("AccessUrl");
-            String cookie = httpRequest.getHeader("Cookie");
-            if (accessUrl == null) {
-                accessUrl = "";
-            }
-            if (cookie == null) {
-                cookie = "";
-            }
             MsgPacket responseMsgPacket = session.getResponseMsgPacketByMsgId(id);
             if (Objects.isNull(responseMsgPacket)) {
                 errorMessage = "plugin " + session.getPlugin().getShortName() + " not response";
