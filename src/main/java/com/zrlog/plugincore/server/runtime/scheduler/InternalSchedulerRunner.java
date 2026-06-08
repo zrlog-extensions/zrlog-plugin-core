@@ -1,9 +1,10 @@
 package com.zrlog.plugincore.server.runtime.scheduler;
 
+import com.hibegin.common.util.EnvKit;
 import com.hibegin.common.util.LoggerUtil;
 import com.zrlog.plugin.common.BasicCronParser;
-import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
+import com.zrlog.plugincore.server.model.PluginCore;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
 import com.zrlog.plugincore.server.runtime.capability.RuntimeCapabilityInvokerFactory;
 import com.zrlog.plugincore.server.runtime.store.WebsiteRuntimeKvStore;
@@ -26,6 +27,10 @@ public class InternalSchedulerRunner {
 
     public static void start() {
         if (!STARTED.compareAndSet(false, true)) {
+            return;
+        }
+        if (EnvKit.isFaaSMode()) {
+            LOGGER.info("Faas mode, skip internal scheduler");
             return;
         }
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor(runnable -> {
