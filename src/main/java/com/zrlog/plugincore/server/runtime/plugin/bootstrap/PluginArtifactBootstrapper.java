@@ -132,6 +132,10 @@ public class PluginArtifactBootstrapper {
                 futures.add(CompletableFuture.runAsync(() -> {
                     try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, pluginShortName, pluginShortName)) {
                         try {
+                            if (!shouldDownloadPluginFileForMissingFile(file, currentPluginCore)) {
+                                LOGGER.info(PluginLogContext.prefix("skip plugin " + pluginShortName + " download because remote md5 matches db"));
+                                return;
+                            }
                             File downloadedFile = PluginFiles.downloadPlugin(file.getName());
                             if (!metadataBootstrapper.startPluginFileForMetadata(downloadedFile, pluginId)) {
                                 LOGGER.warning(PluginLogContext.prefix("downloaded plugin " + pluginShortName + " but metadata was not registered"));
@@ -146,6 +150,26 @@ public class PluginArtifactBootstrapper {
         } finally {
             executorService.shutdown();
         }
+    }
+
+    private boolean shouldDownloadPluginFileForMissingFile(File file, PluginCore currentPluginCore) {
+        if (currentPluginCore == null || currentPluginCore.getPluginInfoMap() == null || file == null) {
+            return true;
+        }
+        if (currentPluginCore.getSetting() == null || currentPluginCore.getSetting().getRuntime() == null
+                || !currentPluginCore.getSetting().getRuntime().getOnDemandEnabled()) {
+            return true;
+        }
+        PluginVO pluginVO = pluginVOForInstalledArtifact(currentPluginCore, PluginFiles.getPluginShortName(file));
+        if (pluginVO == null || pluginVO.getPlugin() == null
+                || StringUtils.isEmpty(pluginVO.getFileMd5())) {
+            return true;
+        }
+        String remoteMd5 = PluginFiles.pluginFileRemoteMd5(file);
+        if (StringUtils.isEmpty(remoteMd5)) {
+            return true;
+        }
+        return !Objects.equals(pluginVO.getFileMd5(), remoteMd5);
     }
 
     private void bootstrapInstalledPluginArtifacts(PluginCore currentPluginCore) {

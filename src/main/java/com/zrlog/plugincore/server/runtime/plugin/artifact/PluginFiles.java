@@ -13,6 +13,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -73,6 +74,31 @@ public final class PluginFiles {
             return md5 == null ? "" : md5;
         } catch (RuntimeException e) {
             LOGGER.log(Level.WARNING, "calculate plugin md5 error", e);
+            return "";
+        }
+    }
+
+    public static String pluginFileRemoteMd5(File pluginFile) {
+        if (pluginFile == null || StringUtils.isEmpty(pluginFile.getName())) {
+            return "";
+        }
+        return pluginFileRemoteMd5(pluginFile.getName());
+    }
+
+    public static String pluginFileRemoteMd5(String pluginFileName) {
+        if (StringUtils.isEmpty(pluginFileName)) {
+            return "";
+        }
+        String md5Url = "https://dl.zrlog.com/plugin/" + pluginFileName + ".md5";
+        try {
+            String md5Text = new String(HttpUtils.sendGetRequest(md5Url, new HashMap<>()), StandardCharsets.UTF_8).trim();
+            if (md5Text.isEmpty()) {
+                return "";
+            }
+            String[] tokens = md5Text.split("\\s+");
+            return tokens.length == 0 ? "" : tokens[0];
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "get plugin md5 from remote error, pluginFile=" + pluginFileName, e);
             return "";
         }
     }
