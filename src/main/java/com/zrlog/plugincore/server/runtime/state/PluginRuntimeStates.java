@@ -245,10 +245,11 @@ public final class PluginRuntimeStates {
                 STALE_TRANSIENT_INSTANCE_TTL_MS);
     }
 
-    private static PluginRuntimeInstanceView instanceView(Plugin plugin, String pluginName, PluginRuntimeInstanceState instance) {
+    static PluginRuntimeInstanceView instanceView(Plugin plugin, String pluginName, PluginRuntimeInstanceState instance) {
         PluginRuntimeInstanceView view = new PluginRuntimeInstanceView();
         view.setPluginId(plugin.getId());
         view.setPluginName(pluginName);
+        view.setPluginVersion(plugin.getVersion());
         view.setPluginPreviewImageBase64(StringUtils.isEmpty(plugin.getPreviewImageBase64())
                 ? ""
                 : plugin.getPreviewImageBase64());

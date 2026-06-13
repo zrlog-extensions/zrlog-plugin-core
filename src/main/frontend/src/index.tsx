@@ -90,6 +90,14 @@ const Index = () => {
         }
     }, [pluginInfo, reloadPluginInfo]);
 
+    useEffect(() => {
+        if (!pluginInfo?.pluginMetadataLoading) {
+            return;
+        }
+        const timer = window.setTimeout(reloadPluginInfo, 1500);
+        return () => window.clearTimeout(timer);
+    }, [pluginInfo?.pluginMetadataLoading, reloadPluginInfo]);
+
     if (pluginInfo === null) {
         return <></>
     }

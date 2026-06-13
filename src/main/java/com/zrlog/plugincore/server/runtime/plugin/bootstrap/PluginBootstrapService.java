@@ -111,6 +111,14 @@ public class PluginBootstrapService {
         return bootstrapRunning.get();
     }
 
+    public boolean isCurrentBootstrapReady() {
+        CompletableFuture<Void> currentFuture = bootstrapFuture;
+        return currentFuture != null
+                && currentFuture.isDone()
+                && !currentFuture.isCancelled()
+                && !currentFuture.isCompletedExceptionally();
+    }
+
     public Map<String, String> getRequiredPlugins() {
         return requiredPlugins;
     }

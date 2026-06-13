@@ -4,6 +4,7 @@ public class PluginRuntimeInstanceView {
 
     private String pluginId;
     private String pluginName;
+    private String pluginVersion;
     private String pluginPreviewImageBase64;
     private String instanceId;
     private String ownerId;
@@ -44,6 +45,14 @@ public class PluginRuntimeInstanceView {
 
     public void setPluginName(String pluginName) {
         this.pluginName = pluginName;
+    }
+
+    public String getPluginVersion() {
+        return pluginVersion;
+    }
+
+    public void setPluginVersion(String pluginVersion) {
+        this.pluginVersion = pluginVersion;
     }
 
     public String getPluginPreviewImageBase64() {

@@ -343,9 +343,9 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
                 const isReq = isRequired(plugin.shortName);
                 return (
                     <Space size={isMobile ? 10 : "middle"}>
-                        <Tooltip title={isMobile ? "配置" : undefined}>
-                            <a href={plugin.shortName + "/"} aria-label="配置" style={{ color: data.primaryColor, fontWeight: 500, fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                <SettingOutlined /> {!isMobile && '配置'}
+                        <Tooltip title={isMobile ? "管理" : undefined}>
+                            <a href={plugin.shortName + "/"} aria-label="管理" style={{ color: data.primaryColor, fontWeight: 500, fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                <SettingOutlined /> {!isMobile && '管理'}
                             </a>
                         </Tooltip>
                         {isReq ? (
@@ -604,7 +604,7 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
                                                     }
                                                     actions={[
                                                         <a href={plugin.shortName + "/"} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', height: '100%', color: data.primaryColor, fontWeight: 600 }}>
-                                                            <SettingOutlined key="preview" /> 配置
+                                                            <SettingOutlined key="preview" /> 管理
                                                         </a>,
                                                         isReq ? (
                                                             <Tooltip title="此插件为系统必要插件，无法卸载" key="delete-disabled">

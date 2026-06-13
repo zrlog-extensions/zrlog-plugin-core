@@ -55,6 +55,21 @@ public class PluginBootstrapServiceTest {
         }
     }
 
+    @Test
+    public void shouldReportCurrentBootstrapReadyWithoutBlocking() throws Exception {
+        BlockingPluginBootstrapService bootstrapService = new BlockingPluginBootstrapService();
+
+        assertTrue(bootstrapService.isCurrentBootstrapReady());
+
+        bootstrapService.loadPluginsAsync();
+        assertTrue(bootstrapService.started.await(1, TimeUnit.SECONDS));
+        assertFalse(bootstrapService.isCurrentBootstrapReady());
+
+        bootstrapService.release.countDown();
+        assertTrue(bootstrapService.awaitCurrentBootstrap());
+        assertTrue(bootstrapService.isCurrentBootstrapReady());
+    }
+
     private static class BlockingPluginBootstrapService extends PluginBootstrapService {
 
         private final CountDownLatch started = new CountDownLatch(1);

@@ -64,7 +64,7 @@ public class PluginApiController extends Controller {
     public Map<String, Object> plugins() {
         AdminTheme adminTheme = AdminTheme.fromRequest(getRequest());
         boolean pluginMetadataReady = PluginCoreRunMode.isNativeAgent()
-                || pluginBootstrap().awaitCurrentBootstrap();
+                || pluginBootstrap().isCurrentBootstrapReady();
         PluginCore pluginCore = PluginCoreRunMode.isNativeAgent() ? null : PluginCoreDAO.getInstance().loadSnapshot();
         Map<String, Object> map = new HashMap<>();
         map.put("plugins", pluginsForCurrentMode(pluginCore));

@@ -124,6 +124,7 @@ export type RuntimeState = {
 export type RuntimeInstanceState = {
     pluginId: string;
     pluginName?: string;
+    pluginVersion?: string;
     pluginPreviewImageBase64?: string;
     instanceId: string;
     ownerId?: string;

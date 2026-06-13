@@ -93,6 +93,11 @@ const processAliveTag = (value?: boolean, key?: string) => {
     return value ? <Tag key={key} color="success">可用</Tag> : <Tag key={key} color="error">异常</Tag>;
 };
 
+const pluginVersionLabel = (value?: string) => {
+    const version = value?.trim();
+    return version ? `v${version}` : undefined;
+};
+
 const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
     const screens = Grid.useBreakpoint();
     const isMobile = Boolean((screens.xs || screens.sm) && !screens.md);
@@ -187,7 +192,7 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
     };
     const runtimePluginCell = (record: RuntimeInstanceState) => (
         <Space direction="vertical" size={8} style={{width: "100%", minWidth: 0}}>
-            {renderPlugin(record.pluginId, record.pluginName, record.pluginPreviewImageBase64)}
+            {renderPlugin(record.pluginId, record.pluginName, record.pluginPreviewImageBase64, undefined, pluginVersionLabel(record.pluginVersion))}
             {isMobile && (
                 <Space direction="vertical" size={4} style={{width: "100%"}}>
                     <Space size={[4, 4]} wrap>
@@ -274,8 +279,9 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
         >
             {selectedState && (
                 <Space direction="vertical" size={16} style={{width: "100%"}}>
-                    {renderPlugin(selectedState.pluginId, selectedState.pluginName, selectedState.pluginPreviewImageBase64)}
+                    {renderPlugin(selectedState.pluginId, selectedState.pluginName, selectedState.pluginPreviewImageBase64, undefined, pluginVersionLabel(selectedState.pluginVersion))}
                     <Descriptions bordered size="small" column={1}>
+                        <Descriptions.Item label="插件版本">{pluginVersionLabel(selectedState.pluginVersion) || "-"}</Descriptions.Item>
                         <Descriptions.Item label="状态">
                             <Space size={[4, 4]} wrap>
                                 {runtimeStatusTag(selectedState)}
