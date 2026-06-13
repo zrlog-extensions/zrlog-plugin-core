@@ -21,7 +21,7 @@ public class RuntimeApiControllerTest {
         try {
             RunConstants.runType = RunType.AGENT;
 
-            assertTrue(RuntimeApiController.runtimeStatesForCurrentMode().isEmpty());
+            assertTrue(RuntimeStateApiController.runtimeStatesForCurrentMode().isEmpty());
         } finally {
             RunConstants.runType = previous;
         }
@@ -38,14 +38,14 @@ public class RuntimeApiControllerTest {
         capability.setLabel("刷新 RSS 文件");
 
         assertEquals("RSS 订阅源 / 刷新 RSS 文件",
-                RuntimeApiController.automationTargetLabel("default:rss-2:rss.refreshFeed",
+                RuntimeApiResponses.automationTargetLabel("default:rss-2:rss.refreshFeed",
                         "rss-2", "rss.refreshFeed", "自定义任务名", plugin, capability));
     }
 
     @Test
     public void shouldBuildSystemAutomationTargetLabel() {
         assertEquals("系统任务 / 运行态维护",
-                RuntimeApiController.automationTargetLabel("system:plugin-runtime-maintenance",
+                RuntimeApiResponses.automationTargetLabel("system:plugin-runtime-maintenance",
                         "__system__", "plugin.runtime.maintenance", "运行态维护", null, null));
     }
 
@@ -55,7 +55,7 @@ public class RuntimeApiControllerTest {
         NotificationDelivery newDelivery = delivery("email", "email-plugin", "notification.email.send", "success", 200L);
         NotificationDelivery otherDelivery = delivery("webhook", "webhook-plugin", "notification.webhook.send", "success", 300L);
 
-        Map<String, NotificationDelivery> latest = RuntimeApiController.latestNotificationDeliveryByProvider(
+        Map<String, NotificationDelivery> latest = RuntimeApiResponses.latestNotificationDeliveryByProvider(
                 Arrays.asList(oldDelivery, otherDelivery, newDelivery));
 
         assertEquals(2, latest.size());

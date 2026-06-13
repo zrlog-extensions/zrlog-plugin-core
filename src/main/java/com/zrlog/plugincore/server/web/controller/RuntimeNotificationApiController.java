@@ -1,0 +1,137 @@
+package com.zrlog.plugincore.server.web.controller;
+
+import com.hibegin.common.dao.dto.PageData;
+import com.hibegin.http.annotation.ResponseBody;
+import com.zrlog.plugin.common.KvRepository;
+import com.zrlog.plugin.message.NotificationChannelProvider;
+import com.zrlog.plugin.message.NotificationChannelQueryResult;
+import com.zrlog.plugin.message.NotificationRequest;
+import com.zrlog.plugin.message.PluginCapability;
+import com.zrlog.plugincore.server.dao.PluginCoreDAO;
+import com.zrlog.plugincore.server.model.PluginCore;
+import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
+import com.zrlog.plugincore.server.runtime.capability.RuntimeCapabilityInvokerFactory;
+import com.zrlog.plugincore.server.runtime.notification.NotificationDelivery;
+import com.zrlog.plugincore.server.runtime.notification.NotificationDeliveryStore;
+import com.zrlog.plugincore.server.runtime.notification.NotificationProviderResolver;
+import com.zrlog.plugincore.server.runtime.notification.NotificationProviderSetting;
+import com.zrlog.plugincore.server.runtime.notification.NotificationPublishResult;
+import com.zrlog.plugincore.server.runtime.notification.NotificationRuntime;
+import com.zrlog.plugincore.server.runtime.notification.NotificationSetting;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiResponses.*;
+import static com.zrlog.plugincore.server.web.controller.RuntimeProviderResponses.notificationChannelProviders;
+import static com.zrlog.plugincore.server.web.controller.RuntimeProviderResponses.validNotificationProvider;
+
+public class RuntimeNotificationApiController extends RuntimeBaseApiController {
+
+    @ResponseBody
+    public NotificationChannelQueryResult notificationChannels() {
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        List<NotificationChannelProvider> items = notificationChannelProviders(
+                capabilityStore().listByType("notification_channel"),
+                pluginCore.getSetting().getNotification(),
+                pluginsById(pluginCore),
+                notificationDeliveryStore().list());
+        return NotificationChannelQueryResult.success(items);
+    }
+
+    @ResponseBody
+    public Map<String, Object> notificationProviderUpdate() {
+        String channel = getRequest().getParaToStr("channel");
+        String pluginId = getRequest().getParaToStr("pluginId");
+        String capabilityKey = getRequest().getParaToStr("capabilityKey");
+        PluginCapability provider = capabilityStore().find(pluginId, capabilityKey).orElse(null);
+        if (!validNotificationProvider(provider, channel)) {
+            return error("通知通道能力不存在");
+        }
+        NotificationProviderSetting providerSetting = new NotificationProviderSetting();
+        providerSetting.setChannel(channel);
+        providerSetting.setPluginId(pluginId);
+        providerSetting.setCapabilityKey(capabilityKey);
+        PluginCoreDAO.getInstance().update(pluginCore ->
+                pluginCore.getSetting().getNotification().getDefaultProviders().put(channel, providerSetting));
+        return success();
+    }
+
+    @ResponseBody
+    public Map<String, Object> notificationProviderAuto() {
+        String channel = getRequest().getParaToStr("channel");
+        PluginCoreDAO.getInstance().update(pluginCore ->
+                pluginCore.getSetting().getNotification().getDefaultProviders().remove(channel));
+        return success();
+    }
+
+    @ResponseBody
+    public Map<String, Object> notificationTest() {
+        String channel = getRequest().getParaToStr("channel");
+        String pluginId = getRequest().getParaToStr("pluginId");
+        String capabilityKey = getRequest().getParaToStr("capabilityKey");
+        KvRepository kvStore = kvStore();
+        CapabilityStore capabilityStore = new CapabilityStore(kvStore);
+        PluginCapability provider = capabilityStore.find(pluginId, capabilityKey).orElse(null);
+        if (!validNotificationProvider(provider, channel)) {
+            return error("通知通道能力不存在");
+        }
+        PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
+        NotificationProviderSetting providerSetting = new NotificationProviderSetting();
+        providerSetting.setChannel(channel);
+        providerSetting.setPluginId(pluginId);
+        providerSetting.setCapabilityKey(capabilityKey);
+        NotificationSetting notificationSetting = new NotificationSetting();
+        notificationSetting.getDefaultProviders().put(channel, providerSetting);
+        NotificationRequest request = notificationTestRequest(channel);
+        NotificationPublishResult result = new NotificationRuntime(
+                capabilityStore,
+                new NotificationDeliveryStore(kvStore),
+                new NotificationProviderResolver(),
+                notificationSetting,
+                RuntimeCapabilityInvokerFactory.socket(kvStore, pluginCore)
+        ).publish(request);
+        NotificationDelivery delivery = result.getDeliveries() == null || result.getDeliveries().isEmpty()
+                ? null
+                : result.getDeliveries().get(0);
+        if (delivery == null) {
+            return error("测试通知没有生成投递记录");
+        }
+        Map<String, Object> map = success();
+        map.put("success", result.getSuccessCount() > 0);
+        map.put("delivery", notificationDeliveryResponse(delivery, pluginsById(pluginCore)));
+        return map;
+    }
+
+    @ResponseBody
+    public Map<String, Object> notificationDeliveries() {
+        Map<String, Object> map = success();
+        PageData<NotificationDelivery> page = newestPage(notificationDeliveryStore().list(), 8);
+        map.put("rows", notificationDeliveryResponses(page.getRows(), pluginsById()));
+        putPage(map, page);
+        return map;
+    }
+
+    private NotificationRequest notificationTestRequest(String channel) {
+        NotificationRequest request = new NotificationRequest();
+        request.setSourcePluginId("__system__");
+        request.setSourcePluginName("系统");
+        request.setSourceCapabilityKey("runtime.notification.test");
+        request.setEventType("runtime.notification.test");
+        request.setNotificationType("test");
+        request.setChannels(Collections.singletonList(channel));
+        request.setTitle("ZrLog 通知测试");
+        request.setContent("这是一条来自 ZrLog Plugin Runtime 的测试通知。");
+        request.setLevel("info");
+        request.setRequestId(UUID.randomUUID().toString());
+        request.setTraceId(UUID.randomUUID().toString());
+        Map<String, Object> payload = new HashMap<String, Object>();
+        payload.put("test", Boolean.TRUE);
+        request.setPayload(payload);
+        return request;
+    }
+}
