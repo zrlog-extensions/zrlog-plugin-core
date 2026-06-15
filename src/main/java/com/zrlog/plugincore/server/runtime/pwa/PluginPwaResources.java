@@ -1,0 +1,254 @@
+package com.zrlog.plugincore.server.runtime.pwa;
+
+import com.google.gson.Gson;
+import com.hibegin.http.server.api.HttpResponse;
+import com.zrlog.plugin.message.Plugin;
+import com.zrlog.plugincore.server.web.handler.PluginRequestUriInfo;
+
+import java.io.ByteArrayInputStream;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+public class PluginPwaResources {
+
+    static final String MANIFEST_WEBMANIFEST = "manifest.webmanifest";
+    static final String MANIFEST_JSON = "manifest.json";
+    static final String SERVICE_WORKER = "pwa-sw.js";
+    static final String ICON = "pwa-icon";
+
+    private static final String MANIFEST_CONTENT_TYPE = "application/manifest+json; charset=utf-8";
+    private static final String JAVASCRIPT_CONTENT_TYPE = "application/javascript; charset=utf-8";
+    private static final String DEFAULT_ICON_CONTENT_TYPE = "image/png";
+    private static final Gson GSON = new Gson();
+
+    public boolean renderIfMatched(Plugin plugin,
+                                   PluginRequestUriInfo requestUriInfo,
+                                   String requestUri,
+                                   HttpResponse response) {
+        if (plugin == null || requestUriInfo == null || response == null) {
+            return false;
+        }
+        String action = normalizeAction(requestUriInfo.getAction());
+        if (!isPwaResource(action)) {
+            return false;
+        }
+        String basePath = pluginBasePath(requestUri, action, requestUriInfo.getName());
+        if (isManifest(action)) {
+            write(response, MANIFEST_CONTENT_TYPE, GSON.toJson(manifest(plugin, basePath)));
+            return true;
+        }
+        if (SERVICE_WORKER.equals(action)) {
+            write(response, JAVASCRIPT_CONTENT_TYPE, serviceWorker(basePath));
+            return true;
+        }
+        PreviewIcon icon = previewIcon(plugin.getPreviewImageBase64());
+        if (icon == null) {
+            return false;
+        }
+        response.addHeader("Content-Type", icon.getContentType());
+        response.addHeader("Cache-Control", "max-age=86400");
+        response.write(new ByteArrayInputStream(icon.getBytes()), 200);
+        return true;
+    }
+
+    public Map<String, Object> manifest(Plugin plugin, String basePath) {
+        String normalizedBasePath = ensureTrailingSlash(isBlank(basePath) ? "/" : basePath);
+        Map<String, Object> manifest = new LinkedHashMap<>();
+        manifest.put("id", normalizedBasePath);
+        manifest.put("name", firstNonBlank(plugin.getName(), plugin.getShortName()));
+        manifest.put("short_name", firstNonBlank(plugin.getShortName(), plugin.getName()));
+        if (!isBlank(plugin.getDesc())) {
+            manifest.put("description", plugin.getDesc());
+        }
+        manifest.put("start_url", normalizedBasePath);
+        manifest.put("scope", normalizedBasePath);
+        manifest.put("display", "standalone");
+        manifest.put("theme_color", "#1677ff");
+        manifest.put("background_color", "#ffffff");
+        PreviewIcon icon = previewIcon(plugin.getPreviewImageBase64());
+        if (icon != null) {
+            manifest.put("icons", Collections.singletonList(iconManifestEntry(normalizedBasePath, icon)));
+        }
+        return manifest;
+    }
+
+    public String serviceWorker(String basePath) {
+        String scope = ensureTrailingSlash(isBlank(basePath) ? "/" : basePath);
+        return "'use strict';\n"
+                + "const ZRLOG_PLUGIN_PWA_SCOPE = " + GSON.toJson(scope) + ";\n"
+                + "self.addEventListener('install', function () {\n"
+                + "  self.skipWaiting();\n"
+                + "});\n"
+                + "self.addEventListener('activate', function (event) {\n"
+                + "  event.waitUntil(self.clients.claim());\n"
+                + "});\n";
+    }
+
+    static boolean isPwaResource(String action) {
+        String normalized = normalizeAction(action);
+        return isManifest(normalized) || SERVICE_WORKER.equals(normalized) || ICON.equals(normalized);
+    }
+
+    static boolean isManifest(String action) {
+        String normalized = normalizeAction(action);
+        return MANIFEST_WEBMANIFEST.equals(normalized) || MANIFEST_JSON.equals(normalized);
+    }
+
+    static String pluginBasePath(String requestUri, String action, String pluginShortName) {
+        String path = pathPart(requestUri);
+        String suffix = "/" + normalizeAction(action);
+        if (!isBlank(path) && path.endsWith(suffix)) {
+            String basePath = path.substring(0, path.length() - suffix.length());
+            return ensureTrailingSlash(basePath);
+        }
+        return ensureTrailingSlash("/admin/plugins/" + trimSlashes(pluginShortName));
+    }
+
+    static PreviewIcon previewIcon(String previewImageBase64) {
+        if (isBlank(previewImageBase64)) {
+            return null;
+        }
+        String value = previewImageBase64.trim();
+        if (value.startsWith("data:")) {
+            return dataUrlIcon(value);
+        }
+        try {
+            byte[] bytes = Base64.getDecoder().decode(value);
+            return new PreviewIcon(detectContentType(bytes), bytes);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static PreviewIcon dataUrlIcon(String value) {
+        int commaIndex = value.indexOf(',');
+        if (commaIndex < 0) {
+            return null;
+        }
+        String meta = value.substring("data:".length(), commaIndex);
+        String payload = value.substring(commaIndex + 1);
+        String contentType = contentType(meta);
+        try {
+            byte[] bytes;
+            if (meta.toLowerCase().contains(";base64")) {
+                bytes = Base64.getDecoder().decode(payload);
+            } else {
+                bytes = URLDecoder.decode(payload, StandardCharsets.UTF_8.name()).getBytes(StandardCharsets.UTF_8);
+            }
+            return new PreviewIcon(contentType, bytes);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static Map<String, Object> iconManifestEntry(String basePath, PreviewIcon icon) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("src", ensureTrailingSlash(basePath) + ICON);
+        item.put("sizes", "image/svg+xml".equals(icon.getContentType()) ? "any" : "512x512");
+        item.put("type", icon.getContentType());
+        return item;
+    }
+
+    private static String contentType(String dataUrlMeta) {
+        if (isBlank(dataUrlMeta)) {
+            return DEFAULT_ICON_CONTENT_TYPE;
+        }
+        String[] tokens = dataUrlMeta.split(";");
+        if (tokens.length == 0 || isBlank(tokens[0])) {
+            return DEFAULT_ICON_CONTENT_TYPE;
+        }
+        return tokens[0];
+    }
+
+    private static String detectContentType(byte[] bytes) {
+        String text = new String(bytes, 0, Math.min(bytes.length, 128), StandardCharsets.UTF_8).trim();
+        if (text.startsWith("<svg")) {
+            return "image/svg+xml";
+        }
+        return DEFAULT_ICON_CONTENT_TYPE;
+    }
+
+    private static void write(HttpResponse response, String contentType, String content) {
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        response.addHeader("Content-Type", contentType);
+        response.addHeader("Cache-Control", "no-cache");
+        response.write(new ByteArrayInputStream(bytes), 200);
+    }
+
+    private static String normalizeAction(String action) {
+        String value = pathPart(action);
+        return trimLeadingSlashes(value);
+    }
+
+    private static String pathPart(String uri) {
+        if (uri == null) {
+            return "";
+        }
+        int queryIndex = uri.indexOf('?');
+        if (queryIndex < 0) {
+            return uri;
+        }
+        return uri.substring(0, queryIndex);
+    }
+
+    private static String trimLeadingSlashes(String value) {
+        if (value == null) {
+            return "";
+        }
+        String result = value.trim();
+        while (result.startsWith("/")) {
+            result = result.substring(1);
+        }
+        return result;
+    }
+
+    private static String trimSlashes(String value) {
+        String result = trimLeadingSlashes(value);
+        while (result.endsWith("/")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
+    }
+
+    private static String ensureTrailingSlash(String value) {
+        if (isBlank(value)) {
+            return "/";
+        }
+        return value.endsWith("/") ? value : value + "/";
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (!isBlank(value)) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    static class PreviewIcon {
+        private final String contentType;
+        private final byte[] bytes;
+
+        PreviewIcon(String contentType, byte[] bytes) {
+            this.contentType = contentType;
+            this.bytes = bytes;
+        }
+
+        public String getContentType() {
+            return contentType;
+        }
+
+        public byte[] getBytes() {
+            return bytes;
+        }
+    }
+}

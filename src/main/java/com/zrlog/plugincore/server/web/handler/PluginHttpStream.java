@@ -9,6 +9,7 @@ import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.common.*;
 import com.zrlog.plugin.common.type.PluginVersion;
 import com.zrlog.plugin.data.codec.*;
+import com.zrlog.plugincore.server.runtime.pwa.PluginPwaResources;
 import com.zrlog.plugin.type.ActionType;
 import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
@@ -26,6 +27,8 @@ import java.util.logging.Logger;
 public class PluginHttpStream {
 
     private static final Logger LOGGER = LoggerUtil.getLogger(PluginHttpStream.class);
+
+    private static final PluginPwaResources PWA_RESOURCES = new PluginPwaResources();
 
 
     private final IOSession session;
@@ -60,6 +63,9 @@ public class PluginHttpStream {
         //Full Blog System ENV
         int id = IdUtil.getInt();
         try {
+            if (PWA_RESOURCES.renderIfMatched(session.getPlugin(), pluginRequestUriInfo, httpRequest.getUri(), httpResponse)) {
+                return;
+            }
             HttpRequestInfo msgBody = HttpMsgUtil.genInfo(httpRequest);
             msgBody.setUri(pluginRequestUriInfo.getAction());
             if (("/".equals(msgBody.getUri()) && !"".equals(session.getPlugin().getIndexPage()))) {
