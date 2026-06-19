@@ -1,10 +1,13 @@
 package com.zrlog.plugincore.server.runtime.pwa;
 
 import com.google.gson.Gson;
+import com.hibegin.http.server.api.HttpRequest;
 import com.hibegin.http.server.api.HttpResponse;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
 import com.zrlog.plugincore.server.runtime.plugin.config.PluginHostConnection;
+import com.zrlog.plugincore.server.util.AdminTheme;
+import com.zrlog.plugincore.server.util.PublicInfoLoader;
 import com.zrlog.plugincore.server.web.handler.PluginHandle;
 import com.zrlog.plugincore.server.web.handler.PluginRequestUriInfo;
 
@@ -30,6 +33,7 @@ public class PluginPwaResources {
 
     public boolean renderIfMatched(Plugin plugin,
                                    PluginRequestUriInfo requestUriInfo,
+                                   HttpRequest request,
                                    HttpResponse response) {
         if (plugin == null || requestUriInfo == null || response == null) {
             return false;
@@ -40,7 +44,7 @@ public class PluginPwaResources {
         }
         String basePath = pluginBasePath(requestUriInfo.getName(), PluginRuntimeBridge.hostConnection().getContextPath());
         if (isManifest(action)) {
-            write(response, MANIFEST_CONTENT_TYPE, GSON.toJson(manifest(plugin, basePath)));
+            write(response, MANIFEST_CONTENT_TYPE, GSON.toJson(manifest(plugin, basePath, AdminTheme.fromRequest(request))));
             return true;
         }
         if (SERVICE_WORKER.equals(action)) {
@@ -58,7 +62,12 @@ public class PluginPwaResources {
     }
 
     public Map<String, Object> manifest(Plugin plugin, String basePath) {
+        return manifest(plugin, basePath, new AdminTheme(false, PublicInfoLoader.DEFAULT_ADMIN_COLOR_PRIMARY));
+    }
+
+    public Map<String, Object> manifest(Plugin plugin, String basePath, AdminTheme theme) {
         String normalizedBasePath = ensureTrailingSlash(isBlank(basePath) ? "/" : basePath);
+        AdminTheme adminTheme = theme == null ? new AdminTheme(false, PublicInfoLoader.DEFAULT_ADMIN_COLOR_PRIMARY) : theme;
         Map<String, Object> manifest = new LinkedHashMap<>();
         manifest.put("id", normalizedBasePath);
         manifest.put("name", firstNonBlank(plugin.getName(), plugin.getShortName()));
@@ -69,8 +78,8 @@ public class PluginPwaResources {
         manifest.put("start_url", normalizedBasePath);
         manifest.put("scope", normalizedBasePath);
         manifest.put("display", "standalone");
-        manifest.put("theme_color", "#1677ff");
-        manifest.put("background_color", "#ffffff");
+        manifest.put("theme_color", adminTheme.getAdminColorPrimary());
+        manifest.put("background_color", adminTheme.isDarkMode() ? "#000000" : "#FFFFFF");
         PreviewIcon icon = previewIcon(plugin.getPreviewImageBase64());
         if (icon != null) {
             manifest.put("icons", Collections.singletonList(iconManifestEntry(normalizedBasePath, icon)));

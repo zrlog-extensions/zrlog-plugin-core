@@ -63,7 +63,7 @@ public class PluginHttpStream {
         //Full Blog System ENV
         int id = IdUtil.getInt();
         try {
-            if (PWA_RESOURCES.renderIfMatched(session.getPlugin(), pluginRequestUriInfo, httpResponse)) {
+            if (PWA_RESOURCES.renderIfMatched(session.getPlugin(), pluginRequestUriInfo, httpRequest, httpResponse)) {
                 return;
             }
             HttpRequestInfo msgBody = HttpMsgUtil.genInfo(httpRequest);

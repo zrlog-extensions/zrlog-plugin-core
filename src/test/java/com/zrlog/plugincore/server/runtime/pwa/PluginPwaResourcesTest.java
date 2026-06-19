@@ -1,6 +1,7 @@
 package com.zrlog.plugincore.server.runtime.pwa;
 
 import com.zrlog.plugin.message.Plugin;
+import com.zrlog.plugincore.server.util.AdminTheme;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -29,10 +30,21 @@ public class PluginPwaResourcesTest {
         assertEquals("/admin/plugins/reminder/", manifest.get("start_url"));
         assertEquals("/admin/plugins/reminder/", manifest.get("scope"));
         assertEquals("standalone", manifest.get("display"));
+        assertEquals("#1677ff", manifest.get("theme_color"));
+        assertEquals("#FFFFFF", manifest.get("background_color"));
         List icons = (List) manifest.get("icons");
         assertEquals("/admin/plugins/reminder/pwa-icon", ((Map) icons.get(0)).get("src"));
         assertEquals("any", ((Map) icons.get(0)).get("sizes"));
         assertEquals("image/svg+xml", ((Map) icons.get(0)).get("type"));
+    }
+
+    @Test
+    public void shouldBuildManifestWithAdminTheme() {
+        Map<String, Object> manifest = new PluginPwaResources().manifest(plugin(), "/admin/plugins/reminder/",
+                new AdminTheme(true, "#13c2c2"));
+
+        assertEquals("#13c2c2", manifest.get("theme_color"));
+        assertEquals("#000000", manifest.get("background_color"));
     }
 
     @Test
