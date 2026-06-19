@@ -2,6 +2,8 @@ package com.zrlog.plugincore.server.web.handler;
 
 import org.junit.Test;
 
+import java.util.Collections;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -65,5 +67,23 @@ public class PluginHandleTest {
     @Test
     public void shouldNotTreatInternalPathAsPluginRequest() {
         assertFalse(PluginHandle.shouldTreatAsPluginRequest("static", true, true));
+    }
+
+    @Test
+    public void shouldAllowAnonymousPluginPwaResources() {
+        assertTrue(PluginHandle.canAccessPublicPluginPath(Collections.emptySet(), "/manifest.webmanifest"));
+        assertTrue(PluginHandle.canAccessPublicPluginPath(Collections.emptySet(), "/manifest.json"));
+        assertTrue(PluginHandle.canAccessPublicPluginPath(Collections.emptySet(), "/pwa-icon"));
+        assertTrue(PluginHandle.canAccessPublicPluginPath(Collections.emptySet(), "/pwa-sw.js"));
+
+        assertFalse(PluginHandle.canAccessPublicPluginPath(Collections.emptySet(), "/"));
+        assertFalse(PluginHandle.canAccessPublicPluginPath(Collections.emptySet(), "/static/app.js"));
+        assertFalse(PluginHandle.canAccessPublicPluginPath(Collections.emptySet(), "/api/status"));
+    }
+
+    @Test
+    public void shouldPreserveDeclaredPublicPluginPaths() {
+        assertTrue(PluginHandle.canAccessPublicPluginPath(Collections.singleton("/public/"), "/public/index.html"));
+        assertFalse(PluginHandle.canAccessPublicPluginPath(Collections.singleton("/public/"), "/private/index.html"));
     }
 }

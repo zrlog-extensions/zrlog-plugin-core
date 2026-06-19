@@ -13,6 +13,7 @@ import com.zrlog.plugin.data.codec.ContentType;
 import com.zrlog.plugin.data.codec.FileDesc;
 import com.zrlog.plugin.data.codec.MsgPacket;
 import com.zrlog.plugincore.server.dao.PluginCoreDAO;
+import com.zrlog.plugincore.server.runtime.pwa.PluginPwaResources;
 import com.zrlog.plugincore.server.runtime.plugin.artifact.PluginFiles;
 import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
@@ -34,11 +35,17 @@ public class PluginHandle implements HttpErrorHandle {
 
     public static final String OLD_PATH = "/admin/plugins";
 
-    private boolean includePath(Set<String> paths, String uri) {
+    private static boolean includePath(Set<String> paths, String uri) {
+        if (Objects.isNull(paths) || Objects.isNull(uri)) {
+            return false;
+        }
         for (String path : paths) {
+            if (Objects.isNull(path)) {
+                continue;
+            }
             String tPath = path.trim();
             if (!tPath.isEmpty()) {
-                if (uri.startsWith(path)) {
+                if (uri.startsWith(tPath)) {
                     return true;
                 }
             }
@@ -89,7 +96,8 @@ public class PluginHandle implements HttpErrorHandle {
                 httpResponse.renderCode(503);
                 return;
             }
-            if (!devMode && !isLogin && !includePath(session.getPlugin().getPaths(), pluginRequestUriInfo.getAction())) {
+            if (!devMode && !isLogin && !canAccessPublicPluginPath(session.getPlugin().getPaths(),
+                    pluginRequestUriInfo.getAction())) {
                 httpResponse.renderCode(403);
                 return;
             }
@@ -99,6 +107,9 @@ public class PluginHandle implements HttpErrorHandle {
         }
     }
 
+    static boolean canAccessPublicPluginPath(Set<String> publicPaths, String action) {
+        return PluginPwaResources.isPwaResource(action) || includePath(publicPaths, action);
+    }
 
     private IOSession getReadySession(String pluginShortName) {
         return PluginSessions.getOrStartLocalSessionByPluginShortName(pluginShortName);

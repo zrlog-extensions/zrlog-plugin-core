@@ -90,7 +90,7 @@ public class PluginPwaResources {
                 + "});\n";
     }
 
-    static boolean isPwaResource(String action) {
+    public static boolean isPwaResource(String action) {
         String normalized = normalizeAction(action);
         return isManifest(normalized) || SERVICE_WORKER.equals(normalized) || ICON.equals(normalized);
     }
