@@ -7,6 +7,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class PluginArtifactBootstrapperTest {
 
@@ -22,5 +23,35 @@ public class PluginArtifactBootstrapperTest {
 
         assertEquals("plugin-id", PluginArtifactBootstrapper.pluginIdForInstalledArtifact(pluginCore, "reminder"));
         assertFalse(PluginArtifactBootstrapper.pluginIdForInstalledArtifact(pluginCore, "email").trim().isEmpty());
+    }
+
+    @Test
+    public void shouldSkipMissingPluginDownloadDuringOnDemandBootstrap() {
+        PluginCore pluginCore = new PluginCore();
+        pluginCore.getSetting().getRuntime().setOnDemandEnabled(true);
+
+        assertFalse(PluginArtifactBootstrapper.shouldDownloadMissingPluginFilesDuringBootstrap(pluginCore));
+    }
+
+    @Test
+    public void shouldTreatMissingSettingAsOnDemandBootstrap() {
+        assertFalse(PluginArtifactBootstrapper.shouldDownloadMissingPluginFilesDuringBootstrap(null));
+    }
+
+    @Test
+    public void shouldDownloadMissingPluginsDuringStartupBootstrap() {
+        PluginCore pluginCore = new PluginCore();
+        pluginCore.getSetting().getRuntime().setOnDemandEnabled(false);
+
+        assertTrue(PluginArtifactBootstrapper.shouldDownloadMissingPluginFilesDuringBootstrap(pluginCore));
+    }
+
+    @Test
+    public void shouldSkipStartupMissingPluginDownloadWhenAutoDownloadDisabled() {
+        PluginCore pluginCore = new PluginCore();
+        pluginCore.getSetting().getRuntime().setOnDemandEnabled(false);
+        pluginCore.getSetting().setDisableAutoDownloadLostFile(true);
+
+        assertFalse(PluginArtifactBootstrapper.shouldDownloadMissingPluginFilesDuringBootstrap(pluginCore));
     }
 }

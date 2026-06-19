@@ -28,6 +28,7 @@ type Props = {
 
 type RuntimeMaintenancePayload = {
     onDemandEnabled: boolean;
+    autoDownloadMissingPluginFileEnabled: boolean;
     idleStopEnabled: boolean;
     idleTimeoutSeconds: number;
 }
@@ -46,6 +47,7 @@ const defaultSchedulerSettings: SchedulerSettings = {
 
 const defaultRuntimeMaintenancePayload: RuntimeMaintenancePayload = {
     onDemandEnabled: true,
+    autoDownloadMissingPluginFileEnabled: true,
     idleStopEnabled: true,
     idleTimeoutSeconds: 300
 };
@@ -105,6 +107,8 @@ const SchedulerRuntimeTab: React.FC<Props> = () => {
         const onDemandEnabled = parseBooleanPayload(payload?.onDemandEnabled, defaultRuntimeMaintenancePayload.onDemandEnabled);
         return {
             onDemandEnabled,
+            autoDownloadMissingPluginFileEnabled: parseBooleanPayload(payload?.autoDownloadMissingPluginFileEnabled,
+                defaultRuntimeMaintenancePayload.autoDownloadMissingPluginFileEnabled),
             idleStopEnabled: onDemandEnabled && parseBooleanPayload(payload?.idleStopEnabled, defaultRuntimeMaintenancePayload.idleStopEnabled),
             idleTimeoutSeconds: parseNumberPayload(payload?.idleTimeoutSeconds, defaultRuntimeMaintenancePayload.idleTimeoutSeconds, 10)
         };
@@ -193,6 +197,7 @@ const SchedulerRuntimeTab: React.FC<Props> = () => {
             cron: first?.defaultCron || "*/5 * * * *",
             enabled: true,
             maintenanceLoadStrategy: defaultRuntimeMaintenancePayload.onDemandEnabled ? "onDemand" : "startup",
+            maintenanceAutoDownloadMissingPluginFileEnabled: defaultRuntimeMaintenancePayload.autoDownloadMissingPluginFileEnabled,
             maintenanceIdleStopEnabled: defaultRuntimeMaintenancePayload.idleStopEnabled,
             maintenanceIdleTimeoutSeconds: defaultRuntimeMaintenancePayload.idleTimeoutSeconds,
             payload: "{}"
@@ -209,6 +214,7 @@ const SchedulerRuntimeTab: React.FC<Props> = () => {
             cron: automation.cron,
             enabled: automation.enabled !== false,
             maintenanceLoadStrategy: maintenancePayload.onDemandEnabled ? "onDemand" : "startup",
+            maintenanceAutoDownloadMissingPluginFileEnabled: maintenancePayload.autoDownloadMissingPluginFileEnabled,
             maintenanceIdleStopEnabled: maintenancePayload.idleStopEnabled,
             maintenanceIdleTimeoutSeconds: maintenancePayload.idleTimeoutSeconds,
             payload: JSON.stringify(automation.payload || {}, null, 2)
@@ -222,6 +228,7 @@ const SchedulerRuntimeTab: React.FC<Props> = () => {
         const onDemandEnabled = values.maintenanceLoadStrategy !== "startup";
         const payload = systemRuntimeMaintenance ? JSON.stringify({
             onDemandEnabled,
+            autoDownloadMissingPluginFileEnabled: values.maintenanceAutoDownloadMissingPluginFileEnabled !== false,
             idleStopEnabled: onDemandEnabled && values.maintenanceIdleStopEnabled !== false,
             idleTimeoutSeconds: Number(values.maintenanceIdleTimeoutSeconds || defaultRuntimeMaintenancePayload.idleTimeoutSeconds)
         }) : values.payload || "{}";
@@ -690,6 +697,9 @@ crons = ["*/5 * * * *"]`;
                                         {label: "启动时加载", value: "startup"}
                                     ]}
                                 />
+                            </Form.Item>
+                            <Form.Item label="缺失包自动下载" name="maintenanceAutoDownloadMissingPluginFileEnabled" valuePropName="checked">
+                                <Switch />
                             </Form.Item>
                             {showMaintenanceIdleSettings && (
                                 <Form.Item label="空闲回收" name="maintenanceIdleStopEnabled" valuePropName="checked">

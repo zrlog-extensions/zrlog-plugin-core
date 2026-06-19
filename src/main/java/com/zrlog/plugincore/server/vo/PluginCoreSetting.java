@@ -14,11 +14,25 @@ public class PluginCoreSetting {
     private PluginRuntimeSetting runtime;
 
     public boolean isDisableAutoDownloadLostFile() {
-        return disableAutoDownloadLostFile;
+        return !isAutoDownloadMissingPluginFileEnabled();
     }
 
     public void setDisableAutoDownloadLostFile(boolean disableAutoDownloadLostFile) {
         this.disableAutoDownloadLostFile = disableAutoDownloadLostFile;
+        getRuntime().setAutoDownloadMissingPluginFileEnabled(!disableAutoDownloadLostFile);
+    }
+
+    public boolean isAutoDownloadMissingPluginFileEnabled() {
+        Boolean runtimeValue = runtime == null ? null : runtime.getConfiguredAutoDownloadMissingPluginFileEnabled();
+        if (runtimeValue != null) {
+            return runtimeValue;
+        }
+        return !disableAutoDownloadLostFile;
+    }
+
+    public void setAutoDownloadMissingPluginFileEnabled(boolean autoDownloadMissingPluginFileEnabled) {
+        this.disableAutoDownloadLostFile = !autoDownloadMissingPluginFileEnabled;
+        getRuntime().setAutoDownloadMissingPluginFileEnabled(autoDownloadMissingPluginFileEnabled);
     }
 
     public SchedulerSetting getScheduler() {
@@ -58,6 +72,9 @@ public class PluginCoreSetting {
     public PluginRuntimeSetting getRuntime() {
         if (runtime == null) {
             runtime = new PluginRuntimeSetting();
+        }
+        if (runtime.getConfiguredAutoDownloadMissingPluginFileEnabled() == null) {
+            runtime.setAutoDownloadMissingPluginFileEnabled(!disableAutoDownloadLostFile);
         }
         return runtime;
     }

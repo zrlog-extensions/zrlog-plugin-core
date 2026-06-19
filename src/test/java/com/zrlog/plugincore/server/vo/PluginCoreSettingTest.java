@@ -32,8 +32,28 @@ public class PluginCoreSettingTest {
         PluginCoreSetting setting = new PluginCoreSetting();
 
         assertEquals(Boolean.TRUE, setting.getRuntime().getOnDemandEnabled());
+        assertEquals(Boolean.TRUE, setting.getRuntime().getAutoDownloadMissingPluginFileEnabled());
         assertEquals(Boolean.TRUE, setting.getRuntime().getIdleStopEnabled());
         assertEquals(Long.valueOf(300L), setting.getRuntime().getIdleTimeoutSeconds());
         assertEquals(Long.valueOf(30L), setting.getRuntime().getIdleScanIntervalSeconds());
+    }
+
+    @Test
+    public void shouldKeepLegacyAutoDownloadSettingCompatible() {
+        PluginCoreSetting setting = new PluginCoreSetting();
+
+        setting.setDisableAutoDownloadLostFile(true);
+
+        assertFalse(setting.isAutoDownloadMissingPluginFileEnabled());
+        assertEquals(Boolean.FALSE, setting.getRuntime().getAutoDownloadMissingPluginFileEnabled());
+    }
+
+    @Test
+    public void shouldPreferRuntimeAutoDownloadSetting() {
+        PluginCoreSetting setting = new PluginCoreSetting();
+        setting.getRuntime().setAutoDownloadMissingPluginFileEnabled(false);
+
+        assertFalse(setting.isAutoDownloadMissingPluginFileEnabled());
+        assertEquals(Boolean.TRUE, setting.isDisableAutoDownloadLostFile());
     }
 }

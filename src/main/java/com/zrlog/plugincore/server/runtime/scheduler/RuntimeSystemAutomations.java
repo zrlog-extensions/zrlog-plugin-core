@@ -97,6 +97,8 @@ public final class RuntimeSystemAutomations {
             return setting;
         }
         setting.setOnDemandEnabled(booleanValue(payload.get("onDemandEnabled"), setting.getOnDemandEnabled()));
+        setting.setAutoDownloadMissingPluginFileEnabled(booleanValue(payload.get("autoDownloadMissingPluginFileEnabled"),
+                setting.getAutoDownloadMissingPluginFileEnabled()));
         setting.setIdleStopEnabled(booleanValue(payload.get("idleStopEnabled"), setting.getIdleStopEnabled()));
         setting.setIdleTimeoutSeconds(longValue(payload.get("idleTimeoutSeconds"), setting.getIdleTimeoutSeconds(), 10L));
         normalizeLoadStrategy(setting);
@@ -107,6 +109,7 @@ public final class RuntimeSystemAutomations {
         PluginRuntimeSetting runtimeSetting = normalizedRuntimeSetting(setting);
         Map<String, Object> payload = new HashMap<>();
         payload.put("onDemandEnabled", runtimeSetting.getOnDemandEnabled());
+        payload.put("autoDownloadMissingPluginFileEnabled", runtimeSetting.getAutoDownloadMissingPluginFileEnabled());
         payload.put("idleStopEnabled", runtimeSetting.getIdleStopEnabled());
         payload.put("idleTimeoutSeconds", runtimeSetting.getIdleTimeoutSeconds());
         return payload;
@@ -220,6 +223,7 @@ public final class RuntimeSystemAutomations {
         PluginRuntimeSetting normalized = new PluginRuntimeSetting();
         if (setting != null) {
             normalized.setOnDemandEnabled(setting.getOnDemandEnabled());
+            normalized.setAutoDownloadMissingPluginFileEnabled(setting.getAutoDownloadMissingPluginFileEnabled());
             normalized.setIdleStopEnabled(setting.getIdleStopEnabled());
             normalized.setIdleTimeoutSeconds(setting.getIdleTimeoutSeconds());
             normalized.setIdleScanIntervalSeconds(setting.getIdleScanIntervalSeconds());

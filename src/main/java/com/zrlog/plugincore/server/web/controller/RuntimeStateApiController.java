@@ -72,14 +72,18 @@ public class RuntimeStateApiController extends RuntimeBaseApiController {
     @ResponseBody
     public Map<String, Object> runtimeSettings() {
         PluginCoreDAO pluginCoreDAO = PluginCoreDAO.getInstance();
-        PluginRuntimeSetting setting = pluginCoreDAO.loadSnapshot().getSetting().getRuntime();
+        PluginCore currentPluginCore = pluginCoreDAO.loadSnapshot();
+        PluginRuntimeSetting setting = currentPluginCore.getSetting().getRuntime();
         if (getRequest().getMethod() == HttpMethod.POST) {
             try {
                 Boolean onDemandEnabled = runtimeBooleanParam("onDemandEnabled", setting.getOnDemandEnabled());
+                Boolean autoDownloadMissingPluginFileEnabled = runtimeBooleanParam("autoDownloadMissingPluginFileEnabled",
+                        currentPluginCore.getSetting().isAutoDownloadMissingPluginFileEnabled());
                 Boolean idleStopEnabled = runtimeBooleanParam("idleStopEnabled", setting.getIdleStopEnabled());
                 Long idleTimeoutSeconds = runtimeLongParam("idleTimeoutSeconds", setting.getIdleTimeoutSeconds(), 10L);
                 Long idleScanIntervalSeconds = runtimeLongParam("idleScanIntervalSeconds", setting.getIdleScanIntervalSeconds(), 5L);
                 setting = pluginCoreDAO.update(pluginCore -> {
+                    pluginCore.getSetting().setAutoDownloadMissingPluginFileEnabled(autoDownloadMissingPluginFileEnabled);
                     PluginRuntimeSetting runtime = pluginCore.getSetting().getRuntime();
                     runtime.setOnDemandEnabled(onDemandEnabled);
                     runtime.setIdleStopEnabled(idleStopEnabled);
@@ -132,6 +136,7 @@ public class RuntimeStateApiController extends RuntimeBaseApiController {
     private Map<String, Object> runtimeSettingsResponse(PluginRuntimeSetting setting) {
         Map<String, Object> map = success();
         map.put("onDemandEnabled", setting.getOnDemandEnabled());
+        map.put("autoDownloadMissingPluginFileEnabled", setting.getAutoDownloadMissingPluginFileEnabled());
         map.put("idleStopEnabled", setting.getIdleStopEnabled());
         map.put("idleTimeoutSeconds", setting.getIdleTimeoutSeconds());
         map.put("idleScanIntervalSeconds", setting.getIdleScanIntervalSeconds());

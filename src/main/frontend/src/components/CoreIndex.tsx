@@ -35,7 +35,6 @@ import axios from "axios";
 import {Link, useNavigate} from "react-router-dom";
 import {Content} from "antd/es/layout/layout";
 import {Plugin, PluginCoreInfoResponse} from "../index";
-import Settings from "./Settings";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -422,21 +421,6 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
                     >
                         运行时控制台
                     </Button>
-                    <Tooltip title="插件设置">
-                        <span>
-                            <Settings style={{
-                                borderRadius: '8px',
-                                width: '36px',
-                                height: '36px',
-                                padding: 0,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                            }} setting={data.setting}>
-                                <SettingOutlined />
-                            </Settings>
-                        </span>
-                    </Tooltip>
                 </Space>
             </div>
 

@@ -218,6 +218,7 @@ public class RuntimeAutomationService {
             if (automationStore.saveDocumentIfUnchanged(snapshot)) {
                 PluginRuntimeSetting runtimeSetting = RuntimeSystemAutomations.runtimeSettingFromPayload(saved.getPayload());
                 PluginCoreDAO.getInstance().update(pluginCore -> {
+                    pluginCore.getSetting().setAutoDownloadMissingPluginFileEnabled(runtimeSetting.getAutoDownloadMissingPluginFileEnabled());
                     PluginRuntimeSetting runtime = pluginCore.getSetting().getRuntime();
                     runtime.setOnDemandEnabled(runtimeSetting.getOnDemandEnabled());
                     runtime.setIdleStopEnabled(runtimeSetting.getIdleStopEnabled());

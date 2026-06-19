@@ -241,6 +241,7 @@ public class SchedulerRuntimeTest {
     public void shouldNormalizeRuntimeMaintenanceLoadStrategy() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("onDemandEnabled", Boolean.FALSE);
+        payload.put("autoDownloadMissingPluginFileEnabled", Boolean.FALSE);
         payload.put("idleStopEnabled", Boolean.TRUE);
         payload.put("idleTimeoutSeconds", 300L);
 
@@ -248,8 +249,10 @@ public class SchedulerRuntimeTest {
         Map<String, Object> normalizedPayload = RuntimeSystemAutomations.runtimePayload(setting);
 
         assertFalse(setting.getOnDemandEnabled());
+        assertFalse(setting.getAutoDownloadMissingPluginFileEnabled());
         assertFalse(setting.getIdleStopEnabled());
         assertEquals(Boolean.FALSE, normalizedPayload.get("onDemandEnabled"));
+        assertEquals(Boolean.FALSE, normalizedPayload.get("autoDownloadMissingPluginFileEnabled"));
         assertEquals(Boolean.FALSE, normalizedPayload.get("idleStopEnabled"));
     }
 

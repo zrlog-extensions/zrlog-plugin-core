@@ -29,6 +29,15 @@ export interface PluginCoreInfoResponse {
 
 export interface PluginCoreSetting {
     disableAutoDownloadLostFile?: boolean
+    runtime?: PluginRuntimeSetting
+}
+
+export interface PluginRuntimeSetting {
+    onDemandEnabled?: boolean
+    autoDownloadMissingPluginFileEnabled?: boolean
+    idleStopEnabled?: boolean
+    idleTimeoutSeconds?: number
+    idleScanIntervalSeconds?: number
 }
 
 export interface Plugin {

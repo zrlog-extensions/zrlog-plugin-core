@@ -113,10 +113,10 @@ public class PluginArtifactBootstrapper {
     }
 
     private void downloadMissingPluginFiles(PluginCore currentPluginCore) {
-        boolean download = currentPluginCore == null
-                || currentPluginCore.getSetting() == null
-                || !currentPluginCore.getSetting().isDisableAutoDownloadLostFile();
-        if (!download) {
+        if (!shouldDownloadMissingPluginFilesDuringBootstrap(currentPluginCore)) {
+            if (isOnDemandEnabled(currentPluginCore)) {
+                LOGGER.info("skip missing plugin download during bootstrap because on-demand loading is enabled");
+            }
             return;
         }
         List<CompletableFuture<Void>> futures = new ArrayList<>();
@@ -125,17 +125,13 @@ public class PluginArtifactBootstrapper {
             for (Map.Entry<String, String> pluginEntry : getAllRunnablePlugin(currentPluginCore).entrySet()) {
                 String pluginShortName = pluginEntry.getKey();
                 String pluginId = pluginEntry.getValue();
-                File file = PluginFiles.getPluginFile(pluginShortName);
+                File file = PluginFiles.getAvailablePluginFile(pluginShortName);
                 if (file.exists() && file.length() > 0) {
                     continue;
                 }
                 futures.add(CompletableFuture.runAsync(() -> {
                     try (PluginLogContext.Scope ignored = PluginLogContext.open(pluginId, pluginShortName, pluginShortName)) {
                         try {
-                            if (!shouldDownloadPluginFileForMissingFile(file, currentPluginCore)) {
-                                LOGGER.info(PluginLogContext.prefix("skip plugin " + pluginShortName + " download because remote md5 matches db"));
-                                return;
-                            }
                             File downloadedFile = PluginFiles.downloadPlugin(file.getName());
                             if (!metadataBootstrapper.startPluginFileForMetadata(downloadedFile, pluginId)) {
                                 LOGGER.warning(PluginLogContext.prefix("downloaded plugin " + pluginShortName + " but metadata was not registered"));
@@ -152,24 +148,23 @@ public class PluginArtifactBootstrapper {
         }
     }
 
-    private boolean shouldDownloadPluginFileForMissingFile(File file, PluginCore currentPluginCore) {
-        if (currentPluginCore == null || currentPluginCore.getPluginInfoMap() == null || file == null) {
+    static boolean shouldDownloadMissingPluginFilesDuringBootstrap(PluginCore currentPluginCore) {
+        return isAutoDownloadMissingPluginFileEnabled(currentPluginCore) && !isOnDemandEnabled(currentPluginCore);
+    }
+
+    private static boolean isAutoDownloadMissingPluginFileEnabled(PluginCore currentPluginCore) {
+        if (currentPluginCore == null || currentPluginCore.getSetting() == null) {
             return true;
         }
-        if (currentPluginCore.getSetting() == null || currentPluginCore.getSetting().getRuntime() == null
-                || !currentPluginCore.getSetting().getRuntime().getOnDemandEnabled()) {
+        return currentPluginCore.getSetting().isAutoDownloadMissingPluginFileEnabled();
+    }
+
+    private static boolean isOnDemandEnabled(PluginCore currentPluginCore) {
+        if (currentPluginCore == null || currentPluginCore.getSetting() == null
+                || currentPluginCore.getSetting().getRuntime() == null) {
             return true;
         }
-        PluginVO pluginVO = pluginVOForInstalledArtifact(currentPluginCore, PluginFiles.getPluginShortName(file));
-        if (pluginVO == null || pluginVO.getPlugin() == null
-                || StringUtils.isEmpty(pluginVO.getFileMd5())) {
-            return true;
-        }
-        String remoteMd5 = PluginFiles.pluginFileRemoteMd5(file);
-        if (StringUtils.isEmpty(remoteMd5)) {
-            return true;
-        }
-        return !Objects.equals(pluginVO.getFileMd5(), remoteMd5);
+        return currentPluginCore.getSetting().getRuntime().getOnDemandEnabled();
     }
 
     private void bootstrapInstalledPluginArtifacts(PluginCore currentPluginCore) {

@@ -64,7 +64,7 @@ public class DefaultPluginRuntimeStarter implements PluginRuntimeStarter {
     public void start(PluginIdentity identity) {
         try (PluginLogContext.Scope ignored = PluginLogContext.open(identity.getPluginId(),
                 identity.getPluginShortName(), identity.getPluginName())) {
-            boolean autoDownloadDisabled = pluginCore().getSetting().isDisableAutoDownloadLostFile();
+            boolean autoDownloadDisabled = !pluginCore().getSetting().isAutoDownloadMissingPluginFileEnabled();
             File pluginFile = PluginFiles.ensurePluginFile(identity.getPluginShortName(), autoDownloadDisabled);
             if (pluginFile == null || !pluginFile.exists() || pluginFile.length() == 0) {
                 throw new RuntimeException(PluginFiles.missingPluginFileMessage(identity.getPluginShortName(), autoDownloadDisabled));

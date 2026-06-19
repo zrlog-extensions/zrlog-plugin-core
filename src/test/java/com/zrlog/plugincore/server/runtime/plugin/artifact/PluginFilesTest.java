@@ -59,7 +59,7 @@ public class PluginFilesTest {
 
     @Test
     public void shouldExplainWhenAutoDownloadIsDisabled() {
-        assertEquals("Plugin file not found: reminder. Automatic plugin download is disabled by disableAutoDownloadLostFile.",
+        assertEquals("Plugin file not found: reminder. Automatic plugin download is disabled by runtime.autoDownloadMissingPluginFileEnabled.",
                 PluginFiles.missingPluginFileMessage("reminder", true));
         assertEquals("Plugin file not found: reminder", PluginFiles.missingPluginFileMessage("reminder", false));
     }

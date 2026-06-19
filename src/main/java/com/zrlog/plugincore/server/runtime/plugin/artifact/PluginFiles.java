@@ -164,7 +164,7 @@ public final class PluginFiles {
     }
 
     private static boolean isAutoDownloadLostFileDisabled() {
-        return PluginCoreDAO.getInstance().loadSnapshot().getSetting().isDisableAutoDownloadLostFile();
+        return !PluginCoreDAO.getInstance().loadSnapshot().getSetting().isAutoDownloadMissingPluginFileEnabled();
     }
 
     public static String missingPluginFileMessage(String pluginShortName) {
@@ -174,7 +174,7 @@ public final class PluginFiles {
     public static String missingPluginFileMessage(String pluginShortName, boolean autoDownloadDisabled) {
         if (autoDownloadDisabled) {
             return "Plugin file not found: " + pluginShortName
-                    + ". Automatic plugin download is disabled by disableAutoDownloadLostFile.";
+                    + ". Automatic plugin download is disabled by runtime.autoDownloadMissingPluginFileEnabled.";
         }
         return "Plugin file not found: " + pluginShortName;
     }
