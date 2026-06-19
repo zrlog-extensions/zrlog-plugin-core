@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
 basePath=${1}
+packageMavenArgs=("${@:2}")
+agentMavenArgs=()
+for arg in "${packageMavenArgs[@]}"; do
+  if [[ "${arg}" == "-Dmysql-scope=provided" ]]; then
+    continue
+  fi
+  agentMavenArgs+=("${arg}")
+done
 mkdir -p "${basePath}"
 echo "real target folder ${basePath}"
 
 java -version
 sh bin/build-info.sh
-./mvnw ${2} -U -PnodeBuild clean package
-./mvnw ${2} -Pnative -Dagent exec:exec@java-agent -U
-./mvnw ${2} -Pnative -DskipNativeTests package
+./mvnw "${packageMavenArgs[@]}" -U -PnodeBuild clean package
+./mvnw "${agentMavenArgs[@]}" -Pnative -Dagent exec:exec@java-agent -U
+./mvnw "${packageMavenArgs[@]}" -Pnative -DskipNativeTests package
 binName="plugin-core"
 targetFile=""
 sourceFile=""
