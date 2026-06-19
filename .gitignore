@@ -13,6 +13,10 @@
 *.log
 log.lck
 log/
+!src/main/java/com/zrlog/plugincore/server/runtime/plugin/log/
+!src/main/java/com/zrlog/plugincore/server/runtime/plugin/log/**
+!src/test/java/com/zrlog/plugincore/server/runtime/plugin/log/
+!src/test/java/com/zrlog/plugincore/server/runtime/plugin/log/**
 log.*
 server/plugin.json
 server/plugin.txt
