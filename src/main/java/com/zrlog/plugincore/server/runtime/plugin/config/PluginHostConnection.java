@@ -7,15 +7,34 @@ public class PluginHostConnection {
     private final String blogPluginToken;
     private final String blogApiHomeUrl;
     private final String nativeInfo;
+    private final String contextPath;
 
-    public PluginHostConnection(String apiHomeUrl, String pluginToken, String nativeInfo) {
+    public PluginHostConnection(String apiHomeUrl, String pluginToken, String nativeInfo, String contextPath) {
         this.blogApiHomeUrl = apiHomeUrl;
         this.blogPluginToken = pluginToken;
         this.nativeInfo = nativeInfo;
+        this.contextPath = normalizeContextPath(contextPath);
     }
 
     public static PluginHostConnection defaults() {
-        return new PluginHostConnection(DEFAULT_BLOG_API_HOME_URL, "", "");
+        return new PluginHostConnection(DEFAULT_BLOG_API_HOME_URL, "", "", "");
+    }
+
+    public static String normalizeContextPath(String contextPath) {
+        if (contextPath == null) {
+            return "";
+        }
+        String value = contextPath.trim().replace("#", "");
+        if (value.isEmpty() || "/".equals(value)) {
+            return "";
+        }
+        if (!value.startsWith("/")) {
+            value = "/" + value;
+        }
+        while (value.length() > 1 && value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
     }
 
     public String getBlogPluginToken() {
@@ -28,5 +47,9 @@ public class PluginHostConnection {
 
     public String getNativeInfo() {
         return nativeInfo;
+    }
+
+    public String getContextPath() {
+        return contextPath;
     }
 }

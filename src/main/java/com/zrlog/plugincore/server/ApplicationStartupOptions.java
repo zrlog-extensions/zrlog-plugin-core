@@ -22,6 +22,7 @@ class ApplicationStartupOptions {
     private final String blogApiHomeUrl;
     private final String blogPluginToken;
     private final String nativeInfo;
+    private final String contextPath;
 
     private ApplicationStartupOptions(int httpPort,
                                       int masterPort,
@@ -32,7 +33,8 @@ class ApplicationStartupOptions {
                                       int listenBlogPort,
                                       String blogApiHomeUrl,
                                       String blogPluginToken,
-                                      String nativeInfo) {
+                                      String nativeInfo,
+                                      String contextPath) {
         this.httpPort = httpPort;
         this.masterPort = masterPort;
         this.dbProperties = dbProperties;
@@ -43,6 +45,7 @@ class ApplicationStartupOptions {
         this.blogApiHomeUrl = blogApiHomeUrl;
         this.blogPluginToken = blogPluginToken;
         this.nativeInfo = nativeInfo;
+        this.contextPath = contextPath;
     }
 
     static ApplicationStartupOptions parse(String[] args) throws IOException {
@@ -56,14 +59,15 @@ class ApplicationStartupOptions {
             blogRunTime.setPath(DevUtil.blogRuntimePath());
             blogRunTime.setVersion("1.5");
             return new ApplicationStartupOptions(httpPort, masterPort, dbProperties, pluginPath, blogRunTime,
-                    false, -1, PluginHostConnection.DEFAULT_BLOG_API_HOME_URL, "", "");
+                    false, -1, PluginHostConnection.DEFAULT_BLOG_API_HOME_URL, "", "", "");
         }
         blogRunTime.setPath(stringArg(args, 5, DevUtil.blogRuntimePath()));
         blogRunTime.setVersion(stringArg(args, 6, DevUtil.blogVersion()));
-        String blogApiHomeUrl = blogApiHomeUrl(args);
+        String contextPath = contextPath(args);
+        String blogApiHomeUrl = blogApiHomeUrl(args, contextPath);
         return new ApplicationStartupOptions(httpPort, masterPort, new File(dbPropertiesPath), pluginPath, blogRunTime,
                 true, intArg(args, 4, -1), blogApiHomeUrl, stringArg(args, 8, "_NOT_FOUND"),
-                normalizeNativeInfo(stringArg(args, 9, "")));
+                normalizeNativeInfo(stringArg(args, 9, "")), contextPath);
     }
 
     private static File createDevDbProperties() throws IOException {
@@ -72,13 +76,14 @@ class ApplicationStartupOptions {
         return tmpFile;
     }
 
-    private static String blogApiHomeUrl(String[] args) {
+    private static String blogApiHomeUrl(String[] args, String contextPath) {
         String blogApiHomeUrl = hasArg(args, 7) ? "http://127.0.0.1:" + Integer.parseInt(args[7])
                 : PluginHostConnection.DEFAULT_BLOG_API_HOME_URL;
-        if (hasArg(args, 10)) {
-            return blogApiHomeUrl + args[10].replace("#", "");
-        }
-        return blogApiHomeUrl;
+        return blogApiHomeUrl + contextPath;
+    }
+
+    private static String contextPath(String[] args) {
+        return PluginHostConnection.normalizeContextPath(stringArg(args, 10, ""));
     }
 
     private static String normalizeNativeInfo(String nativeInfo) {
@@ -144,5 +149,9 @@ class ApplicationStartupOptions {
 
     String getNativeInfo() {
         return nativeInfo;
+    }
+
+    String getContextPath() {
+        return contextPath;
     }
 }

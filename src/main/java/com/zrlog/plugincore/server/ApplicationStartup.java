@@ -38,7 +38,7 @@ class ApplicationStartup {
         PluginConfig pluginConfig = new PluginConfig(RunConstants.runType, options.getDbProperties(), options.getMasterPort(),
                 options.getPluginPath(), options.getBlogRunTime());
         PluginHostConnection hostConnection = new PluginHostConnection(options.getBlogApiHomeUrl(),
-                options.getBlogPluginToken(), options.getNativeInfo());
+                options.getBlogPluginToken(), options.getNativeInfo(), options.getContextPath());
         PluginRuntimeServices services = PluginRuntimeServices.create(pluginConfig, hostConnection);
         startBlogListener(options.getListenBlogPort());
         new PluginDataSourceInitializer().initialize(pluginConfig.getDbPropertiesFile());

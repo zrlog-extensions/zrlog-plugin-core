@@ -45,10 +45,11 @@ public class PluginConfigTest {
 
     @Test
     public void shouldConstructHostConnectionFromStartupValues() {
-        PluginHostConnection connection = new PluginHostConnection("http://127.0.0.1:8080/admin", "token", "Linux-amd64");
+        PluginHostConnection connection = new PluginHostConnection("http://127.0.0.1:8080/sub", "token", "Linux-amd64", "/sub/");
 
-        assertEquals("http://127.0.0.1:8080/admin", connection.getBlogApiHomeUrl());
+        assertEquals("http://127.0.0.1:8080/sub", connection.getBlogApiHomeUrl());
         assertEquals("token", connection.getBlogPluginToken());
         assertEquals("Linux-amd64", connection.getNativeInfo());
+        assertEquals("/sub", connection.getContextPath());
     }
 }

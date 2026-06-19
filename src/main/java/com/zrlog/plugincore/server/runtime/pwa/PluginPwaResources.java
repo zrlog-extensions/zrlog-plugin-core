@@ -3,6 +3,9 @@ package com.zrlog.plugincore.server.runtime.pwa;
 import com.google.gson.Gson;
 import com.hibegin.http.server.api.HttpResponse;
 import com.zrlog.plugin.message.Plugin;
+import com.zrlog.plugincore.server.runtime.PluginRuntimeBridge;
+import com.zrlog.plugincore.server.runtime.plugin.config.PluginHostConnection;
+import com.zrlog.plugincore.server.web.handler.PluginHandle;
 import com.zrlog.plugincore.server.web.handler.PluginRequestUriInfo;
 
 import java.io.ByteArrayInputStream;
@@ -27,7 +30,6 @@ public class PluginPwaResources {
 
     public boolean renderIfMatched(Plugin plugin,
                                    PluginRequestUriInfo requestUriInfo,
-                                   String requestUri,
                                    HttpResponse response) {
         if (plugin == null || requestUriInfo == null || response == null) {
             return false;
@@ -36,7 +38,7 @@ public class PluginPwaResources {
         if (!isPwaResource(action)) {
             return false;
         }
-        String basePath = pluginBasePath(requestUri, action, requestUriInfo.getName());
+        String basePath = pluginBasePath(requestUriInfo.getName(), PluginRuntimeBridge.hostConnection().getContextPath());
         if (isManifest(action)) {
             write(response, MANIFEST_CONTENT_TYPE, GSON.toJson(manifest(plugin, basePath)));
             return true;
@@ -98,14 +100,9 @@ public class PluginPwaResources {
         return MANIFEST_WEBMANIFEST.equals(normalized) || MANIFEST_JSON.equals(normalized);
     }
 
-    static String pluginBasePath(String requestUri, String action, String pluginShortName) {
-        String path = pathPart(requestUri);
-        String suffix = "/" + normalizeAction(action);
-        if (!isBlank(path) && path.endsWith(suffix)) {
-            String basePath = path.substring(0, path.length() - suffix.length());
-            return ensureTrailingSlash(basePath);
-        }
-        return ensureTrailingSlash("/admin/plugins/" + trimSlashes(pluginShortName));
+    static String pluginBasePath(String pluginShortName, String contextPath) {
+        return ensureTrailingSlash(PluginHostConnection.normalizeContextPath(contextPath)
+                + PluginHandle.OLD_PATH + "/" + trimSlashes(pluginShortName));
     }
 
     static PreviewIcon previewIcon(String previewImageBase64) {

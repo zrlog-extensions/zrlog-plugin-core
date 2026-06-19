@@ -56,11 +56,24 @@ public class PluginPwaResourcesTest {
     }
 
     @Test
-    public void shouldResolvePluginBasePathFromRequestUri() {
+    public void shouldResolveCanonicalPluginBasePath() {
         assertEquals("/admin/plugins/reminder/",
-                PluginPwaResources.pluginBasePath("/admin/plugins/reminder/manifest.webmanifest", "/manifest.webmanifest", "reminder"));
-        assertEquals("/p/reminder/",
-                PluginPwaResources.pluginBasePath("/p/reminder/pwa-sw.js?v=1", "/pwa-sw.js", "reminder"));
+                PluginPwaResources.pluginBasePath("reminder", ""));
+        assertEquals("/admin/plugins/reminder/",
+                PluginPwaResources.pluginBasePath("reminder", "#"));
+        assertEquals("/sub/admin/plugins/reminder/",
+                PluginPwaResources.pluginBasePath("reminder", "/sub/"));
+    }
+
+    @Test
+    public void shouldBuildScopedManifestWithContextPath() {
+        Map<String, Object> manifest = new PluginPwaResources().manifest(plugin(), "/sub/admin/plugins/reminder/");
+
+        assertEquals("/sub/admin/plugins/reminder/", manifest.get("id"));
+        assertEquals("/sub/admin/plugins/reminder/", manifest.get("start_url"));
+        assertEquals("/sub/admin/plugins/reminder/", manifest.get("scope"));
+        List icons = (List) manifest.get("icons");
+        assertEquals("/sub/admin/plugins/reminder/pwa-icon", ((Map) icons.get(0)).get("src"));
     }
 
     private Plugin plugin() {

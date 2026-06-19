@@ -19,6 +19,7 @@ public class ApplicationStartupOptionsTest {
         assertEquals(PluginHostConnection.DEFAULT_BLOG_API_HOME_URL, options.getBlogApiHomeUrl());
         assertEquals("", options.getBlogPluginToken());
         assertEquals("", options.getNativeInfo());
+        assertEquals("", options.getContextPath());
         assertEquals(-1, options.getListenBlogPort());
     }
 
@@ -35,7 +36,7 @@ public class ApplicationStartupOptionsTest {
                 "8080",
                 "token",
                 "-",
-                "#/admin"
+                "/sub"
         });
 
         assertEquals(9089, options.getHttpPort());
@@ -46,8 +47,29 @@ public class ApplicationStartupOptionsTest {
         assertEquals("4.0.0", options.getBlogRunTime().getVersion());
         assertTrue(options.hasExternalDbProperties());
         assertEquals(19081, options.getListenBlogPort());
-        assertEquals("http://127.0.0.1:8080/admin", options.getBlogApiHomeUrl());
+        assertEquals("http://127.0.0.1:8080/sub", options.getBlogApiHomeUrl());
         assertEquals("token", options.getBlogPluginToken());
         assertEquals("", options.getNativeInfo());
+        assertEquals("/sub", options.getContextPath());
+    }
+
+    @Test
+    public void shouldTreatHashContextPathPlaceholderAsEmpty() throws Exception {
+        ApplicationStartupOptions options = ApplicationStartupOptions.parse(new String[]{
+                "9089",
+                "19080",
+                "/tmp/blog-db.properties",
+                "/tmp/plugins",
+                "19081",
+                "/tmp/blog-runtime",
+                "4.0.0",
+                "8080",
+                "token",
+                "-",
+                "#"
+        });
+
+        assertEquals("http://127.0.0.1:8080", options.getBlogApiHomeUrl());
+        assertEquals("", options.getContextPath());
     }
 }
