@@ -1,4 +1,4 @@
-### plugin-core-frontend
+### plugin runtime frontend
 
 ### taobao registry
 

@@ -384,7 +384,7 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
     );
 
     const invocationLogColumns: ColumnsType<InvocationLog> = [
-        {title: "能力", key: "capability", render: (_, record) => invocationLogCell(record)},
+        {title: "插件调用", key: "capability", render: (_, record) => invocationLogCell(record)},
         {title: "来源", dataIndex: "source", width: 120, render: invocationSourceLabel, responsive: ["md"]},
         {
             title: "状态",
@@ -422,7 +422,7 @@ const RuntimeStatesTab: React.FC<RuntimeStatesTabProps> = () => {
                 scroll={isMobile ? undefined : {x: 1000}}
             />
             {detailDrawer}
-            <Text strong>能力调用日志</Text>
+            <Text strong>插件调用日志</Text>
             <Table<InvocationLog>
                 loading={loading}
                 rowKey="id"

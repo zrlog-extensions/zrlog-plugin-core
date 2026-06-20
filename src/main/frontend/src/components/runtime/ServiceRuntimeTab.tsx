@@ -106,7 +106,7 @@ const ServiceRuntimeTab: React.FC = () => {
         <Space direction="vertical" size={0}>
             <Text strong>{textOrEmpty(record.serviceLabel) || record.serviceName}</Text>
             <Tooltip title={record.serviceName}>
-                <Text type="secondary" style={{fontSize: 12}}>标准服务</Text>
+                <Text type="secondary" style={{fontSize: 12}}>系统服务</Text>
             </Tooltip>
         </Space>
     );
@@ -133,7 +133,7 @@ const ServiceRuntimeTab: React.FC = () => {
             render: (_, record) => serviceNameCell(record)
         },
         {
-            title: "提供方",
+            title: "来源插件",
             key: "provider",
             render: (_, record) => serviceProviderCell(record)
         },
@@ -184,7 +184,7 @@ const ServiceRuntimeTab: React.FC = () => {
             render: () => <Text strong>评论插件</Text>
         },
         {
-            title: "提供方",
+            title: "来源插件",
             key: "provider",
             render: (_, record) => commentProviderCell(record)
         },
@@ -219,7 +219,7 @@ const ServiceRuntimeTab: React.FC = () => {
     return (
         <Space direction="vertical" size={16} style={{width: "100%"}}>
             {contextHolder}
-            <Text strong>标准服务</Text>
+            <Text strong>系统服务</Text>
             <Table<ServiceProviderRow> loading={loading} rowKey={record => `${record.serviceName}:${record.providerPluginId}:${record.capabilityKey}`} columns={serviceColumns} dataSource={providers} pagination={false} scroll={isMobile ? undefined : {x: 760}} />
             <Text strong>评论插件</Text>
             <Table<CommentProviderRow> loading={loading} rowKey={record => record.shortName} columns={commentColumns} dataSource={commentProviders} pagination={false} scroll={isMobile ? undefined : {x: 760}} />

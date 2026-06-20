@@ -659,7 +659,7 @@ crons = ["*/5 * * * *"]`;
                     <Form.Item label="任务名称" name="name" rules={[{required: true, message: "请输入任务名称"}]}>
                         <Input disabled={editingSystemAutomation} />
                     </Form.Item>
-                    <Form.Item label="插件能力" name="capability" hidden={!!editing} rules={[{required: !editing, message: "请选择插件能力"}]}>
+                    <Form.Item label="插件任务" name="capability" hidden={!!editing} rules={[{required: !editing, message: "请选择插件任务"}]}>
                         <Select
                             onChange={(value) => {
                                 const [pluginId, key] = value.split("@@");

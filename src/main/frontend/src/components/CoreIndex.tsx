@@ -312,7 +312,7 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
             }
         },
         {
-            title: '提供服务',
+            title: '服务',
             key: 'services',
             responsive: ['md'],
             render: (_: any, plugin: Plugin) => {

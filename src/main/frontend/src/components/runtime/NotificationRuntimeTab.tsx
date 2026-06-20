@@ -135,7 +135,7 @@ const NotificationRuntimeTab: React.FC = () => {
     const providerColumns: ColumnsType<NotificationProviderRow> = [
         {title: "通道", dataIndex: "channel", width: 120, responsive: ["md"]},
         {
-            title: "Provider",
+            title: "通知插件",
             key: "provider",
             render: (_, record) => providerCell(record)
         },
@@ -201,7 +201,7 @@ const NotificationRuntimeTab: React.FC = () => {
 
     const deliveryColumns: ColumnsType<NotificationDelivery> = [
         {title: "通道", dataIndex: "channel", width: 120, responsive: ["md"]},
-        {title: "能力", key: "capability", render: (_, record) => deliveryCell(record)},
+        {title: "通知来源", key: "capability", render: (_, record) => deliveryCell(record)},
         {
             title: "状态",
             dataIndex: "status",
