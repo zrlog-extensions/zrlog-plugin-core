@@ -392,7 +392,7 @@ const SchedulerRuntimeTab: React.FC<Props> = () => {
   },
 
   async fetch() {
-    return new Response("ZrLog 调度 Worker 正在运行，定时任务通过 scheduled() 触发。", {
+    return new Response("ZrLog 调度 Worker 正在运行，定时任务通过 scheduled() 触发", {
       headers: {"content-type": "text/plain; charset=utf-8"},
     });
   },
