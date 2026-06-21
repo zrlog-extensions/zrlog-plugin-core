@@ -299,7 +299,7 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap'
                         }} title={plugin.desc}>
-                            {plugin.desc || '暂无描述。'}
+                            {plugin.desc || '暂无描述'}
                         </div>
                         {isMobile && services.length > 0 && (
                             <Text type="secondary" style={{fontSize: 12, display: "block", marginTop: 8}}>
@@ -356,7 +356,7 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
                         ) : (
                             <Popconfirm
                                 title={`确定卸载插件《${pluginNameText(plugin)}》吗？`}
-                                description="卸载后相关功能将被停用。"
+                                description="卸载后相关功能将被停用"
                                 okText="确定"
                                 okButtonProps={{ danger: true }}
                                 onConfirm={() => deletePlugin(plugin.shortName)}
@@ -599,7 +599,7 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
                                                         ) : (
                                                             <Popconfirm
                                                                 title={`确定卸载插件《${pluginNameText(plugin)}》吗？`}
-                                                                description="卸载后相关功能将被停用。"
+                                                                description="卸载后相关功能将被停用"
                                                                 okText="确定"
                                                                 okButtonProps={{ danger: true }}
                                                                 onConfirm={() => {
@@ -634,7 +634,7 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
                                                                 height: '38px',
                                                                 lineHeight: '19px'
                                                             }}>
-                                                                {plugin.desc || '该插件暂无详细描述。'}
+                                                                {plugin.desc || '该插件暂无详细描述'}
                                                             </Paragraph>
                                                         </div>
 
@@ -676,7 +676,7 @@ const CoreIndex: React.FC<CoreIndexProps> = ({data, onRefresh}) => {
                             fontSize: '13px',
                             marginBottom: '20px'
                         }}>
-                            可以前往插件市场浏览和下载更多扩展插件。
+                            前往插件市场浏览和下载更多扩展插件
                         </Paragraph>
                         <a href={data.pluginCenter}>
                             <Button 

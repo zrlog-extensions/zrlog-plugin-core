@@ -539,7 +539,7 @@ crons = ["*/5 * * * *"]`;
                     <Button type="link" size="small" icon={<PlusOutlined />} disabled={scheduledCapabilities.length === 0} onClick={openCreate}>新建任务</Button>
                 </Space>
                 <Space wrap style={isMobile ? {width: "100%"} : undefined}>
-                    <Tooltip title="触发一次调度检查，只执行已到期且启用的任务；未到期任务请使用行内立即执行。">
+                    <Tooltip title="触发一次调度检查，只执行已到期且启用的任务；未到期任务请使用行内立即执行">
                         <Button icon={<PlayCircleOutlined />} loading={ticking} onClick={triggerTick} style={isMobile ? {flex: 1} : undefined}>检查到期任务</Button>
                     </Tooltip>
                     <Button type="primary" icon={<CodeOutlined />} onClick={openExternalDrawer} style={isMobile ? {flex: 1} : undefined}>外部触发</Button>
@@ -576,7 +576,7 @@ crons = ["*/5 * * * *"]`;
             >
                 <Space direction="vertical" size={16} style={{width: "100%"}}>
                     <Text type="secondary">
-                        开启外部入口后，外部调度器可通过 POST 请求触发一次到期任务检查；接口使用 Authorization: Bearer token 校验。
+                        开启外部入口后，外部调度器可通过 POST 请求触发一次到期任务检查；接口使用 Authorization: Bearer token 校验
                     </Text>
                     <Input
                         addonBefore="外部地址"
@@ -616,7 +616,7 @@ crons = ["*/5 * * * *"]`;
                                     </Tooltip>
                                 )}
                             />
-                            <Text type="secondary">复制命令时会自动把这个 token 写入 Authorization 请求头。</Text>
+                            <Text type="secondary">复制命令时会自动把这个 token 写入 Authorization 请求头</Text>
                         </Space>
                     ))}
                     <Text strong>接入方式</Text>
@@ -627,7 +627,7 @@ crons = ["*/5 * * * *"]`;
                                 label: "curl",
                                 children: (
                                     <Space direction="vertical" size={12} style={{width: "100%"}}>
-                                        <Text type="secondary">适合系统定时器、GitHub Actions 或其它可执行命令的调度器。</Text>
+                                        <Text type="secondary">适合系统定时器、GitHub Actions 或其它可执行命令的调度器</Text>
                                         <Input.TextArea readOnly autoSize value={curlCommand(helpProvider?.secret || "")} />
                                         <Button icon={<CopyOutlined />} onClick={() => copyText(curlCommand(helpProvider?.secret || ""))}>复制 curl</Button>
                                     </Space>
@@ -638,7 +638,7 @@ crons = ["*/5 * * * *"]`;
                                 label: "Cloudflare Worker",
                                 children: (
                                     <Space direction="vertical" size={12} style={{width: "100%"}}>
-                                        <Text type="secondary">Cloudflare 定时触发器会调用 scheduled() 执行调度检查；直接访问 Worker 只返回运行状态。</Text>
+                                        <Text type="secondary">Cloudflare 定时触发器会调用 scheduled() 执行调度检查；直接访问 Worker 只返回运行状态</Text>
                                         <Text strong>src/index.js</Text>
                                         <Input.TextArea readOnly autoSize value={workerCode()} />
                                         <Button icon={<CopyOutlined />} onClick={() => copyText(workerCode())}>复制 Worker 代码</Button>

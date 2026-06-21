@@ -9,8 +9,9 @@ import com.zrlog.plugin.IOSession;
 import com.zrlog.plugin.common.*;
 import com.zrlog.plugin.common.type.PluginVersion;
 import com.zrlog.plugin.data.codec.*;
-import com.zrlog.plugincore.server.runtime.pwa.PluginPwaResources;
+import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.type.ActionType;
+import com.zrlog.plugincore.server.runtime.pwa.PluginPwaResources;
 import com.zrlog.plugincore.server.runtime.plugin.log.PluginLogContext;
 import com.zrlog.plugincore.server.runtime.plugin.session.PluginSessions;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateService;
@@ -22,6 +23,7 @@ import java.io.File;
 import java.io.InputStream;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.logging.Logger;
 
 public class PluginHttpStream {
@@ -30,6 +32,7 @@ public class PluginHttpStream {
 
     private static final PluginPwaResources PWA_RESOURCES = new PluginPwaResources();
 
+    static final String STATIC_ASSET_CACHE_CONTROL = "max-age=31536000, immutable";
 
     private final IOSession session;
     private final PluginRequestUriInfo pluginRequestUriInfo;
@@ -116,6 +119,9 @@ public class PluginHttpStream {
             String ext = getExt(httpRequest, responseMsgPacket);
             InputStream in = new ByteArrayInputStream(responseMsgPacket.getData().array());
             httpResponse.addHeader("Content-Type", MimeTypeUtil.getMimeStrByExt(ext));
+            if (responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_SUCCESS) {
+                addPluginStaticCacheHeader(httpResponse, session.getPlugin(), pluginRequestUriInfo.getAction(), actionType);
+            }
             httpResponse.write(in, responseMsgPacket.getStatus() == MsgPacketStatus.RESPONSE_SUCCESS ? 200 : 500);
         } catch (RuntimeException ex) {
             errorMessage = ex.getMessage();
@@ -137,5 +143,63 @@ public class PluginHttpStream {
             return "svg";
         }
         return httpRequest.getUri().substring(httpRequest.getUri().lastIndexOf(".") + 1);
+    }
+
+    static void addPluginStaticCacheHeader(HttpResponse response, Plugin plugin, String action, ActionType actionType) {
+        if (response != null && shouldCachePluginStaticResource(plugin, action, actionType)) {
+            response.addHeader("Cache-Control", STATIC_ASSET_CACHE_CONTROL);
+        }
+    }
+
+    static boolean shouldCachePluginStaticResource(Plugin plugin, String action, ActionType actionType) {
+        if (plugin == null || actionType != ActionType.HTTP_FILE) {
+            return false;
+        }
+        return matchesReportedCacheableStaticPath(action, plugin.getCacheableStaticPaths());
+    }
+
+    private static boolean matchesReportedCacheableStaticPath(String action, Set<String> cacheableStaticPaths) {
+        String path = normalizeCacheableStaticPath(action);
+        if (path == null || cacheableStaticPaths == null || cacheableStaticPaths.isEmpty()) {
+            return false;
+        }
+        for (String cacheableStaticPath : cacheableStaticPaths) {
+            String rule = normalizeCacheableStaticPath(cacheableStaticPath);
+            if (rule == null) {
+                continue;
+            }
+            if (rule.endsWith("/") && path.startsWith(rule)) {
+                return true;
+            }
+            if (path.equals(rule)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String normalizeCacheableStaticPath(String value) {
+        if (value == null) {
+            return null;
+        }
+        String path = value.trim();
+        if (path.isEmpty()) {
+            return null;
+        }
+        int queryIndex = path.indexOf('?');
+        if (queryIndex >= 0) {
+            path = path.substring(0, queryIndex);
+        }
+        int fragmentIndex = path.indexOf('#');
+        if (fragmentIndex >= 0) {
+            path = path.substring(0, fragmentIndex);
+        }
+        int staticIndex = path.indexOf("/static/");
+        if (staticIndex >= 0) {
+            path = path.substring(staticIndex);
+        } else if (path.startsWith("static/")) {
+            path = "/" + path;
+        }
+        return path.startsWith("/static/") ? path : null;
     }
 }
