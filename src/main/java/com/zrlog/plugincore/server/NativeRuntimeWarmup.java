@@ -27,6 +27,8 @@ import com.zrlog.plugin.message.SchedulerUpdateResult;
 import com.zrlog.plugin.type.ActionType;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityRegistrationService;
 import com.zrlog.plugincore.server.runtime.capability.CapabilityStore;
+import com.zrlog.plugincore.server.runtime.invocation.CapabilityInvocationLog;
+import com.zrlog.plugincore.server.runtime.notification.NotificationDelivery;
 import com.zrlog.plugincore.server.runtime.notification.NotificationDeliveryStore;
 import com.zrlog.plugincore.server.runtime.notification.NotificationProviderResolver;
 import com.zrlog.plugincore.server.runtime.notification.NotificationPublishResult;
@@ -34,15 +36,21 @@ import com.zrlog.plugincore.server.runtime.notification.NotificationRuntime;
 import com.zrlog.plugincore.server.runtime.notification.NotificationSetting;
 import com.zrlog.plugincore.server.runtime.scheduler.AutomationStore;
 import com.zrlog.plugincore.server.runtime.scheduler.PluginAutomation;
+import com.zrlog.plugincore.server.runtime.scheduler.PluginAutomationRun;
 import com.zrlog.plugincore.server.runtime.scheduler.RuntimeAutomationService;
 import com.zrlog.plugincore.server.runtime.scheduler.SchedulerQueryService;
 import com.zrlog.plugincore.server.runtime.scheduler.SchedulerSetting;
+import com.zrlog.plugincore.server.runtime.scheduler.SchedulerTickResult;
 import com.zrlog.plugincore.server.runtime.scheduler.SchedulerUpdateService;
 import com.zrlog.plugincore.server.runtime.service.ServiceSetting;
+import com.zrlog.plugincore.server.runtime.state.PluginRuntimeSetting;
+import com.zrlog.plugincore.server.web.controller.RuntimeApiModels;
 
 import java.lang.reflect.Method;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -133,6 +141,8 @@ final class NativeRuntimeWarmup {
                 })
                 .publish(notificationRequest);
 
+        warmupRuntimeApiModels(gson, capabilities, automations, publishResult);
+
         return new Result(capabilities.size(), automations.size(), schedulerQueryResult.isSuccess(), !schedulerResult.isSuccess(),
                 publishResult.getSuccessCount(), publishResult.getFailedCount(), annotatedCapabilityCount, actionDispatchCount);
     }
@@ -180,6 +190,149 @@ final class NativeRuntimeWarmup {
 
     private static MsgPacket packet(Object data, ContentType contentType, ActionType actionType) {
         return new MsgPacket(data, contentType, MsgPacketStatus.SEND_REQUEST, actionType.ordinal() + 1, actionType.name());
+    }
+
+    private static void warmupRuntimeApiModels(Gson gson,
+                                               List<PluginCapability> capabilities,
+                                               List<PluginAutomation> automations,
+                                               NotificationPublishResult publishResult) {
+        List<RuntimeApiModels.CapabilityResponse> capabilityResponses = new ArrayList<RuntimeApiModels.CapabilityResponse>();
+        for (PluginCapability capability : capabilities) {
+            RuntimeApiModels.CapabilityResponse response = RuntimeApiModels.CapabilityResponse.from(capability);
+            response.setPluginName("Native Plugin");
+            response.setPluginPreviewImageBase64("preview");
+            capabilityResponses.add(response);
+        }
+
+        List<RuntimeApiModels.AutomationResponse> automationResponses = new ArrayList<RuntimeApiModels.AutomationResponse>();
+        for (PluginAutomation automation : automations) {
+            RuntimeApiModels.AutomationResponse response = RuntimeApiModels.AutomationResponse.from(automation);
+            response.setPluginName("Native Plugin");
+            response.setPluginPreviewImageBase64("preview");
+            response.setTargetLabel("Native Plugin / Native scan");
+            automationResponses.add(response);
+        }
+
+        PluginAutomationRun automationRun = new PluginAutomationRun();
+        automationRun.setId("warmup-run");
+        automationRun.setAutomationId(automations.isEmpty() ? "warmup-automation" : automations.get(0).getId());
+        automationRun.setPluginId("native-plugin");
+        automationRun.setCapabilityKey("native.scan");
+        automationRun.setStatus("success");
+        automationRun.setStartedAt(1L);
+        automationRun.setFinishedAt(2L);
+        RuntimeApiModels.AutomationRunResponse automationRunResponse = RuntimeApiModels.AutomationRunResponse.from(automationRun);
+        automationRunResponse.setPluginName("Native Plugin");
+        automationRunResponse.setPluginPreviewImageBase64("preview");
+        automationRunResponse.setTargetLabel("Native Plugin / Native scan");
+
+        CapabilityInvocationLog invocationLog = new CapabilityInvocationLog();
+        invocationLog.setId("warmup-log");
+        invocationLog.setPluginId("native-plugin");
+        invocationLog.setCapabilityKey("native.scan");
+        invocationLog.setSource("native-warmup");
+        invocationLog.setRiskLevel("medium");
+        invocationLog.setAuditRequired(false);
+        invocationLog.setRequestId("warmup-request");
+        invocationLog.setTraceId("warmup-trace");
+        invocationLog.setStatus("success");
+        invocationLog.setStartedAt(1L);
+        invocationLog.setFinishedAt(2L);
+        invocationLog.setDurationMs(1L);
+        RuntimeApiModels.InvocationLogResponse invocationLogResponse = new RuntimeApiModels.InvocationLogResponse();
+        invocationLogResponse.setId(invocationLog.getId());
+        invocationLogResponse.setPluginId(invocationLog.getPluginId());
+        invocationLogResponse.setPluginName("Native Plugin");
+        invocationLogResponse.setPluginPreviewImageBase64("preview");
+        invocationLogResponse.setCapabilityKey(invocationLog.getCapabilityKey());
+        invocationLogResponse.setSource(invocationLog.getSource());
+        invocationLogResponse.setRiskLevel(invocationLog.getRiskLevel());
+        invocationLogResponse.setAuditRequired(invocationLog.getAuditRequired());
+        invocationLogResponse.setRequestId(invocationLog.getRequestId());
+        invocationLogResponse.setTraceId(invocationLog.getTraceId());
+        invocationLogResponse.setStatus(invocationLog.getStatus());
+        invocationLogResponse.setStartedAt(invocationLog.getStartedAt());
+        invocationLogResponse.setFinishedAt(invocationLog.getFinishedAt());
+        invocationLogResponse.setDurationMs(invocationLog.getDurationMs());
+
+        RuntimeApiModels.NotificationDeliveryResponse deliveryResponse = notificationDeliveryResponse(publishResult);
+        RuntimeApiModels.SchedulerSettingsResponse schedulerSettingsResponse = new RuntimeApiModels.SchedulerSettingsResponse();
+        schedulerSettingsResponse.setEnabled(true);
+        schedulerSettingsResponse.setExternalHost("https://example.com");
+        schedulerSettingsResponse.setEffectiveExternalHost("https://example.com");
+        schedulerSettingsResponse.setExternalTickPath("/api/runtime/scheduler/tick");
+        schedulerSettingsResponse.setExternalTickUrl("https://example.com/api/runtime/scheduler/tick");
+        schedulerSettingsResponse.setSystemTimezone("UTC");
+
+        RuntimeApiModels.PageResponse<RuntimeApiModels.AutomationRunResponse> automationRunPage = new RuntimeApiModels.PageResponse<RuntimeApiModels.AutomationRunResponse>();
+        automationRunPage.setRows(Collections.singletonList(automationRunResponse));
+        automationRunPage.setPage(1L);
+        automationRunPage.setSize(8L);
+        automationRunPage.setTotalElements(1L);
+
+        RuntimeApiModels.PageResponse<RuntimeApiModels.InvocationLogResponse> invocationLogPage = new RuntimeApiModels.PageResponse<RuntimeApiModels.InvocationLogResponse>();
+        invocationLogPage.setRows(Collections.singletonList(invocationLogResponse));
+        invocationLogPage.setPage(1L);
+        invocationLogPage.setSize(10L);
+        invocationLogPage.setTotalElements(1L);
+
+        RuntimeApiModels.ServiceProviderRow serviceProviderRow = new RuntimeApiModels.ServiceProviderRow();
+        serviceProviderRow.setServiceName("uploadService");
+        serviceProviderRow.setServiceLabel("上传服务");
+        serviceProviderRow.setProviderPluginId("native-plugin");
+        serviceProviderRow.setProviderPluginName("Native Plugin");
+        serviceProviderRow.setProviderPluginPreviewImageBase64("preview");
+        serviceProviderRow.setCapabilityKey("native.scan");
+        serviceProviderRow.setCapabilityLabel("Native scan");
+        serviceProviderRow.setSelected(true);
+        serviceProviderRow.setConfirmed(true);
+        serviceProviderRow.setReviewRequired(false);
+
+        RuntimeApiModels.CommentProviderRow commentProviderRow = new RuntimeApiModels.CommentProviderRow();
+        commentProviderRow.setShortName("native");
+        commentProviderRow.setPluginId("native-plugin");
+        commentProviderRow.setPluginName("Native Plugin");
+        commentProviderRow.setPluginPreviewImageBase64("preview");
+        commentProviderRow.setDescription("Native plugin");
+        commentProviderRow.setSelected(true);
+        commentProviderRow.setConfirmed(true);
+        commentProviderRow.setReviewRequired(false);
+
+        serializeRoundTrip(gson, RuntimeApiModels.Response.success());
+        serializeRoundTrip(gson, RuntimeApiModels.Response.error("warmup"));
+        serializeRoundTrip(gson, new RuntimeApiModels.ItemsResponse<RuntimeApiModels.CapabilityResponse>(capabilityResponses));
+        serializeRoundTrip(gson, automationRunPage);
+        serializeRoundTrip(gson, invocationLogPage);
+        serializeRoundTrip(gson, new RuntimeApiModels.ItemResponse<RuntimeApiModels.AutomationResponse>(
+                automationResponses.isEmpty() ? new RuntimeApiModels.AutomationResponse() : automationResponses.get(0)));
+        serializeRoundTrip(gson, new RuntimeApiModels.ResultResponse(new SchedulerTickResult()));
+        serializeRoundTrip(gson, RuntimeApiModels.ActionResponse.started());
+        serializeRoundTrip(gson, RuntimeApiModels.ActionResponse.removed(true));
+        serializeRoundTrip(gson, RuntimeApiModels.ActionResponse.successFlag(true));
+        serializeRoundTrip(gson, schedulerSettingsResponse);
+        serializeRoundTrip(gson, new RuntimeApiModels.RuntimeSettingsResponse(new PluginRuntimeSetting()));
+        serializeRoundTrip(gson, new RuntimeApiModels.AutomationsResponse(automationResponses, "UTC"));
+        serializeRoundTrip(gson, new RuntimeApiModels.NotificationTestResponse(true, deliveryResponse));
+        serializeRoundTrip(gson, new RuntimeApiModels.CommentProvidersResponse(Collections.singletonList(commentProviderRow), "native"));
+        serializeRoundTrip(gson, serviceProviderRow);
+        serializeRoundTrip(gson, commentProviderRow);
+        serializeRoundTrip(gson, deliveryResponse);
+    }
+
+    private static RuntimeApiModels.NotificationDeliveryResponse notificationDeliveryResponse(NotificationPublishResult publishResult) {
+        NotificationDelivery delivery = publishResult.getDeliveries() == null || publishResult.getDeliveries().isEmpty()
+                ? null
+                : publishResult.getDeliveries().get(0);
+        RuntimeApiModels.NotificationDeliveryResponse response = delivery == null
+                ? new RuntimeApiModels.NotificationDeliveryResponse()
+                : RuntimeApiModels.NotificationDeliveryResponse.from(delivery);
+        response.setProviderPluginName("Native Plugin");
+        response.setProviderPluginPreviewImageBase64("preview");
+        return response;
+    }
+
+    private static void serializeRoundTrip(Gson gson, Object value) {
+        gson.fromJson(gson.toJson(value), value.getClass());
     }
 
     private static String samplePluginJson() {

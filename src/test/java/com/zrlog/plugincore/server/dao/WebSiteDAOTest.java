@@ -1,11 +1,15 @@
 package com.zrlog.plugincore.server.dao;
 
+import com.zrlog.plugincore.server.support.InMemoryPluginCoreDatabase;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class WebSiteDAOTest {
@@ -13,6 +17,7 @@ public class WebSiteDAOTest {
     @Test
     public void shouldTreatStoredTextAndTypedValueAsSame() {
         assertTrue(WebSiteDAO.sameStoredValue("true", Boolean.TRUE));
+        assertTrue(WebSiteDAO.sameStoredValue("TRUE", Boolean.TRUE));
         assertTrue(WebSiteDAO.sameStoredValue("10", 10));
     }
 
@@ -36,5 +41,33 @@ public class WebSiteDAOTest {
         assertEquals(2, changedValues.size());
         assertEquals("New", changedValues.get("title"));
         assertEquals("value", changedValues.get("missing"));
+    }
+
+    @Test
+    public void shouldReadAndWriteWebsiteRowsWithH2Database() throws Exception {
+        try (InMemoryPluginCoreDatabase ignored = InMemoryPluginCoreDatabase.open()) {
+            WebSiteDAO dao = new WebSiteDAO();
+
+            assertTrue(dao.saveOrUpdateChanged("title", "ZrLog"));
+            assertTrue(dao.saveOrUpdateChanged("enabled", Boolean.TRUE));
+
+            assertEquals("ZrLog", dao.queryValueByName("title"));
+            Map<String, Object> values = dao.getWebSiteByNameIn(Collections.singletonList("enabled"));
+            assertEquals("true", String.valueOf(values.get("enabled")).toLowerCase());
+        }
+    }
+
+    @Test
+    public void shouldCompareAndSetWebsiteValueWithH2Database() throws Exception {
+        try (InMemoryPluginCoreDatabase ignored = InMemoryPluginCoreDatabase.open()) {
+            WebSiteDAO dao = new WebSiteDAO();
+            assertTrue(dao.saveOrUpdateVersioned("runtime.setting", "v1"));
+
+            WebSiteDAO.WebSiteValueSnapshot snapshot = dao.queryValueSnapshotByName("runtime.setting");
+            assertEquals(Optional.of("v1"), snapshot.getValue());
+            assertTrue(dao.compareAndSet("runtime.setting", "v1", snapshot.getRemark(), "v2"));
+            assertFalse(dao.compareAndSet("runtime.setting", "v1", snapshot.getRemark(), "v3"));
+            assertEquals("v2", dao.queryValueByName("runtime.setting"));
+        }
     }
 }

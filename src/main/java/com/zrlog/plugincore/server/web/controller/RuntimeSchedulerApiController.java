@@ -20,6 +20,15 @@ import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.ActionResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.AutomationResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.AutomationRunResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.AutomationsResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.ItemResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.PageResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.Response;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.ResultResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.SchedulerSettingsResponse;
 import static com.zrlog.plugincore.server.web.controller.RuntimeApiResponses.*;
 
 public class RuntimeSchedulerApiController extends RuntimeBaseApiController {
@@ -27,7 +36,7 @@ public class RuntimeSchedulerApiController extends RuntimeBaseApiController {
     private final Gson gson = new Gson();
 
     @ResponseBody
-    public Map<String, Object> schedulerSettings() {
+    public SchedulerSettingsResponse schedulerSettings() {
         PluginCoreDAO pluginCoreDAO = PluginCoreDAO.getInstance();
         SchedulerSetting setting = pluginCoreDAO.loadSnapshot().getSetting().getScheduler();
         if (getRequest().getMethod() == HttpMethod.POST) {
@@ -42,91 +51,78 @@ public class RuntimeSchedulerApiController extends RuntimeBaseApiController {
             }).getSetting().getScheduler();
         }
         String fallbackHomeUrl = schedulerFallbackHomeUrl(request);
-        Map<String, Object> map = success();
-        map.put("enabled", setting.getEnabled());
-        map.put("externalHost", setting.getExternalHost());
-        map.put("effectiveExternalHost", SchedulerExternalEndpoint.effectiveHost(setting.getExternalHost(), fallbackHomeUrl));
-        map.put("externalTickPath", SchedulerExternalEndpoint.EXTERNAL_TICK_EXPOSE_PATH);
-        map.put("externalTickUrl", SchedulerExternalEndpoint.tickUrl(setting.getExternalHost(), fallbackHomeUrl));
-        map.put("providers", setting.getProviders());
-        map.put("systemTimezone", ZoneId.systemDefault().getId());
-        return map;
+        SchedulerSettingsResponse response = new SchedulerSettingsResponse();
+        response.setEnabled(setting.getEnabled());
+        response.setExternalHost(setting.getExternalHost());
+        response.setEffectiveExternalHost(SchedulerExternalEndpoint.effectiveHost(setting.getExternalHost(), fallbackHomeUrl));
+        response.setExternalTickPath(SchedulerExternalEndpoint.EXTERNAL_TICK_EXPOSE_PATH);
+        response.setExternalTickUrl(SchedulerExternalEndpoint.tickUrl(setting.getExternalHost(), fallbackHomeUrl));
+        response.setProviders(setting.getProviders());
+        response.setSystemTimezone(ZoneId.systemDefault().getId());
+        return response;
     }
 
     @ResponseBody
-    public Map<String, Object> automations() {
+    public Response automations() {
         if (getRequest().getMethod() == HttpMethod.POST) {
             return saveAutomation();
         }
         PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
-        Map<String, Object> map = success();
         List<PluginCapability> capabilities = capabilityStore().listAll();
-        map.put("items", automationResponses(
+        return new AutomationsResponse(automationResponses(
                 automationService(pluginCore.getSetting().getRuntime()).listWithSystemAutomations(),
                 pluginsById(pluginCore),
-                capabilitiesByKey(capabilities)));
-        map.put("systemTimezone", ZoneId.systemDefault().getId());
-        return map;
+                capabilitiesByKey(capabilities)), ZoneId.systemDefault().getId());
     }
 
     @ResponseBody
-    public Map<String, Object> automationUpdate() {
+    public Response automationUpdate() {
         return saveAutomation();
     }
 
     @ResponseBody
-    public Map<String, Object> automationDelete() {
+    public ActionResponse automationDelete() {
         boolean removed = automationService().delete(getRequest().getParaToStr("id"));
-        Map<String, Object> map = success();
-        map.put("removed", removed);
-        return map;
+        return ActionResponse.removed(removed);
     }
 
     @ResponseBody
-    public Map<String, Object> automationRunNow() {
+    public Response automationRunNow() {
         try {
             PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
             PluginAutomationRun run = schedulerTickService(pluginCore).runNow(getRequest().getParaToStr("id"), ZonedDateTime.now());
-            Map<String, Object> map = success();
             List<PluginCapability> capabilities = capabilityStore().listAll();
-            map.put("item", automationRunResponse(run, pluginsById(pluginCore), capabilitiesByKey(capabilities)));
-            return map;
+            return new ItemResponse<AutomationRunResponse>(
+                    automationRunResponse(run, pluginsById(pluginCore), capabilitiesByKey(capabilities)));
         } catch (RuntimeException e) {
             return error(e.getMessage());
         }
     }
 
     @ResponseBody
-    public Map<String, Object> schedulerTick() {
+    public Response schedulerTick() {
         try {
             SchedulerTickResult result = schedulerTickService(PluginCoreDAO.getInstance().loadSnapshot())
                     .tick(ZonedDateTime.now(), RuntimeSources.TICK);
-            Map<String, Object> map = success();
-            map.put("result", result);
-            return map;
+            return new ResultResponse(result);
         } catch (RuntimeException e) {
             return error(e.getMessage());
         }
     }
 
     @ResponseBody
-    public Map<String, Object> automationRuns() {
-        Map<String, Object> map = success();
+    public PageResponse<AutomationRunResponse> automationRuns() {
         PageData<PluginAutomationRun> page = newestPage(automationRunStore().list(), 8);
         List<PluginCapability> capabilities = capabilityStore().listAll();
-        map.put("rows", automationRunResponses(page.getRows(), pluginsById(), capabilitiesByKey(capabilities)));
-        putPage(map, page);
-        return map;
+        return pageResponse(automationRunResponses(page.getRows(), pluginsById(), capabilitiesByKey(capabilities)), page);
     }
 
-    private Map<String, Object> saveAutomation() {
+    private Response saveAutomation() {
         try {
             PluginAutomation automation = readAutomation();
-            Map<String, Object> map = success();
             PluginAutomation saved = automationService().save(automation, null);
             List<PluginCapability> capabilities = capabilityStore().listAll();
-            map.put("item", automationResponse(saved, pluginsById(), capabilitiesByKey(capabilities)));
-            return map;
+            return new ItemResponse<AutomationResponse>(automationResponse(saved, pluginsById(), capabilitiesByKey(capabilities)));
         } catch (RuntimeException e) {
             return error(e.getMessage());
         }

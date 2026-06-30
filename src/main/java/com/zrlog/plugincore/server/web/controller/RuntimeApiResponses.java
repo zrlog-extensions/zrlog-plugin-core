@@ -1,6 +1,5 @@
 package com.zrlog.plugincore.server.web.controller;
 
-import com.google.gson.Gson;
 import com.hibegin.common.dao.dto.PageData;
 import com.zrlog.plugin.message.Plugin;
 import com.zrlog.plugin.message.PluginCapability;
@@ -19,31 +18,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-final class RuntimeApiResponses {
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.*;
 
-    private static final Gson GSON = new Gson();
+final class RuntimeApiResponses {
 
     private RuntimeApiResponses() {
     }
 
-    static Map<String, Object> success() {
-        Map<String, Object> map = new HashMap<String, Object>();
-        map.put("code", 0);
-        map.put("message", "成功");
-        return map;
+    static Response success() {
+        return Response.success();
     }
 
-    static Map<String, Object> error(String message) {
-        Map<String, Object> map = new HashMap<String, Object>();
-        map.put("code", 1);
-        map.put("message", message == null ? "失败" : message);
-        return map;
-    }
-
-    static void putPage(Map<String, Object> map, PageData<?> page) {
-        map.put("page", page.getPage());
-        map.put("size", page.getSize());
-        map.put("totalElements", page.getTotalElements());
+    static Response error(String message) {
+        return Response.error(message);
     }
 
     static Map<String, Plugin> pluginsById() {
@@ -72,133 +59,105 @@ final class RuntimeApiResponses {
         return capabilitiesByKey;
     }
 
-    @SuppressWarnings("unchecked")
-    static List<Map<String, Object>> capabilityResponses(List<PluginCapability> capabilities, Map<String, Plugin> pluginsById) {
-        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+    static List<CapabilityResponse> capabilityResponses(List<PluginCapability> capabilities, Map<String, Plugin> pluginsById) {
+        List<CapabilityResponse> items = new ArrayList<CapabilityResponse>();
         for (PluginCapability capability : capabilities) {
-            Map<String, Object> item = GSON.fromJson(GSON.toJson(capability), Map.class);
+            CapabilityResponse item = CapabilityResponse.from(capability);
             Plugin plugin = pluginsById.get(capability.getPluginId());
-            item.put("pluginName", pluginDisplayName(plugin));
-            item.put("pluginPreviewImageBase64", pluginPreviewImageBase64(plugin));
+            item.setPluginName(pluginDisplayName(plugin));
+            item.setPluginPreviewImageBase64(pluginPreviewImageBase64(plugin));
             items.add(item);
         }
         return items;
     }
 
-    static List<Map<String, Object>> automationResponses(List<PluginAutomation> automations,
-                                                          Map<String, Plugin> pluginsById,
-                                                          Map<String, PluginCapability> capabilitiesByKey) {
-        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+    static List<AutomationResponse> automationResponses(List<PluginAutomation> automations,
+                                                        Map<String, Plugin> pluginsById,
+                                                        Map<String, PluginCapability> capabilitiesByKey) {
+        List<AutomationResponse> items = new ArrayList<AutomationResponse>();
         for (PluginAutomation automation : automations) {
             items.add(automationResponse(automation, pluginsById, capabilitiesByKey));
         }
         return items;
     }
 
-    static Map<String, Object> automationResponse(PluginAutomation automation,
-                                                   Map<String, Plugin> pluginsById,
-                                                   Map<String, PluginCapability> capabilitiesByKey) {
-        Map<String, Object> map = new HashMap<String, Object>();
-        map.put("id", automation.getId());
-        map.put("pluginId", automation.getPluginId());
+    static AutomationResponse automationResponse(PluginAutomation automation,
+                                                 Map<String, Plugin> pluginsById,
+                                                 Map<String, PluginCapability> capabilitiesByKey) {
+        AutomationResponse response = AutomationResponse.from(automation);
         Plugin plugin = pluginsById.get(automation.getPluginId());
         PluginCapability capability = capabilitiesByKey.get(capabilityMapKey(automation.getPluginId(), automation.getCapabilityKey()));
-        map.put("pluginName", runtimePluginDisplayName(automation.getPluginId(), plugin, capability));
-        map.put("pluginPreviewImageBase64", pluginPreviewImageBase64(plugin));
-        map.put("capabilityKey", automation.getCapabilityKey());
-        map.put("name", automation.getName());
-        map.put("triggerType", automation.getTriggerType());
-        map.put("cron", automation.getCron());
-        map.put("timezone", automation.getTimezone());
-        map.put("enabled", automation.getEnabled());
-        map.put("system", automation.getSystem());
-        map.put("deletable", automation.getDeletable());
-        map.put("nextRunAt", automation.getNextRunAt());
-        map.put("lastRunAt", automation.getLastRunAt());
-        map.put("leaseOwner", automation.getLeaseOwner());
-        map.put("leaseUntil", automation.getLeaseUntil());
-        map.put("payload", automation.getPayload());
-        map.put("targetLabel", automationTargetLabel(automation.getId(), automation.getPluginId(), automation.getCapabilityKey(), automation.getName(), plugin, capability));
-        return map;
+        response.setPluginName(runtimePluginDisplayName(automation.getPluginId(), plugin, capability));
+        response.setPluginPreviewImageBase64(pluginPreviewImageBase64(plugin));
+        response.setTargetLabel(automationTargetLabel(automation.getId(), automation.getPluginId(), automation.getCapabilityKey(), automation.getName(), plugin, capability));
+        return response;
     }
 
-    static List<Map<String, Object>> automationRunResponses(List<PluginAutomationRun> runs,
-                                                             Map<String, Plugin> pluginsById,
-                                                             Map<String, PluginCapability> capabilitiesByKey) {
-        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+    static List<AutomationRunResponse> automationRunResponses(List<PluginAutomationRun> runs,
+                                                              Map<String, Plugin> pluginsById,
+                                                              Map<String, PluginCapability> capabilitiesByKey) {
+        List<AutomationRunResponse> items = new ArrayList<AutomationRunResponse>();
         for (PluginAutomationRun run : runs) {
             items.add(automationRunResponse(run, pluginsById, capabilitiesByKey));
         }
         return items;
     }
 
-    static Map<String, Object> automationRunResponse(PluginAutomationRun run,
-                                                      Map<String, Plugin> pluginsById,
-                                                      Map<String, PluginCapability> capabilitiesByKey) {
-        Map<String, Object> map = new HashMap<String, Object>();
-        map.put("id", run.getId());
-        map.put("automationId", run.getAutomationId());
-        map.put("pluginId", run.getPluginId());
+    static AutomationRunResponse automationRunResponse(PluginAutomationRun run,
+                                                       Map<String, Plugin> pluginsById,
+                                                       Map<String, PluginCapability> capabilitiesByKey) {
+        AutomationRunResponse response = AutomationRunResponse.from(run);
         Plugin plugin = pluginsById.get(run.getPluginId());
         PluginCapability capability = capabilitiesByKey.get(capabilityMapKey(run.getPluginId(), run.getCapabilityKey()));
-        map.put("pluginName", runtimePluginDisplayName(run.getPluginId(), plugin, capability));
-        map.put("pluginPreviewImageBase64", pluginPreviewImageBase64(plugin));
-        map.put("capabilityKey", run.getCapabilityKey());
-        map.put("status", run.getStatus());
-        map.put("startedAt", run.getStartedAt());
-        map.put("finishedAt", run.getFinishedAt());
-        map.put("durationMs", run.getDurationMs());
-        map.put("errorMessage", run.getErrorMessage());
-        map.put("targetLabel", automationTargetLabel(run.getAutomationId(), run.getPluginId(), run.getCapabilityKey(), null, plugin, capability));
-        return map;
+        response.setPluginName(runtimePluginDisplayName(run.getPluginId(), plugin, capability));
+        response.setPluginPreviewImageBase64(pluginPreviewImageBase64(plugin));
+        response.setTargetLabel(automationTargetLabel(run.getAutomationId(), run.getPluginId(), run.getCapabilityKey(), null, plugin, capability));
+        return response;
     }
 
-    static List<Map<String, Object>> invocationLogResponses(List<CapabilityInvocationLog> logs, Map<String, Plugin> pluginsById) {
-        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+    static List<InvocationLogResponse> invocationLogResponses(List<CapabilityInvocationLog> logs, Map<String, Plugin> pluginsById) {
+        List<InvocationLogResponse> items = new ArrayList<InvocationLogResponse>();
         for (CapabilityInvocationLog log : logs) {
-            Map<String, Object> map = new HashMap<String, Object>();
-            map.put("id", log.getId());
-            map.put("pluginId", log.getPluginId());
+            InvocationLogResponse response = new InvocationLogResponse();
+            response.setId(log.getId());
+            response.setPluginId(log.getPluginId());
             Plugin plugin = pluginsById.get(log.getPluginId());
-            map.put("pluginName", runtimePluginDisplayName(log.getPluginId(), plugin));
-            map.put("pluginPreviewImageBase64", pluginPreviewImageBase64(plugin));
-            map.put("capabilityKey", log.getCapabilityKey());
-            map.put("source", log.getSource());
-            map.put("riskLevel", log.getRiskLevel());
-            map.put("auditRequired", log.getAuditRequired());
-            map.put("requestId", log.getRequestId());
-            map.put("traceId", log.getTraceId());
-            map.put("status", log.getStatus());
-            map.put("startedAt", log.getStartedAt());
-            map.put("finishedAt", log.getFinishedAt());
-            map.put("durationMs", log.getDurationMs());
-            map.put("errorMessage", log.getErrorMessage());
-            items.add(map);
+            response.setPluginName(runtimePluginDisplayName(log.getPluginId(), plugin));
+            response.setPluginPreviewImageBase64(pluginPreviewImageBase64(plugin));
+            response.setCapabilityKey(log.getCapabilityKey());
+            response.setSource(log.getSource());
+            response.setRiskLevel(log.getRiskLevel());
+            response.setAuditRequired(log.getAuditRequired());
+            response.setRequestId(log.getRequestId());
+            response.setTraceId(log.getTraceId());
+            response.setStatus(log.getStatus());
+            response.setStartedAt(log.getStartedAt());
+            response.setFinishedAt(log.getFinishedAt());
+            response.setDurationMs(log.getDurationMs());
+            response.setErrorMessage(log.getErrorMessage());
+            items.add(response);
         }
         return items;
     }
 
-    static List<Map<String, Object>> notificationDeliveryResponses(List<NotificationDelivery> deliveries, Map<String, Plugin> pluginsById) {
-        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+    static List<NotificationDeliveryResponse> notificationDeliveryResponses(List<NotificationDelivery> deliveries, Map<String, Plugin> pluginsById) {
+        List<NotificationDeliveryResponse> items = new ArrayList<NotificationDeliveryResponse>();
         for (NotificationDelivery delivery : deliveries) {
             items.add(notificationDeliveryResponse(delivery, pluginsById));
         }
         return items;
     }
 
-    static Map<String, Object> notificationDeliveryResponse(NotificationDelivery delivery, Map<String, Plugin> pluginsById) {
-        Map<String, Object> map = new HashMap<String, Object>();
-        map.put("id", delivery.getId());
-        map.put("channel", delivery.getChannel());
-        map.put("providerPluginId", delivery.getProviderPluginId());
+    static NotificationDeliveryResponse notificationDeliveryResponse(NotificationDelivery delivery, Map<String, Plugin> pluginsById) {
+        NotificationDeliveryResponse response = NotificationDeliveryResponse.from(delivery);
         Plugin plugin = pluginsById.get(delivery.getProviderPluginId());
-        map.put("providerPluginName", pluginDisplayName(plugin));
-        map.put("providerPluginPreviewImageBase64", pluginPreviewImageBase64(plugin));
-        map.put("capabilityKey", delivery.getCapabilityKey());
-        map.put("status", delivery.getStatus());
-        map.put("errorMessage", delivery.getErrorMessage());
-        map.put("createdAt", delivery.getCreatedAt());
-        return map;
+        response.setProviderPluginName(pluginDisplayName(plugin));
+        response.setProviderPluginPreviewImageBase64(pluginPreviewImageBase64(plugin));
+        return response;
+    }
+
+    static <T> PageResponse<T> pageResponse(List<T> rows, PageData<?> page) {
+        return new PageResponse<T>(rows, page);
     }
 
     static String automationTargetLabel(String id,

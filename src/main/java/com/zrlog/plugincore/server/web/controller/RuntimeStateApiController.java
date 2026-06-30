@@ -14,23 +14,27 @@ import com.zrlog.plugincore.server.vo.PluginVO;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.CapabilityResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.ActionResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.ItemsResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.InvocationLogResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.PageResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.Response;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.RuntimeSettingsResponse;
 import static com.zrlog.plugincore.server.web.controller.RuntimeApiResponses.*;
 
 public class RuntimeStateApiController extends RuntimeBaseApiController {
 
     @ResponseBody
-    public Map<String, Object> runtimeStates() {
-        Map<String, Object> map = success();
-        map.put("items", runtimeStatesForCurrentMode());
-        return map;
+    public ItemsResponse<?> runtimeStates() {
+        return new ItemsResponse<Object>(runtimeStatesForCurrentMode());
     }
 
     @ResponseBody
-    public Map<String, Object> runtimeStart() {
+    public Response runtimeStart() {
         String pluginId = getRequest().getParaToStr("pluginId");
         PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
         PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOById(pluginCore, pluginId);
@@ -41,13 +45,11 @@ public class RuntimeStateApiController extends RuntimeBaseApiController {
         if (!started) {
             return error("插件启动失败");
         }
-        Map<String, Object> map = success();
-        map.put("started", true);
-        return map;
+        return ActionResponse.started();
     }
 
     @ResponseBody
-    public Map<String, Object> runtimeStop() {
+    public Response runtimeStop() {
         String pluginId = getRequest().getParaToStr("pluginId");
         PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
         PluginVO pluginVO = PluginCoreDAO.getInstance().getPluginVOById(pluginCore, pluginId);
@@ -70,7 +72,7 @@ public class RuntimeStateApiController extends RuntimeBaseApiController {
     }
 
     @ResponseBody
-    public Map<String, Object> runtimeSettings() {
+    public Response runtimeSettings() {
         PluginCoreDAO pluginCoreDAO = PluginCoreDAO.getInstance();
         PluginCore currentPluginCore = pluginCoreDAO.loadSnapshot();
         PluginRuntimeSetting setting = currentPluginCore.getSetting().getRuntime();
@@ -95,20 +97,17 @@ public class RuntimeStateApiController extends RuntimeBaseApiController {
                 return error(e.getMessage());
             }
         }
-        return runtimeSettingsResponse(setting);
+        return new RuntimeSettingsResponse(setting);
     }
 
     @ResponseBody
-    public Map<String, Object> invocationLogs() {
-        Map<String, Object> map = success();
+    public PageResponse<InvocationLogResponse> invocationLogs() {
         PageData<CapabilityInvocationLog> page = newestPage(invocationLogStore().list(), 10);
-        map.put("rows", invocationLogResponses(page.getRows(), pluginsById()));
-        putPage(map, page);
-        return map;
+        return pageResponse(invocationLogResponses(page.getRows(), pluginsById()), page);
     }
 
     @ResponseBody
-    public Map<String, Object> capabilities() {
+    public ItemsResponse<CapabilityResponse> capabilities() {
         String pluginId = getRequest().getParaToStr("pluginId");
         String type = getRequest().getParaToStr("type");
         String exposure = getRequest().getParaToStr("exposure");
@@ -124,23 +123,11 @@ public class RuntimeStateApiController extends RuntimeBaseApiController {
                     .filter(item -> item.getExposure() != null && item.getExposure().contains(exposure))
                     .collect(Collectors.toList());
         }
-        Map<String, Object> map = success();
-        map.put("items", capabilityResponses(items, pluginsById()));
-        return map;
+        return new ItemsResponse<CapabilityResponse>(capabilityResponses(items, pluginsById()));
     }
 
     static List<?> runtimeStatesForCurrentMode() {
         return PluginCoreRunMode.isNativeAgent() ? Collections.emptyList() : new PluginProcessQueryService().query();
-    }
-
-    private Map<String, Object> runtimeSettingsResponse(PluginRuntimeSetting setting) {
-        Map<String, Object> map = success();
-        map.put("onDemandEnabled", setting.getOnDemandEnabled());
-        map.put("autoDownloadMissingPluginFileEnabled", setting.getAutoDownloadMissingPluginFileEnabled());
-        map.put("idleStopEnabled", setting.getIdleStopEnabled());
-        map.put("idleTimeoutSeconds", setting.getIdleTimeoutSeconds());
-        map.put("idleScanIntervalSeconds", setting.getIdleScanIntervalSeconds());
-        return map;
     }
 
     private Boolean runtimeBooleanParam(String name, Boolean fallback) {

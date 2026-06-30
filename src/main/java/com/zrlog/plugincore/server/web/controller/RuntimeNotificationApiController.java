@@ -26,6 +26,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.NotificationDeliveryResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.NotificationTestResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.PageResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.Response;
 import static com.zrlog.plugincore.server.web.controller.RuntimeApiResponses.*;
 import static com.zrlog.plugincore.server.web.controller.RuntimeProviderResponses.notificationChannelProviders;
 import static com.zrlog.plugincore.server.web.controller.RuntimeProviderResponses.validNotificationProvider;
@@ -44,7 +48,7 @@ public class RuntimeNotificationApiController extends RuntimeBaseApiController {
     }
 
     @ResponseBody
-    public Map<String, Object> notificationProviderUpdate() {
+    public Response notificationProviderUpdate() {
         String channel = getRequest().getParaToStr("channel");
         String pluginId = getRequest().getParaToStr("pluginId");
         String capabilityKey = getRequest().getParaToStr("capabilityKey");
@@ -62,7 +66,7 @@ public class RuntimeNotificationApiController extends RuntimeBaseApiController {
     }
 
     @ResponseBody
-    public Map<String, Object> notificationProviderAuto() {
+    public Response notificationProviderAuto() {
         String channel = getRequest().getParaToStr("channel");
         PluginCoreDAO.getInstance().update(pluginCore ->
                 pluginCore.getSetting().getNotification().getDefaultProviders().remove(channel));
@@ -70,7 +74,7 @@ public class RuntimeNotificationApiController extends RuntimeBaseApiController {
     }
 
     @ResponseBody
-    public Map<String, Object> notificationTest() {
+    public Response notificationTest() {
         String channel = getRequest().getParaToStr("channel");
         String pluginId = getRequest().getParaToStr("pluginId");
         String capabilityKey = getRequest().getParaToStr("capabilityKey");
@@ -101,19 +105,14 @@ public class RuntimeNotificationApiController extends RuntimeBaseApiController {
         if (delivery == null) {
             return error("测试通知没有生成投递记录");
         }
-        Map<String, Object> map = success();
-        map.put("success", result.getSuccessCount() > 0);
-        map.put("delivery", notificationDeliveryResponse(delivery, pluginsById(pluginCore)));
-        return map;
+        return new NotificationTestResponse(result.getSuccessCount() > 0,
+                notificationDeliveryResponse(delivery, pluginsById(pluginCore)));
     }
 
     @ResponseBody
-    public Map<String, Object> notificationDeliveries() {
-        Map<String, Object> map = success();
+    public PageResponse<NotificationDeliveryResponse> notificationDeliveries() {
         PageData<NotificationDelivery> page = newestPage(notificationDeliveryStore().list(), 8);
-        map.put("rows", notificationDeliveryResponses(page.getRows(), pluginsById()));
-        putPage(map, page);
-        return map;
+        return pageResponse(notificationDeliveryResponses(page.getRows(), pluginsById()), page);
     }
 
     private NotificationRequest notificationTestRequest(String channel) {

@@ -42,6 +42,7 @@ import com.zrlog.plugincore.server.runtime.state.PluginRuntimeInstanceView;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeSetting;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeState;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeStateDocument;
+import com.zrlog.plugincore.server.web.controller.RuntimeApiModels;
 
 import java.io.File;
 import java.io.IOException;
@@ -102,7 +103,25 @@ public class GraalvmAgentApplication {
                 PluginRuntimeInstanceState.class,
                 PluginRuntimeInstanceView.class,
                 PluginRuntimeState.class,
-                PluginRuntimeStateDocument.class
+                PluginRuntimeStateDocument.class,
+                RuntimeApiModels.Response.class,
+                RuntimeApiModels.ItemsResponse.class,
+                RuntimeApiModels.PageResponse.class,
+                RuntimeApiModels.ItemResponse.class,
+                RuntimeApiModels.ResultResponse.class,
+                RuntimeApiModels.ActionResponse.class,
+                RuntimeApiModels.SchedulerSettingsResponse.class,
+                RuntimeApiModels.RuntimeSettingsResponse.class,
+                RuntimeApiModels.AutomationsResponse.class,
+                RuntimeApiModels.NotificationTestResponse.class,
+                RuntimeApiModels.CommentProvidersResponse.class,
+                RuntimeApiModels.CapabilityResponse.class,
+                RuntimeApiModels.AutomationResponse.class,
+                RuntimeApiModels.AutomationRunResponse.class,
+                RuntimeApiModels.InvocationLogResponse.class,
+                RuntimeApiModels.NotificationDeliveryResponse.class,
+                RuntimeApiModels.ServiceProviderRow.class,
+                RuntimeApiModels.CommentProviderRow.class
         );
     }
 }

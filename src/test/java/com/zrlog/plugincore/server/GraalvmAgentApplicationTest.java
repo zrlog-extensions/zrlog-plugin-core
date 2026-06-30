@@ -20,6 +20,7 @@ import com.zrlog.plugincore.server.runtime.scheduler.SchedulerSetting;
 import com.zrlog.plugincore.server.runtime.service.ServiceProviderSetting;
 import com.zrlog.plugincore.server.runtime.service.ServiceSetting;
 import com.zrlog.plugincore.server.runtime.state.PluginRuntimeState;
+import com.zrlog.plugincore.server.web.controller.RuntimeApiModels;
 import org.junit.Test;
 
 import java.util.List;
@@ -53,6 +54,24 @@ public class GraalvmAgentApplicationTest {
         assertTrue(classes.contains(ServiceSetting.class));
         assertTrue(classes.contains(ServiceProviderSetting.class));
         assertTrue(classes.contains(PluginRuntimeState.class));
+        assertTrue(classes.contains(RuntimeApiModels.Response.class));
+        assertTrue(classes.contains(RuntimeApiModels.ItemsResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.PageResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.ItemResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.ResultResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.ActionResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.SchedulerSettingsResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.RuntimeSettingsResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.AutomationsResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.NotificationTestResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.CommentProvidersResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.CapabilityResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.AutomationResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.AutomationRunResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.InvocationLogResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.NotificationDeliveryResponse.class));
+        assertTrue(classes.contains(RuntimeApiModels.ServiceProviderRow.class));
+        assertTrue(classes.contains(RuntimeApiModels.CommentProviderRow.class));
     }
 
     @Test

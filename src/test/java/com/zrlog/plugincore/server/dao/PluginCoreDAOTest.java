@@ -2,6 +2,7 @@ package com.zrlog.plugincore.server.dao;
 
 import com.google.gson.Gson;
 import com.zrlog.plugincore.server.model.PluginCore;
+import com.zrlog.plugincore.server.support.InMemoryPluginCoreDatabase;
 import org.junit.Test;
 
 import java.sql.SQLException;
@@ -41,6 +42,19 @@ public class PluginCoreDAOTest {
         assertEquals("remark-1", dao.casExpectedRemark);
         assertTrue(updated.getSetting().isDisableAutoDownloadLostFile());
         assertEquals(gson.toJson(updated), dao.casValue);
+    }
+
+    @Test
+    public void shouldPersistPluginCoreJsonWithH2Database() throws Exception {
+        try (InMemoryPluginCoreDatabase ignored = InMemoryPluginCoreDatabase.open()) {
+            PluginCoreDAO dao = new PluginCoreDAO();
+
+            PluginCore updated = dao.update(pluginCore ->
+                    pluginCore.getSetting().setDisableAutoDownloadLostFile(true));
+
+            assertTrue(updated.getSetting().isDisableAutoDownloadLostFile());
+            assertTrue(dao.loadSnapshot().getSetting().isDisableAutoDownloadLostFile());
+        }
     }
 
     private static class FakePluginCoreDAO extends PluginCoreDAO {

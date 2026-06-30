@@ -124,8 +124,16 @@ public class WebSiteDAO extends DAO {
     }
 
     static boolean sameStoredValue(Object storedValue, Object nextValue) {
-        return Objects.equals(storedValue == null ? null : storedValue.toString(),
-                nextValue == null ? null : nextValue.toString());
+        String storedText = storedValue == null ? null : storedValue.toString();
+        String nextText = nextValue == null ? null : nextValue.toString();
+        if (isBooleanText(storedText) && isBooleanText(nextText)) {
+            return Boolean.parseBoolean(storedText) == Boolean.parseBoolean(nextText);
+        }
+        return Objects.equals(storedText, nextText);
+    }
+
+    private static boolean isBooleanText(String value) {
+        return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
     }
 
     static Map<String, Object> changedValues(Map<String, Object> existingValues, Map<String, Object> values) {

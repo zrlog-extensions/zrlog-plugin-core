@@ -15,7 +15,6 @@ import com.zrlog.plugincore.server.runtime.service.ServiceSetting;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +26,9 @@ import static com.zrlog.plugincore.server.web.controller.RuntimeApiResponses.lat
 import static com.zrlog.plugincore.server.web.controller.RuntimeApiResponses.notificationProviderKey;
 import static com.zrlog.plugincore.server.web.controller.RuntimeApiResponses.pluginDisplayName;
 import static com.zrlog.plugincore.server.web.controller.RuntimeApiResponses.pluginPreviewImageBase64;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.CommentProviderRow;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.CommentProvidersResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.ServiceProviderRow;
 
 final class RuntimeProviderResponses {
 
@@ -93,9 +95,9 @@ final class RuntimeProviderResponses {
                 && Objects.equals(channel, provider.getChannel());
     }
 
-    static List<Map<String, Object>> serviceProviderRows(List<PluginCapability> capabilities,
-                                                          ServiceSetting setting,
-                                                          Map<String, Plugin> pluginsById) {
+    static List<ServiceProviderRow> serviceProviderRows(List<PluginCapability> capabilities,
+                                                        ServiceSetting setting,
+                                                        Map<String, Plugin> pluginsById) {
         ServiceProviderResolver resolver = new ServiceProviderResolver();
         List<PluginCapability> providers = capabilities.stream()
                 .filter(item -> item.getExposure() != null && item.getExposure().contains("internal"))
@@ -107,25 +109,25 @@ final class RuntimeProviderResponses {
         }
         List<String> sortedServiceNames = new ArrayList<String>(serviceNames);
         Collections.sort(sortedServiceNames);
-        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        List<ServiceProviderRow> items = new ArrayList<ServiceProviderRow>();
         for (String serviceName : sortedServiceNames) {
             PluginCapability selected = resolver.resolve(serviceName, providers, setting).orElse(null);
             boolean reviewRequired = resolver.reviewRequired(serviceName, providers, setting);
             for (PluginCapability provider : resolver.providersFor(serviceName, providers)) {
-                Map<String, Object> item = new HashMap<String, Object>();
-                item.put("serviceName", serviceName);
-                item.put("serviceLabel", serviceLabel(serviceName));
-                item.put("providerPluginId", provider.getPluginId());
+                ServiceProviderRow item = new ServiceProviderRow();
+                item.setServiceName(serviceName);
+                item.setServiceLabel(serviceLabel(serviceName));
+                item.setProviderPluginId(provider.getPluginId());
                 Plugin plugin = pluginsById.get(provider.getPluginId());
-                item.put("providerPluginName", pluginDisplayName(plugin));
-                item.put("providerPluginPreviewImageBase64", pluginPreviewImageBase64(plugin));
-                item.put("capabilityKey", provider.getKey());
-                item.put("capabilityLabel", provider.getLabel());
-                item.put("selected", selected != null
+                item.setProviderPluginName(pluginDisplayName(plugin));
+                item.setProviderPluginPreviewImageBase64(pluginPreviewImageBase64(plugin));
+                item.setCapabilityKey(provider.getKey());
+                item.setCapabilityLabel(provider.getLabel());
+                item.setSelected(selected != null
                         && Objects.equals(selected.getPluginId(), provider.getPluginId())
                         && Objects.equals(selected.getKey(), provider.getKey()));
-                item.put("confirmed", isConfiguredServiceProvider(setting, serviceName, provider));
-                item.put("reviewRequired", reviewRequired);
+                item.setConfirmed(isConfiguredServiceProvider(setting, serviceName, provider));
+                item.setReviewRequired(reviewRequired);
                 items.add(item);
             }
         }
@@ -146,26 +148,23 @@ final class RuntimeProviderResponses {
         return providers;
     }
 
-    static Map<String, Object> commentProviderResponse(List<Plugin> providers, String configured) {
+    static CommentProvidersResponse commentProviderResponse(List<Plugin> providers, String configured) {
         String selectedShortName = selectedCommentShortName(providers, configured);
         boolean reviewRequired = providers.size() > 1 && (isBlank(configured) || findPluginByShortName(providers, configured) == null);
-        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        List<CommentProviderRow> items = new ArrayList<CommentProviderRow>();
         for (Plugin provider : providers) {
-            Map<String, Object> item = new HashMap<String, Object>();
-            item.put("shortName", provider.getShortName());
-            item.put("pluginId", provider.getId());
-            item.put("pluginName", pluginDisplayName(provider));
-            item.put("pluginPreviewImageBase64", pluginPreviewImageBase64(provider));
-            item.put("description", provider.getDesc());
-            item.put("selected", Objects.equals(selectedShortName, provider.getShortName()));
-            item.put("confirmed", !isBlank(configured) && Objects.equals(configured, provider.getShortName()));
-            item.put("reviewRequired", reviewRequired);
+            CommentProviderRow item = new CommentProviderRow();
+            item.setShortName(provider.getShortName());
+            item.setPluginId(provider.getId());
+            item.setPluginName(pluginDisplayName(provider));
+            item.setPluginPreviewImageBase64(pluginPreviewImageBase64(provider));
+            item.setDescription(provider.getDesc());
+            item.setSelected(Objects.equals(selectedShortName, provider.getShortName()));
+            item.setConfirmed(!isBlank(configured) && Objects.equals(configured, provider.getShortName()));
+            item.setReviewRequired(reviewRequired);
             items.add(item);
         }
-        Map<String, Object> map = RuntimeApiResponses.success();
-        map.put("items", items);
-        map.put("selectedShortName", selectedShortName);
-        return map;
+        return new CommentProvidersResponse(items, selectedShortName);
     }
 
     static Plugin findPluginByShortName(List<Plugin> providers, String shortName) {

@@ -12,9 +12,11 @@ import com.zrlog.plugincore.server.runtime.service.ServiceProviderSetting;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.ItemsResponse;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.Response;
+import static com.zrlog.plugincore.server.web.controller.RuntimeApiModels.ServiceProviderRow;
 import static com.zrlog.plugincore.server.web.controller.RuntimeApiResponses.error;
 import static com.zrlog.plugincore.server.web.controller.RuntimeApiResponses.pluginsById;
 import static com.zrlog.plugincore.server.web.controller.RuntimeApiResponses.success;
@@ -25,18 +27,16 @@ public class RuntimeServiceApiController extends RuntimeBaseApiController {
     private static final String COMMENT_PLUGIN_NAME_KEY = "comment_plugin_name";
 
     @ResponseBody
-    public Map<String, Object> serviceProviders() {
+    public ItemsResponse<ServiceProviderRow> serviceProviders() {
         PluginCore pluginCore = PluginCoreDAO.getInstance().loadSnapshot();
-        Map<String, Object> map = success();
-        map.put("items", serviceProviderRows(
+        return new ItemsResponse<ServiceProviderRow>(serviceProviderRows(
                 capabilityStore().listByType("service"),
                 pluginCore.getSetting().getService(),
                 pluginsById(pluginCore)));
-        return map;
     }
 
     @ResponseBody
-    public Map<String, Object> serviceProviderUpdate() {
+    public Response serviceProviderUpdate() {
         String serviceName = getRequest().getParaToStr("serviceName");
         String pluginId = getRequest().getParaToStr("pluginId");
         String capabilityKey = getRequest().getParaToStr("capabilityKey");
@@ -59,7 +59,7 @@ public class RuntimeServiceApiController extends RuntimeBaseApiController {
     }
 
     @ResponseBody
-    public Map<String, Object> serviceProviderAuto() {
+    public Response serviceProviderAuto() {
         String serviceName = getRequest().getParaToStr("serviceName");
         PluginCoreDAO.getInstance().update(pluginCore ->
                 pluginCore.getSetting().getService().getDefaultProviders().remove(serviceName));
@@ -67,7 +67,7 @@ public class RuntimeServiceApiController extends RuntimeBaseApiController {
     }
 
     @ResponseBody
-    public Map<String, Object> commentProviders() {
+    public Response commentProviders() {
         try {
             List<Plugin> providers = commentProviderPlugins();
             String configured = commentPluginName();
@@ -78,7 +78,7 @@ public class RuntimeServiceApiController extends RuntimeBaseApiController {
     }
 
     @ResponseBody
-    public Map<String, Object> commentProviderUpdate() {
+    public Response commentProviderUpdate() {
         String shortName = getRequest().getParaToStr("shortName");
         if (findPluginByShortName(commentProviderPlugins(), shortName) == null) {
             return error("评论插件不存在");
@@ -92,7 +92,7 @@ public class RuntimeServiceApiController extends RuntimeBaseApiController {
     }
 
     @ResponseBody
-    public Map<String, Object> commentProviderDefault() {
+    public Response commentProviderDefault() {
         List<Plugin> providers = commentProviderPlugins();
         String shortName = findPluginByShortName(providers, DEFAULT_COMMENT_PLUGIN) == null && !providers.isEmpty()
                 ? providers.get(0).getShortName()
